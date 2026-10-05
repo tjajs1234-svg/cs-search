@@ -1,0 +1,46 @@
+/* 상담 회신 공통 디자인 토큰 (모니터 · 설정 · 팝업) */
+:root{
+ --paper:#F3F4F6;--card:#FFFFFF;--raised:#ECEEF1;--sunken:#E6E8EC;--ink:#1F2228;--ink-2:#3D424B;--muted:#6A707B;--faint:#80868F;--line:#E1E3E8;--line-2:#D2D5DB;
+ --accent:#3659A2;--accent-2:#2C4B8C;--accent-soft:#E8EEF8;--on-accent:#FFFFFF;
+ --success:#2F7A55;--success-soft:#E4F2EA;--warning:#8A5A0B;--warning-soft:#FBF1DE;--warning-line:#EBCB8F;--danger:#B23B34;--danger-soft:#FBE9E7;--danger-line:#EDB3AC;
+ --kakao:#7A5C00;--kakao-soft:#FBF0C9;--naver:#1E6B45;--naver-soft:#DDF0E5;
+ --shadow-1:0 1px 2px rgba(17,20,26,.05),0 1px 1px rgba(17,20,26,.03);--shadow-2:0 10px 30px rgba(17,20,26,.14),0 2px 6px rgba(17,20,26,.06);
+ --r-s:8px;--r-m:12px;--r-l:16px;
+ --font:"Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+ color-scheme:light;
+}
+:root[data-theme="dark"]{
+ --paper:#17191D;--card:#1F2227;--raised:#272A30;--sunken:#14161A;--ink:#ECEDEF;--ink-2:#C9CCD2;--muted:#A0A5AF;--faint:#868C96;--line:#2E3238;--line-2:#3A3F46;
+ --accent:#8FB0F0;--accent-2:#A9C2F4;--accent-soft:#223352;--on-accent:#0F1622;
+ --success:#7FCB9F;--success-soft:#1D3328;--warning:#E6BF73;--warning-soft:#352B18;--warning-line:#5E4A22;--danger:#F09A90;--danger-soft:#3B2220;--danger-line:#6B3530;
+ --kakao:#F1D46B;--kakao-soft:#3A3219;--naver:#82D3A7;--naver-soft:#193325;
+ --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 12px 32px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.3);
+ color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:13px/1.45 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.01em;font-feature-settings:"tnum" 0;word-break:keep-all;overflow-wrap:anywhere}
+button,input,select{font:inherit;color:inherit;letter-spacing:inherit}
+button{border:0;background:none;cursor:pointer;padding:0}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-weight:600;font-size:12.5px;white-space:nowrap;transition:background .12s,box-shadow .12s}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-2)}
+.btn.ghost{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2)}
+.btn.ghost:hover{background:var(--raised)}
+.btn.lg{height:42px;padding:0 18px;font-size:14px;border-radius:11px}
+.ib{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--muted)}
+.ib:hover{background:var(--raised);color:var(--ink)}
+.ib svg{width:17px;height:17px}
+.ch{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;font-size:11px;font-weight:700;flex:none}
+.ch.kakao{background:var(--kakao-soft);color:var(--kakao)}
+.ch.naver{background:var(--naver-soft);color:var(--naver)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+.dot.warn{background:var(--warning)}.dot.bad{background:var(--danger)}.dot.off{background:var(--faint)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* 관리자용 표시(관리 키가 맞는 PC에서만 보이는 화면) */
+.adm{display:inline-flex;align-items:center;font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 8px;white-space:nowrap;align-self:center;letter-spacing:0}
