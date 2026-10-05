@@ -692,7 +692,7 @@
         var go = btn('연결', 'primary', null, async function () {
           go.disabled = true; res.className = 'res'; res.textContent = '확인하는 중…';
           var r = await CSContent.setCode(ta.value); go.disabled = false;
-          if (!r.ok) { res.className = 'res bad'; res.textContent = r.error; return; }
+          if (!r.ok) { if (r.token) ta.value = ''; res.className = 'res bad'; res.textContent = r.error; return; }
           res.className = 'res ok'; res.textContent = '연결했어요'; loadContent(); setTimeout(function () { d.close(); }, 700);
         });
         ra.append(go); d.append(ra);
@@ -784,7 +784,7 @@
     var go = btn('연결', 'primary big', null, async function () {
       go.disabled = true; res.className = 'res'; res.textContent = '확인하는 중…';
       var r = await CSContent.setCode(ta.value); go.disabled = false;
-      if (!r.ok) { res.className = 'res bad'; res.textContent = r.error; return; }
+      if (!r.ok) { if (r.token) ta.value = ''; res.className = 'res bad'; res.textContent = r.error; return; }
       loadContent();
     });
     go.style.width = '100%'; b.append(go);

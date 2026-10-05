@@ -46,6 +46,7 @@
     return null;
   }
   async function setCode(code) {
+    if (/(github_pat_|ghp_)[A-Za-z0-9_]{10,}/.test(String(code || ''))) return { ok: false, error: '이건 깃허브 열쇠예요. 여기에는 넣지 않아요. 관리자가 멘트 관리 → 깃허브 연결에서 읽기 열쇠로 만든 ‘CS연결-…’ 코드를 넣어 주세요', token: true };
     var c = KBData.readCode(code);
     if (!c) return { ok: false, error: '연결 코드 모양이 아니에요. 관리자에게 받은 코드를 통째로 붙여 넣어 주세요' };
     try {
