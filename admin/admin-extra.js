@@ -186,6 +186,7 @@
       try {
         var info = await KBGitHub.repoInfo(c);
         if (!info.private) { out.className = 'chip err'; out.textContent = '공개(Public) 저장소예요. 아무나 볼 수 있으니 저장소 Settings → 맨 아래 Change visibility → Private 로 바꾼 뒤 다시 눌러 주세요.'; go.disabled = false; return; }
+        if (!info.push) { out.className = 'chip err'; out.textContent = '읽기 전용 열쇠예요. 멘트 관리에는 쓰기 열쇠(CS 관리 · Contents: Read and write)를 넣어 주세요.'; go.disabled = false; return; }
         var f = await KBGitHub.getFile(c, '');
         await chrome.storage.local.set({ [KBAdmin.KEY]: c });
         if (f.status === 404) {
