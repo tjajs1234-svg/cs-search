@@ -162,7 +162,7 @@
       '① github.com 에 로그인 → 오른쪽 위 ＋ → New repository',
       '② Repository name: cs-content · 아래에서 반드시 Private(비공개) 고르기 → Create repository',
       '③ 오른쪽 위 내 사진 → Settings → 왼쪽 맨 아래 Developer settings → Personal access tokens → Fine-grained tokens → Generate new token',
-      '④ [관리 키] 이름: CS 관리 · Expiration: 1년(366 days) · Repository access: Only select repositories → cs-content · Permissions → Repository permissions → Contents: Read and write → Generate token → 나온 키를 복사해 아래 ‘관리 키’ 칸에 붙여 넣기',
+      '④ [관리 키] 이름: CS 관리 · Expiration: Custom → 1년 뒤 날짜 · Repository access: Only select repositories → cs-content · Permissions: [+ Add permissions] → Contents 체크 → Access를 Read and write로 → Generate token → 나온 키를 복사해 아래 ‘관리 키’ 칸에 붙여 넣기',
       '⑤ [사용 키] 같은 방법으로 하나 더: 이름 CS 사용 · Contents: Read-only → 복사해 두었다가, 연결된 뒤 ‘상담사용 연결 코드 만들기’에 붙여 넣기',
       '키는 비밀번호와 같아요. 관리 키는 이 PC 말고 어디에도 붙여 넣지 마세요. 1년이 지나면 같은 방법으로 새로 만들어 바꿔 주면 돼요.'
     ].forEach(function (s) { i.append(mk('div', null, s)); });
