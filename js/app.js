@@ -97,7 +97,7 @@
   var C = null, P = null, recs = [], byId = new Map(), idx = KBSearch.createIndex([]), opening = '', lastSearch = null;
   var view = S.get(K.view) || 'all', cat = S.get(K.cat) || '', q = '', openId = '', limit = 60, curView = 'scripts';
   function sharedClosings() { return P ? P.sharedClosings : []; }
-  function rebuild() {
+  function rebuild() { setTimeout(function () { try { scCount(); } catch (e) {} }, 0);
     recs = []; byId = new Map();
     if (P) P.records.forEach(function (r) { recs.push({ id: r.id, kind: 'official', sheet: r.sheet, sheetLabel: r.sheetLabel, category: r.category, situation: r.situation, script: r.script, note: r.note }); });
     var order = new Map(M.customOrder.map(function (id, i) { return [id, i]; }));
@@ -294,8 +294,8 @@
     toast('비웠어요', { action: { label: '되돌리기', fn: function () { note.value = was; S.set(K.note, was); blanks(); note.focus(); } } });
   });
   /* 초성 단축어: ㅇㅅ + 스페이스(또는 Tab) → 첫인사 */
-  function shortcutText(e) { if (!e) return ''; if (e.kind === 'greeting') return opening; var r = byId.get(e.id); return r ? r.script : ''; }
-  function shortcutName(e) { if (!e) return ''; if (e.kind === 'greeting') return '첫인사'; var r = byId.get(e.id); return r ? r.situation : ''; }
+  function shortcutText(e) { if (!e) return ''; if (e.kind === 'text') return String(e.text || ''); if (e.kind === 'greeting') return opening; var r = byId.get(e.id); return r ? r.script : ''; }
+  function shortcutName(e) { if (!e) return ''; if (e.kind === 'text') { var t = String(e.text || '').replace(/\s+/g, ' ').trim(); return t.length > 14 ? t.slice(0, 14) + '…' : t; } if (e.kind === 'greeting') return '첫인사'; var r = byId.get(e.id); return r ? r.situation : ''; }
   function shortcutAtCaret(trailing) {
     var pos = note.selectionStart; if (pos !== note.selectionEnd) return null;
     var m = note.value.slice(0, pos).match(trailing ? /(^|[\s\n])([^\s\n]{1,6})[ ]$/ : /(^|[\s\n])([^\s\n]{1,6})$/);
@@ -317,6 +317,49 @@
   });
   note.addEventListener('keydown', function (e) { if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey) return; var h = shortcutAtCaret(false); if (!h) return; e.preventDefault(); expand(h); });
   note.addEventListener('blur', function () { $('snip').hidden = true; });
+  /* 내 초성 단축어(작성공간 위 [단축어]): 초성 + 바뀔 글을 직접 만들기 · 작성공간에서 글을 골라 두고 누르면 그 글로 */
+  var SC_KEY = /^[ㄱ-ㅎ]{1,6}$/;
+  function scCount() { var all = M.shortcuts || {}, n = Object.keys(all).filter(function (k) { return shortcutText(all[k]); }).length; $('scN').textContent = n ? String(n) : ''; }
+  function openShortcuts(prefill) {
+    openDlg(function (d) {
+      d.append(el('h2', null, '내 초성 단축어'), el('p', null, '작성공간에 초성을 쓰고 스페이스(또는 Tab)를 누르면 그 글로 바뀌어요. 이 PC에만 저장되고 백업 파일에도 들어가요.'));
+      var k = el('input'); k.type = 'text'; k.id = 'sc-key'; k.maxLength = 6; k.placeholder = '예: ㄱㅅ'; k.autocomplete = 'off'; k.setAttribute('aria-label', '초성');
+      var t = el('textarea'); t.id = 'sc-text'; t.maxLength = 4000; t.placeholder = '바뀔 글 · 예: 확인 후 바로 다시 안내드리겠습니다.'; t.value = prefill || ''; t.setAttribute('aria-label', '바뀔 글'); t.style.minHeight = '84px';
+      var row = el('div', 'scadd'); row.append(field('초성 (ㄱ~ㅎ)', k), field('바뀔 글', t)); d.append(row);
+      var res = el('div', 'res'); d.append(res);
+      var list = el('div', 'sclist');
+      var draw = function () {
+        list.replaceChildren();
+        var ks = Object.keys(M.shortcuts).filter(function (x) { return shortcutText(M.shortcuts[x]); }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+        if (!ks.length) list.append(el('div', 'empty', '아직 단축어가 없어요.'));
+        ks.forEach(function (key) {
+          var e = M.shortcuts[key], r = el('div', 'scrow'), tx = el('div', 't');
+          tx.append(el('small', null, e.kind === 'text' ? '내 글' : e.kind === 'greeting' ? '첫인사' : '끝인사'), shortcutText(e).replace(/\s+/g, ' ').slice(0, 80)); tx.title = shortcutText(e);
+          var kb = el('kbd', null, key);
+          var x = btn('지우기', 'ghost sm', null, function () { var keep = M.shortcuts[key]; delete M.shortcuts[key]; S.put(K.shortcuts, M.shortcuts); draw(); scCount(); toast(key + ' 단축어를 지웠어요', { action: { label: '되돌리기', fn: function () { M.shortcuts[key] = keep; S.put(K.shortcuts, M.shortcuts); scCount(); } } }); });
+          if (e.kind === 'text') { r.style.cursor = 'pointer'; r.title = '눌러서 고치기'; r.addEventListener('click', function (ev) { if (ev.target.closest('button')) return; k.value = key; t.value = e.text || ''; t.focus(); }); }
+          r.append(kb, tx, x); list.append(r);
+        });
+      };
+      var add = function () {
+        var key = k.value.replace(/\s+/g, ''), body = t.value.replace(/\r\n?/g, '\n').trim();
+        if (!SC_KEY.test(key)) { res.className = 'res bad'; res.textContent = '초성은 ㄱ~ㅎ로만 1~6글자 써 주세요 (예: ㄱㅅ)'; k.focus(); return; }
+        if (!body) { res.className = 'res bad'; res.textContent = '바뀔 글을 적어 주세요'; t.focus(); return; }
+        var old = M.shortcuts[key];
+        if (old && old.kind !== 'text' && shortcutText(old)) { res.className = 'res bad'; res.textContent = key + '는 ‘' + shortcutName(old) + '’에 쓰고 있어요. 다른 초성을 써 주세요'; k.focus(); return; }
+        delete M.shortcuts[key]; M.shortcuts[key] = { kind: 'text', text: body.slice(0, 4000) }; S.put(K.shortcuts, M.shortcuts);
+        res.className = 'res ok'; res.textContent = (old ? '바꿨어요 · ' : '만들었어요 · ') + '작성공간에서 ' + key + ' + 스페이스'; k.value = ''; t.value = ''; k.focus(); draw(); scCount();
+      };
+      k.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); t.focus(); } });
+      t.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(); } });
+      var a = el('div', 'acts'); var sp = el('span'); sp.style.flex = '1';
+      a.append(sp, btn('닫기', 'ghost', null, function () { d.close(); }), btn('추가 (Ctrl+Enter)', 'primary', null, add));
+      d.append(a, el('h3', null, '만든 단축어'), list); draw();
+      setTimeout(function () { (prefill ? k : k).focus(); }, 0);
+    });
+  }
+  $('scBtn').addEventListener('click', function () { var sel = note.value.slice(note.selectionStart, note.selectionEnd).trim(); openShortcuts(sel); });
+  try { scCount(); } catch (e) {}
 
   /* ───── 내 멘트 · 내 끝인사 고치기 ───── */
   var dlg = $('dlg');
