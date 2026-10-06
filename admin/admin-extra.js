@@ -186,7 +186,7 @@
       try {
         var info = await KBGitHub.repoInfo(c);
         if (!info.private) { out.className = 'chip err'; out.textContent = '공개(Public) 저장소예요. 아무나 볼 수 있으니 저장소 Settings → 맨 아래 Change visibility → Private 로 바꾼 뒤 다시 눌러 주세요.'; go.disabled = false; return; }
-        if (!info.push) { out.className = 'chip err'; out.textContent = '읽기 전용 열쇠예요. 멘트 관리에는 쓰기 열쇠(CS 관리 · Contents: Read and write)를 넣어 주세요.'; go.disabled = false; return; }
+        if (!(await KBGitHub.canWrite(c))) { out.className = 'chip err'; out.textContent = '읽기 전용 열쇠예요. 멘트 관리에는 쓰기 열쇠(CS 관리 · Contents: Read and write)를 넣어 주세요.'; go.disabled = false; return; }
         var f = await KBGitHub.getFile(c, '');
         await chrome.storage.local.set({ [KBAdmin.KEY]: c });
         if (f.status === 404) {
@@ -232,8 +232,7 @@
         var rc = { owner: c.owner, repo: c.repo, branch: c.branch || '', path: c.path || 'cs-content.json', token: t };
         mkc.disabled = true; msg.textContent = '상담사 열쇠로 읽어 보는 중…';
         try {
-          var info = await KBGitHub.repoInfo(rc);
-          if (info.push) { rk.classList.add('bad'); msg.textContent = '이 열쇠는 쓰기 권한이 있어요(관리자 열쇠). 상담사 PC에 퍼지면 누구나 멘트를 바꿀 수 있어서 코드로 만들지 않았어요.\nContents를 Read-only로 만든 상담사 열쇠(CS 사용)를 넣어 주세요.'; mkc.disabled = false; return; }
+          if (await KBGitHub.canWrite(rc)) { rk.classList.add('bad'); msg.textContent = '이 열쇠는 쓰기 권한이 있어요(관리자 열쇠). 상담사 PC에 퍼지면 누구나 멘트를 바꿀 수 있어서 코드로 만들지 않았어요.\nContents를 Read-only로 만든 상담사 열쇠(CS 사용)를 넣어 주세요.'; mkc.disabled = false; return; }
           var f = await KBGitHub.getFile(rc, '');
           if (f.status !== 200) { msg.textContent = '상담사 열쇠로 멘트 파일을 읽지 못했어요. 먼저 멘트를 한 번 올려 주세요.'; mkc.disabled = false; return; }
           out.value = KBData.makeCode(rc); out.hidden = false; cp.hidden = false;

@@ -97,7 +97,21 @@
     return { private: !!b.private, defaultBranch: b.default_branch || 'main', fullName: b.full_name || '', push: !!(b.permissions && b.permissions.push) };
   }
 
-  var api = { getFile: getFile, putFile: putFile, history: history, repoInfo: repoInfo, friendly: friendly, utf8b64: utf8b64, b64utf8: b64utf8 };
+  /* 이 열쇠로 저장할 수 있나? (repoInfo의 permissions는 ‘계정 주인’ 권한이라 열쇠 권한을 알 수 없음)
+     일부러 망가진 내용(base64 아님)으로 저장을 시도해 봄 → 아무것도 저장되지 않음.
+     읽기만 열쇠 = 403 · 쓰기 열쇠 = 422(내용이 이상함) */
+  async function canWrite(conn) {
+    try {
+      await call(conn, 'PUT', repoPath(conn) + '/contents/' + enc('.cs-key-check'), { body: { message: '열쇠 권한 확인(저장 안 됨)', content: '%%%' } });
+      return true;
+    } catch (e) {
+      if (e.status === 403) return false;
+      if (e.status === 422 || e.status === 409 || e.status === 400) return true;
+      throw e;
+    }
+  }
+
+  var api = { getFile: getFile, putFile: putFile, history: history, repoInfo: repoInfo, canWrite: canWrite, friendly: friendly, utf8b64: utf8b64, b64utf8: b64utf8 };
   root.KBGitHub = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
