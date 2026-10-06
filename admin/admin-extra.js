@@ -216,28 +216,33 @@
       var a = mk('a', null, '깃허브에서 저장소 열기 ↗'); a.href = 'https://github.com/' + c.owner + '/' + c.repo; a.target = '_blank'; a.rel = 'noopener'; st.append(a);
       p.append(st);
       // 상담사용 연결 코드
-      p.append(lab('상담사용 연결 코드 만들기', '읽기 전용 ‘사용 키’로 만들어요'));
-      var rk = input('', '사용 키(Contents: Read-only) 붙여 넣기 · github_pat_…', 'password'); rk.autocomplete = 'off';
+      p.append(lab('상담사용 연결 코드 만들기', '① 아래 칸에 상담사 열쇠(CS 사용 · Read-only) 붙여 넣기 → ② [연결 코드 만들기]'));
+      var rk = input('', '여기에 상담사 열쇠(CS 사용) 붙여 넣기 · github_pat_…로 시작해요'); rk.autocomplete = 'off'; rk.setAttribute('aria-label', '상담사 열쇠(CS 사용)');
+      var mkTok = mk('a', null, '열쇠가 없으면: 깃허브에서 상담사 열쇠 만들기 ↗'); mkTok.href = 'https://github.com/settings/personal-access-tokens/new'; mkTok.target = '_blank'; mkTok.rel = 'noopener'; mkTok.style.fontSize = '13px';
+      rk.addEventListener('input', function () { rk.classList.remove('bad'); });
       var out = mk('textarea', 'ta'); out.readOnly = true; out.hidden = true; out.style.minHeight = '70px'; out.style.fontFamily = 'ui-monospace,Consolas,monospace'; out.style.fontSize = '12px';
       var msg = mk('div', 'muted'); msg.style.fontSize = '12.5px'; msg.style.whiteSpace = 'pre-line';
       var row = mk('div', 'facts'); row.append(mk('span', 'sp'));
       var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(out.value); say('복사했어요. 사내 메신저로 상담사에게 보내 주세요', 'ok'); } catch (e) { out.select(); } });
       cp.hidden = true;
       var mkc = btn('연결 코드 만들기', 'primary', async function () {
-        var t = rk.value.trim(); if (!t) { msg.textContent = '사용 키를 붙여 넣어 주세요'; return; }
+        var t = rk.value.trim(); if (!t) { rk.classList.add('bad'); rk.focus(); msg.textContent = '위 칸이 비어 있어요. 깃허브에서 만든 상담사 열쇠(CS 사용 · github_pat_…)를 먼저 붙여 넣고 다시 눌러 주세요.\n열쇠가 없으면 아래 [깃허브에서 상담사 열쇠 만들기]에서 만들어요(Contents: Read-only).'; return; }
+        if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(t)) { rk.classList.add('bad'); msg.textContent = '깃허브 열쇠 모양이 아니에요. github_pat_로 시작하는 글자 전체를 붙여 넣어 주세요.'; return; }
         if (t === c.token) { msg.textContent = '관리 키와 같은 키예요. 상담사용은 읽기 전용(Read-only) 키를 따로 만들어 주세요(관리 키가 퍼지면 누구나 멘트를 바꿀 수 있어요).'; return; }
         var rc = { owner: c.owner, repo: c.repo, branch: c.branch || '', path: c.path || 'cs-content.json', token: t };
-        mkc.disabled = true; msg.textContent = '사용 키로 읽어 보는 중…';
+        mkc.disabled = true; msg.textContent = '상담사 열쇠로 읽어 보는 중…';
         try {
+          var info = await KBGitHub.repoInfo(rc);
+          if (info.push) { rk.classList.add('bad'); msg.textContent = '이 열쇠는 쓰기 권한이 있어요(관리자 열쇠). 상담사 PC에 퍼지면 누구나 멘트를 바꿀 수 있어서 코드로 만들지 않았어요.\nContents를 Read-only로 만든 상담사 열쇠(CS 사용)를 넣어 주세요.'; mkc.disabled = false; return; }
           var f = await KBGitHub.getFile(rc, '');
-          if (f.status !== 200) { msg.textContent = '사용 키로 파일을 읽지 못했어요. 먼저 멘트를 한 번 올려 주세요.'; mkc.disabled = false; return; }
+          if (f.status !== 200) { msg.textContent = '상담사 열쇠로 멘트 파일을 읽지 못했어요. 먼저 멘트를 한 번 올려 주세요.'; mkc.disabled = false; return; }
           out.value = KBData.makeCode(rc); out.hidden = false; cp.hidden = false;
           msg.textContent = '✓ 만들었어요. 상담사는 스크립트 검색기 오른쪽 위 톱니바퀴 → 연결 코드 넣기에 붙여 넣으면 돼요.\n이 코드 안에는 읽기 전용 키가 들어 있어요. 사내 메신저로만 보내 주세요.';
         } catch (e) { msg.textContent = e.message || '확인하지 못했어요'; }
         mkc.disabled = false;
       });
       row.append(cp, mkc);
-      p.append(rk, row, out, msg);
+      p.append(rk, row, out, msg, mkTok);
       p.append(lab('연결 바꾸기', '저장소나 관리 키를 바꿀 때'));
       p.append(connectForm(function () { location.reload(); }, c));
       var off = btn('이 PC에서 관리자 연결 끊기', 'danger-ghost sm', async function () {
