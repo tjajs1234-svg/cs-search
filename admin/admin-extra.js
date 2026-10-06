@@ -156,7 +156,7 @@
   /* ───── 깃허브 연결 ───── */
   function guideSteps() {
     var d = mk('details', 'more');
-    d.append(mk('summary', null, '처음 한 번: 깃허브 저장소와 키 만드는 법 (자세한 그림: 함께 드린 ‘CS_처음부터_설명서’ 04번)'));
+    d.append(mk('summary', null, '처음 한 번: 깃허브 저장소와 키 만드는 법 (자세한 그림: 함께 드린 ‘관리자_설정_안내’ 1부)'));
     var i = mk('div', 'inner');
     [
       '① github.com 에 로그인 → 오른쪽 위 ＋ → New repository',

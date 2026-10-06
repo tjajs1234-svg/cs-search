@@ -1,6 +1,6 @@
 /* ‘슈피겐 CS 검색기 연결’ 확장과 이야기하기(연결 다리)
    확장이 이 페이지에 작은 연결 코드(content script)를 넣어 두면, 페이지 ⇄ 확장이 window.postMessage로 주고받음.
-   확장이 없거나 꺼져 있으면 ready=false — 스크립트 화면은 그대로 되고, 요청시트·사진·답변 대기만 안내로 바뀜 */
+   확장이 없거나 꺼져 있으면 ready=false — 스크립트 화면은 그대로 되고, 요청시트·불량·족보 공지·사진만 안내로 바뀜 */
 (function (root) {
   'use strict';
   var pending = new Map(), seq = 0, helloWaiters = [];

@@ -402,7 +402,7 @@
   function bridgeCard(list) {
     var c = el('div', 'setupcard');
     c.append(el('h3', null, '‘검색기 연결’ 확장이 없어요'),
-      el('p', null, '문의 검색 · 불량가이드 · 사진은 이 PC 크롬에 깐 작은 확장 ‘슈피겐 CS 검색기 연결’이 회사 구글 계정으로 읽어 와요(상담기록기와는 따로예요). 설치한 뒤 이 화면을 새로고침해 주세요. 답변 대기 표시는 상담기록기(2.3.0 이상)도 함께 있어야 해요.'),
+      el('p', null, '문의 검색 · 불량가이드 · 사진은 이 PC 크롬에 깐 작은 확장 ‘슈피겐 CS 검색기 연결’이 회사 구글 계정으로 읽어 와요(상담기록기와는 따로예요). 설치한 뒤 이 화면을 새로고침해 주세요.'),
       el('p', null, '스크립트 · 관리자 공지는 확장 없이도 다 돼요.'));
     var a = el('div', 'acts'); a.append(btn('다시 확인', 'primary', null, function () { location.reload(); })); c.append(a); list.append(c);
   }
@@ -565,7 +565,6 @@
     var n = unreadNotices().length, b = $('noticeBadge'); b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
     var opened = Number(S.get('csx:defOpened') || 0), d = Drows.filter(function (x) { return isNewDef(x) && BD.seenDef[x.key] > opened; }).length, db = $('defBadge');
     db.hidden = !d; db.textContent = d > 9 ? '9+' : String(d);
-    if (CSBridge.ready) CSBridge.call('badge', { notices: n }).catch(function () {});
     renderBanner();
   }
   /* 확장에서 받기 */
@@ -590,35 +589,6 @@
     i.addEventListener('keydown', function (e) { if (e.key === 'Escape' && i.value) { e.preventDefault(); x.click(); } });
   });
   $('ry').addEventListener('change', function () { rlimit = 40; renderReq(); });
-
-  /* ───── 답변 대기 고객 ───── */
-  var WAIT = [];
-  async function refreshWait() {
-    if (!CSBridge.ready) { $('waitBtn').hidden = true; return; }
-    try { var r = await CSBridge.call('wait', {}, 8000); WAIT = r && Array.isArray(r.list) ? r.list : []; } catch (e) { WAIT = []; }
-    var b = $('waitBtn'); b.hidden = !WAIT.length; $('waitN').textContent = WAIT.length;
-    b.classList.toggle('late', WAIT.some(function (c) { return c.since && Date.now() - c.since >= 5 * 60000; }));
-    if (!$('waitPop').hidden) drawWait();
-  }
-  setInterval(function () { if (!document.hidden) refreshWait(); }, 20000);
-  function drawWait() {
-    var p = $('waitPop'); p.replaceChildren(el('div', 'phd', '누르면 그 고객 메시지로 문안을 찾아요'));
-    if (!WAIT.length) { p.append(el('div', 'empty', '지금 답변을 기다리는 고객이 없어요.')); return; }
-    WAIT.slice(0, 15).forEach(function (c) {
-      var r = el('div', 'wrow'); r.tabIndex = 0; r.setAttribute('role', 'button');
-      var left = el('div'), n1 = el('div', 'n1'); n1.append(el('span', null, c.name || '고객'));
-      if (c.returning) n1.append(el('em', null, '우선 응대'));
-      var min = c.since ? Math.floor((Date.now() - c.since) / 60000) : -1;
-      n1.append(el('span', 't' + (min >= 10 ? ' hot' : ''), min < 0 ? '' : min < 1 ? '방금' : min + '분'));
-      left.append(n1, el('div', 'm', c.preview || '메시지 미리보기 없음'));
-      var go = btn('상담창', 'sm', 'chat', function (e) { e.stopPropagation(); closePops(); CSBridge.call('openChat', { channel: c.channel, url: c.url }).catch(function () { toast('상담창을 열지 못했어요', { warn: true }); }); });
-      r.append(left, go);
-      var pick = function () { closePops(); if (!c.preview) { toast('이 고객은 메시지 미리보기가 없어요'); return; } setView('scripts', false); $('q').value = c.preview; $('qx').hidden = false; q = c.preview; openId = ''; renderScripts(); $('q').focus(); };
-      r.addEventListener('click', pick); r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
-      p.append(r);
-    });
-  }
-  $('waitBtn').addEventListener('click', function (e) { e.stopPropagation(); var open = $('waitPop').hidden; closePops(); if (open) { drawWait(); $('waitPop').hidden = false; $('waitBtn').setAttribute('aria-expanded', 'true'); } });
 
   /* ───── 계산기 ───── */
   var AS_FEE = 6000, AS_TIERS = [{ label: '1~12개월', rate: 0.30 }, { label: '13~24개월', rate: 0.60 }, { label: '25~36개월', rate: 0.80 }, { label: '37~48개월', rate: 0.90 }, { label: '49개월 이상', rate: 1.00, blocked: true }];
@@ -650,8 +620,8 @@
   function calcTab(due) { $('cDueTab').setAttribute('aria-selected', String(due)); $('cAsTab').setAttribute('aria-selected', String(!due)); $('cDue').hidden = !due; $('cAs').hidden = due; setTimeout(function () { (due ? $('dueIn') : $('asIn')).focus(); }, 0); }
   $('cDueTab').addEventListener('click', function () { calcTab(true); }); $('cAsTab').addEventListener('click', function () { calcTab(false); });
   $('calcBtn').addEventListener('click', function (e) { e.stopPropagation(); var open = $('calcPop').hidden; closePops(); if (open) { $('calcPop').hidden = false; $('calcBtn').setAttribute('aria-expanded', 'true'); calcTab($('cAs').hidden); } });
-  function closePops() { $('waitPop').hidden = true; $('calcPop').hidden = true; $('waitBtn').setAttribute('aria-expanded', 'false'); $('calcBtn').setAttribute('aria-expanded', 'false'); }
-  ['waitPop', 'calcPop'].forEach(function (id) { $(id).addEventListener('click', function (e) { e.stopPropagation(); }); });
+  function closePops() { $('calcPop').hidden = true; $('calcBtn').setAttribute('aria-expanded', 'false'); }
+  ['calcPop'].forEach(function (id) { $(id).addEventListener('click', function (e) { e.stopPropagation(); }); });
   document.addEventListener('click', closePops);
 
   /* ───── 화면 밝기 ───── */
@@ -804,9 +774,9 @@
 
   function renderAll() { renderScripts(); renderBadges(); if (curView === 'req') renderReq(); if (curView === 'defect') renderDefect(); if (curView === 'notice') renderNotices(); }
   CSContent.on(function (what) { if (what === 'content') loadContent(); else renderBanner(); });
-  document.addEventListener('csbridge', function () { refreshBridge(false); refreshWait(); });
+  document.addEventListener('csbridge', function () { refreshBridge(false); });
   document.addEventListener('csbridge-event', function (e) { var d = e.detail || {}; if (d.what === 'data') refreshBridge(false); else if (d.what === 'view' && d.view) setView(d.view); });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshWait(); refreshBridge(false); } });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshBridge(false); } });
 
   /* ───── 시작 ───── */
   (async function boot() {
@@ -818,7 +788,7 @@
     var n = await S.restoreIfEmpty(); if (n) { loadPersonal(); note.value = S.get(K.note) || ''; blanks(); toast('저장해 둔 개인 설정을 되살렸어요'); }
     await loadContent();
     CSContent.sync(false).then(function () { renderBanner(); });
-    refreshWait(); refreshBridge(false);
+    refreshBridge(false);
   })();
   window.CSApp = { setView: setView, add: add, reload: loadContent };
 })();
