@@ -137,6 +137,8 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
 .scrow kbd{font:700 14px var(--font,inherit);background:var(--accent-soft,#eef);color:var(--accent);border-radius:7px;padding:2px 8px;min-width:44px;text-align:center}
 .scrow .t{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;color:var(--ink2)}
 .scrow .t small{color:var(--ink3);margin-right:6px}
+.scrow.base{background:var(--accent-soft,#eef3ff);border-color:transparent}
+.scrow .fixed{font-size:12px;font-weight:700;color:var(--ink3);padding:0 8px}
 .scadd{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:start}
 @media (max-width:560px){.scadd{grid-template-columns:minmax(0,1fr)}}
 .composer textarea{flex:1;min-height:0;margin:0 14px;padding:14px 15px;border:1.5px solid var(--line2);border-radius:14px;background:var(--surface2);font-size:15px;line-height:1.75;resize:none;outline:0}

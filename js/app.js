@@ -82,6 +82,8 @@
     M.custom = normCustom(S.json(K.customScripts, [])); M.customOrder = S.json(K.customOrder, []).map(String);
     M.pclosings = normPClosings(S.json(K.personalClosings, []));
     var sc = S.json(K.shortcuts, null); M.shortcuts = sc && typeof sc === 'object' ? sc : { 'ㅇㅅ': { kind: 'greeting' } };
+    // 첫인사 단축어(ㅇㅅ)는 늘 있게: 예전 백업 등으로 빠져 있으면 되살림(ㅇㅅ를 다른 데 쓰고 있으면 그대로 둠)
+    if (!Object.keys(M.shortcuts).some(function (k) { return M.shortcuts[k] && M.shortcuts[k].kind === 'greeting'; }) && !M.shortcuts['ㅇㅅ']) M.shortcuts['ㅇㅅ'] = { kind: 'greeting' };
     M.seen = S.json(K.seen, []); if (!Array.isArray(M.seen)) M.seen = [];
   }
   function saveFav() { S.put(K.favorites, Array.from(M.favorites)); S.put(K.favoriteOrder, M.favoriteOrder); }
@@ -322,7 +324,7 @@
   function scCount() { var all = M.shortcuts || {}, n = Object.keys(all).filter(function (k) { return shortcutText(all[k]); }).length; $('scN').textContent = n ? String(n) : ''; }
   function openShortcuts(prefill) {
     openDlg(function (d) {
-      d.append(el('h2', null, '내 초성 단축어'), el('p', null, '작성공간에 초성을 쓰고 스페이스(또는 Tab)를 누르면 그 글로 바뀌어요. 이 PC에만 저장되고 백업 파일에도 들어가요.'));
+      d.append(el('h2', null, '내 초성 단축어'), el('p', null, '작성공간에 초성을 쓰고 스페이스(또는 Tab)를 누르면 그 글로 바뀌어요. ㅇㅅ(첫인사)는 기본으로 들어 있어요. 이 PC에만 저장되고 백업 파일에도 들어가요.'));
       var k = el('input'); k.type = 'text'; k.id = 'sc-key'; k.maxLength = 6; k.placeholder = '예: ㄱㅅ'; k.autocomplete = 'off'; k.setAttribute('aria-label', '초성');
       var t = el('textarea'); t.id = 'sc-text'; t.maxLength = 4000; t.placeholder = '바뀔 글 · 예: 확인 후 바로 다시 안내드리겠습니다.'; t.value = prefill || ''; t.setAttribute('aria-label', '바뀔 글'); t.style.minHeight = '84px';
       var row = el('div', 'scadd'); row.append(field('초성 (ㄱ~ㅎ)', k), field('바뀔 글', t)); d.append(row);
@@ -330,14 +332,15 @@
       var list = el('div', 'sclist');
       var draw = function () {
         list.replaceChildren();
-        var ks = Object.keys(M.shortcuts).filter(function (x) { return shortcutText(M.shortcuts[x]); }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+        var ks = Object.keys(M.shortcuts).filter(function (x) { return shortcutText(M.shortcuts[x]); }).sort(function (a, b) { var ga = M.shortcuts[a].kind === 'greeting' ? 0 : 1, gb = M.shortcuts[b].kind === 'greeting' ? 0 : 1; return ga - gb || a.localeCompare(b, 'ko'); });
         if (!ks.length) list.append(el('div', 'empty', '아직 단축어가 없어요.'));
         ks.forEach(function (key) {
           var e = M.shortcuts[key], r = el('div', 'scrow'), tx = el('div', 't');
-          tx.append(el('small', null, e.kind === 'text' ? '내 글' : e.kind === 'greeting' ? '첫인사' : '끝인사'), shortcutText(e).replace(/\s+/g, ' ').slice(0, 80)); tx.title = shortcutText(e);
+          tx.append(el('small', null, e.kind === 'text' ? '내 글' : e.kind === 'greeting' ? '기본 · 첫인사' : '끝인사'), shortcutText(e).replace(/\s+/g, ' ').slice(0, 80)); tx.title = shortcutText(e);
           var kb = el('kbd', null, key);
           var x = btn('지우기', 'ghost sm', null, function () { var keep = M.shortcuts[key]; delete M.shortcuts[key]; S.put(K.shortcuts, M.shortcuts); draw(); scCount(); toast(key + ' 단축어를 지웠어요', { action: { label: '되돌리기', fn: function () { M.shortcuts[key] = keep; S.put(K.shortcuts, M.shortcuts); scCount(); } } }); });
           if (e.kind === 'text') { r.style.cursor = 'pointer'; r.title = '눌러서 고치기'; r.addEventListener('click', function (ev) { if (ev.target.closest('button')) return; k.value = key; t.value = e.text || ''; t.focus(); }); }
+          if (e.kind === 'greeting') { r.classList.add('base'); x = el('span', 'fixed', '기본'); x.title = '첫인사 단축어는 늘 있어요. 초성을 바꾸려면 스크립트의 [첫인사] 카드에서 바꿔요'; }
           r.append(kb, tx, x); list.append(r);
         });
       };
