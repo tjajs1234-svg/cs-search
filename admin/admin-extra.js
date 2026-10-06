@@ -218,7 +218,7 @@
       // 상담사용 연결 코드
       p.append(lab('상담사용 연결 코드 만들기', '① 아래 칸에 상담사 열쇠(CS 사용 · Read-only) 붙여 넣기 → ② [연결 코드 만들기]'));
       var rk = input('', '여기에 상담사 열쇠(CS 사용) 붙여 넣기 · github_pat_…로 시작해요'); rk.autocomplete = 'off'; rk.setAttribute('aria-label', '상담사 열쇠(CS 사용)');
-      var mkTok = mk('a', null, '열쇠가 없으면: 깃허브에서 상담사 열쇠 만들기 ↗'); mkTok.href = 'https://github.com/settings/personal-access-tokens/new'; mkTok.target = '_blank'; mkTok.rel = 'noopener'; mkTok.style.fontSize = '13px';
+      var mkTok = mk('a', null, '열쇠가 없으면: 깃허브에서 상담사 열쇠 만들기 ↗'); mkTok.href = 'https://github.com/settings/personal-access-tokens/new?' + new URLSearchParams({ name: 'CS 사용', description: '상담사 연결 코드용(읽기만)', target_name: c.owner, expires_in: '366', contents: 'read' }).toString(); // 이름·기한·Contents 읽기만을 미리 채움(저장소 cs-content는 직접 고르기) mkTok.target = '_blank'; mkTok.rel = 'noopener'; mkTok.style.fontSize = '13px';
       rk.addEventListener('input', function () { rk.classList.remove('bad'); });
       var out = mk('textarea', 'ta'); out.readOnly = true; out.hidden = true; out.style.minHeight = '70px'; out.style.fontFamily = 'ui-monospace,Consolas,monospace'; out.style.fontSize = '12px';
       var msg = mk('div', 'muted'); msg.style.fontSize = '12.5px'; msg.style.whiteSpace = 'pre-line';
