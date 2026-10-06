@@ -115,7 +115,7 @@
   function step(d) { if (!V || V.items.length < 2) return; V.i = (V.i + d + V.items.length) % V.items.length; V.zoom = false; V.play = false; draw(); }
   function btn(cls, label, icon, fn) { var b = el('button', cls); b.type = 'button'; if (icon) b.append(svgIcon(icon)); if (label) b.append(label); b.addEventListener('click', fn); return b; }
   function draw() {
-    var L = document.getElementById('lb'), it = V.items[V.i]; L.replaceChildren();
+    var L = document.getElementById('lb'), it = V.items[V.i], later = []; L.replaceChildren();
     var top = el('div', 'lbtop');
     top.append(el('b', null, V.title || '사진'), el('span', 'cnt', (V.i + 1) + ' / ' + V.items.length));
     if (it.name) top.append(el('span', 'cnt', it.name));
@@ -131,7 +131,7 @@
       var im = el('img'); im.alt = V.title || '사진'; im.referrerPolicy = 'no-referrer';
       im.addEventListener('click', function () { V.zoom = !V.zoom; draw(); });
       st.append(im);
-      load(im, it, V.zoom ? 2400 : 1600, function (kind) { im.remove(); st.append(el('div', 'msg', (kind === 'denied' ? '이 계정으로는 볼 수 없는 사진이에요.' : kind === 'login' ? '구글 로그인이 필요해요.' : '여기서는 사진을 불러오지 못했어요.') + '\n위쪽 [드라이브에서 열기]로 원본을 열어 보세요.')); });
+      later.push(function () { load(im, it, V.zoom ? 2400 : 1600, function (kind) { im.remove(); st.append(el('div', 'msg', (kind === 'denied' ? '이 계정으로는 볼 수 없는 사진이에요.' : kind === 'login' ? '구글 로그인이 필요해요.' : '여기서는 사진을 불러오지 못했어요.') + '\n위쪽 [드라이브에서 열기]로 원본을 열어 보세요.')); }); });
     }
     if (V.items.length > 1) {
       var l = btn('navb l', '', '<path d="m15 5-7 7 7 7"/>', function () { step(-1); }); l.title = '이전 (←)'; l.setAttribute('aria-label', '이전 사진');
@@ -141,11 +141,12 @@
     var sp = el('div', 'strip');
     V.items.forEach(function (t, j) {
       var b = el('button'); b.type = 'button'; b.setAttribute('aria-current', String(j === V.i)); b.title = (j + 1) + '번째';
-      var im2 = el('img'); im2.alt = ''; b.append(im2); load(im2, t, 160, function () {});
+      var im2 = el('img'); im2.alt = ''; b.append(im2); later.push(function () { load(im2, t, 160, function () {}); });
       b.addEventListener('click', function () { V.i = j; V.zoom = false; V.play = false; draw(); });
       sp.append(b);
     });
     L.append(top, st, sp);
+    later.forEach(function (f) { f(); }); // 화면에 붙인 뒤에 불러와야 ‘사라진 사진’으로 건너뛰지 않음
   }
   document.addEventListener('keydown', function (e) {
     if (!V) return;
