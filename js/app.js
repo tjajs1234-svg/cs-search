@@ -15,7 +15,7 @@
     folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2H10l2 2h6.5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>', bye: '<path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11M10 10V5a1.5 1.5 0 0 1 3 0v5M13 10V6a1.5 1.5 0 0 1 3 0v6c0 4-2.5 7-6 7-2.5 0-4-1.5-5.5-4L3 12a1.5 1.5 0 0 1 2.5-1.5L7 13"/>',
     globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5S9.5 6 12 3.5Z"/>',
     warn: '<path d="M12 4 3 19h18L12 4Z"/><path d="M12 10v4M12 17h.01"/>', chat: '<path d="M5 5h14v10H9l-4 4z"/>', pin: '<path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5ZM12 14v6"/>',
-    edit: '<path d="M5 19.5 6 15 15.5 5.5a2 2 0 0 1 3 3L9 18l-4 1.5Z"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', ext: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
+    swap: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>', edit: '<path d="M5 19.5 6 15 15.5 5.5a2 2 0 0 1 3 3L9 18l-4 1.5Z"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', ext: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
   };
   function ic(name) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.9'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.innerHTML = ICON[name] || ''; return s; }
   function btn(label, cls, icon, fn) { var b = el('button', 'btn' + (cls ? ' ' + cls : '')); b.type = 'button'; if (icon) b.append(ic(icon)); b.append(label); if (fn) b.addEventListener('click', fn); return b; }
@@ -192,11 +192,12 @@
     w.append(i); return w;
   }
   function card(r, terms) {
-    var open = openId === r.id, c = el('article', 'card' + (open ? ' open' : ''));
+    var open = openId === r.id, c = el('article', 'card' + (open ? ' open' : '') + (isAdded(r.script) ? ' added' : '')); c.dataset.id = r.id;
+    if (!open) peekOn(c, r, terms);
     var m = el('div', 'meta'), src = el('span', 'src', r.sheetLabel + (r.category && r.category !== r.situation && r.category !== r.sheetLabel ? ' · ' + r.category : ''));
     m.append(src);
     if (r.note && !open) { var n = el('span', 'ptag', '주의사항'); n.style.background = 'var(--warn-soft)'; n.style.color = 'var(--warn)'; m.append(n); }
-    m.append(el('span', 'sp'));
+    m.append(el('span', 'addedTag', '담김'), el('span', 'sp'));
     var fav = M.favorites.has(r.id), st = el('button', 'mini' + (fav ? ' on' : '')); st.type = 'button'; st.title = fav ? '즐겨찾기 빼기' : '즐겨찾기'; st.setAttribute('aria-label', st.title);
     var si = ic('star'); if (fav) si.setAttribute('fill', 'currentColor'); st.append(si);
     st.addEventListener('click', function (e) {
@@ -217,7 +218,8 @@
       pv.addEventListener('click', function () { openId = r.id; renderScripts(); }); c.append(pv);
     }
     var a = el('div', 'acts');
-    a.append(btn('담기', 'primary', 'plus', function () { add(r.script, r); }), btn('바로 복사', '', 'copy', function () { touch(r); copyText(r.script, '문안을 복사했어요'); }),
+    var rb = btn('교체', '', 'swap', function () { replaceWith(r.script, r); }); rb.title = '작성공간을 비우고 이 문안만 담아요';
+    a.append(btn('담기', 'primary', 'plus', function () { add(r.script, r); }), rb,
       btn(open ? '접기' : '전체 보기', 'ghost', null, function () { openId = open ? '' : r.id; renderScripts(); }));
     if (r.kind === 'mine') a.append(btn('고치기', 'ghost', 'edit', function () { editCustom(r.id); }));
     if (r.kind === 'pclosing') a.append(btn('고치기', 'ghost', 'edit', function () { editPClosing(r.id); }));
@@ -226,7 +228,7 @@
     return c;
   }
   function renderScripts() {
-    renderCats();
+    peekHide(true); renderCats();
     var R = $('results'), Sc = $('scope'); R.replaceChildren(); Sc.replaceChildren();
     if (!P && !M.custom.length) return;
     var rows, terms = null, searching = !!q.trim();
@@ -277,6 +279,7 @@
     var m = note.value.match(PLACEHOLDER);
     if (m) { b.append(ic('warn'), el('span', null, '채울 곳: ' + Array.from(new Set(m)).slice(0, 3).join(' ') + (m.length > 3 ? ' 외' : ''))); var go = el('button', null, '첫 칸으로'); go.type = 'button'; go.addEventListener('click', jumpBlank); b.append(go); }
     $('cc').textContent = note.value.length.toLocaleString() + '자';
+    markAdded();
   }
   function jumpBlank() { PLACEHOLDER.lastIndex = 0; var m = PLACEHOLDER.exec(note.value); if (!m) return; note.focus(); note.setSelectionRange(m.index, m.index + m[0].length); }
   function splitP(t) { return KBSearch.splitParagraphs(t); }
@@ -288,6 +291,57 @@
     saveNote(); blanks(); touch(r); note.scrollTop = note.scrollHeight; toast('작성공간에 담았어요');
     if (curView !== 'scripts') setView('scripts', false);
   }
+  /* [교체]: 작성공간을 비우고 이 문안만 담기 — 지운 글은 [되돌리기]로 살림 */
+  function replaceWith(text, r) {
+    var next = String(text || '').trim(); if (!next) return;
+    var was = note.value;
+    if (was.trim()) archive(was);
+    note.value = next; saveNote(); blanks(); touch(r); note.scrollTop = 0;
+    toast(was.trim() ? '작성공간을 이 문안으로 바꿨어요' : '작성공간에 담았어요', was.trim() ? { action: { label: '되돌리기', fn: function () { note.value = was; S.set(K.note, was); blanks(); note.focus(); } } } : null);
+    if (curView !== 'scripts') setView('scripts', false);
+  }
+  /* 담김 표시: 문안의 모든 문단이 이미 작성공간에 있으면 카드에 ‘담김’ */
+  function isAdded(text) {
+    var have = splitP(note.value.trim()); if (!have.length) return false;
+    var ps = splitP(String(text || '').trim()); return ps.length > 0 && ps.every(function (p) { return have.indexOf(p) >= 0; });
+  }
+  var markT = 0;
+  function markAdded() {
+    clearTimeout(markT);
+    markT = setTimeout(function () { Array.prototype.forEach.call(document.querySelectorAll('#results .card[data-id]'), function (c) { var r = byId.get(c.dataset.id); c.classList.toggle('added', !!r && isAdded(r.script)); }); }, 120);
+  }
+  /* 미리보기: 카드에 마우스를 올리면 누르지 않아도 전체 문안이 옆에 뜸 */
+  var peek = null, peekT = 0, peekFor = null, canHover = window.matchMedia ? matchMedia('(hover: hover) and (pointer: fine)').matches : true;
+  function peekHide(now) { clearTimeout(peekT); if (now) { if (peek) peek.hidden = true; peekFor = null; return; } peekT = setTimeout(function () { if (peek) peek.hidden = true; peekFor = null; }, 120); }
+  function peekShow(c, r, terms) {
+    if (!c.isConnected || c.classList.contains('open')) return;
+    if (!peek) {
+      peek = el('div', 'peek'); peek.setAttribute('role', 'tooltip'); peek.hidden = true; document.body.append(peek);
+      peek.addEventListener('mouseenter', function () { clearTimeout(peekT); });
+      peek.addEventListener('mouseleave', function () { peekHide(false); });
+    }
+    peek.replaceChildren(); peekFor = c;
+    var hd = el('div', 'pk-h'); hd.append(el('b', null, r.situation || '')); peek.append(hd);
+    if (r.note) { var cu = el('div', 'caution'); cu.append(ic('warn'), el('span', null, r.note)); peek.append(cu); }
+    var body = el('div', 'pk-b'); KBSearch.splitParagraphs(r.script).forEach(function (p) { body.append(rich(el('p'), p, terms)); }); peek.append(body);
+    peek.hidden = false; peek.style.left = '0px'; peek.style.top = '0px';
+    var cr = c.getBoundingClientRect(), pw = peek.offsetWidth, ph = peek.offsetHeight, vw = innerWidth, vh = innerHeight, gap = 10, x, y;
+    if (vw - cr.right >= pw + gap + 8) x = cr.right + gap;
+    else if (cr.left >= pw + gap + 8) x = cr.left - pw - gap;
+    else x = Math.min(Math.max(8, cr.left), vw - pw - 8);
+    if (x === cr.right + gap || x === cr.left - pw - gap) y = Math.min(Math.max(8, cr.top), vh - ph - 8);
+    else { y = cr.bottom + gap; if (y + ph > vh - 8) y = Math.max(8, cr.top - ph - gap); }
+    peek.style.left = Math.round(x) + 'px'; peek.style.top = Math.round(y) + 'px';
+    if (body.scrollHeight > body.clientHeight + 2) { body.classList.add('more'); peek.append(el('div', 'pk-f', '길어서 앞부분만 보여요 · [전체 보기]로 펼쳐요')); }
+  }
+  function peekOn(c, r, terms) {
+    if (!canHover) return;
+    c.addEventListener('mouseenter', function () { clearTimeout(peekT); if (peekFor === c && peek && !peek.hidden) return; peekT = setTimeout(function () { peekShow(c, r, terms); }, 380); });
+    c.addEventListener('mouseleave', function () { peekHide(false); });
+    c.addEventListener('mousedown', function () { peekHide(true); });
+  }
+  document.addEventListener('scroll', function () { peekHide(true); }, true);
+  window.addEventListener('blur', function () { peekHide(true); });
   function archive(text) { var d = S.json(K.drafts, []); if (!Array.isArray(d)) d = []; d.unshift({ text: text, savedAt: new Date().toISOString() }); S.put(K.drafts, d.slice(0, 5)); }
   $('copyBtn').addEventListener('click', function () { if (!note.value.trim()) { toast('작성공간이 비어 있어요'); return; } copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요'); });
   $('clearBtn').addEventListener('click', function () {
@@ -581,27 +635,45 @@
   }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
   function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices(); }
-  function linkify(node, text) {
+  function linkify(node, text, terms) {
     var re = /https?:\/\/[^\s<>"']+/g, s = String(text || ''), i = 0, m;
-    while ((m = re.exec(s))) { var url = m[0].replace(/[),.;]+$/, ''); node.append(s.slice(i, m.index)); var a = el('a', null, url); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; node.append(a); i = m.index + url.length; re.lastIndex = i; }
-    node.append(s.slice(i)); return node;
+    var put = function (t) { if (terms && terms.length) markText(node, t, terms); else node.append(t); };
+    while ((m = re.exec(s))) { var url = m[0].replace(/[),.;]+$/, ''); put(s.slice(i, m.index)); var a = el('a', null, url); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; node.append(a); i = m.index + url.length; re.lastIndex = i; }
+    put(s.slice(i)); return node;
+  }
+  /* 공지 검색: 낱말·제품코드는 그대로, 초성(ㄱㅎ)은 초성끼리 — 모든 낱말이 들어 있는 공지만 */
+  function noticeHay(n) { var t = [n.title, n.body, n.by, n.from, (n.links || []).join(' '), (n.media || []).map(function (x) { return x && (x.name || x.title || '') || ''; }).join(' ')].join(' '); return { t: norm(t), c: KBSearch.cho(t) }; }
+  function markText(node, text, toks) {
+    var low = text.toLowerCase(), rs = [];
+    toks.forEach(function (t) { if (KBSearch.isCho(t)) return; var i = 0, k; while ((k = low.indexOf(t, i)) >= 0) { rs.push([k, k + t.length]); i = k + t.length; } });
+    rs.sort(function (a, b) { return a[0] - b[0] || b[1] - a[1]; });
+    var i = 0; rs.forEach(function (r) { if (r[0] < i) return; if (r[0] > i) node.append(text.slice(i, r[0])); node.append(el('mark', null, text.slice(r[0], r[1]))); i = r[1]; });
+    node.append(text.slice(i)); return node;
+  }
+  function filterNotices(all, qq) {
+    var toks = norm(qq).split(/\s+/).filter(Boolean).slice(0, 8);
+    if (!toks.length) return { rows: all, toks: [] };
+    return { toks: toks, rows: all.filter(function (n) { var h = noticeHay(n); return toks.every(function (t) { return KBSearch.isCho(t) ? h.c.indexOf(t) >= 0 : h.t.indexOf(t) >= 0; }); }) };
   }
   function renderNotices() {
     var list = $('nlist'), all = allNotices(), un = all.filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); list.replaceChildren();
-    var info = $('ninfo'); info.replaceChildren(el('b', null, '공지 ' + all.length + '개'));
+    var qq = $('nq').value.trim(), f = filterNotices(all, qq);
+    var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
+    if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
     if (un.length) { info.append(el('span', null, '· 새 공지 ' + un.length + '개'), el('span', 'grow')); var b = el('button', 'lk', '모두 확인했어요'); b.type = 'button'; b.addEventListener('click', function () { markSeen(un.map(function (n) { return n.id; })); }); info.append(b); }
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
-    all.forEach(function (n) {
+    if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
+    f.rows.forEach(function (n) {
       var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '')), h = el('div', 'nh');
       if (isNew) h.append(el('span', 'ptag new', '새 공지'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
       if (n.pin) h.append(el('span', 'ptag', '맨 위 고정'));
-      h.append(el('h3', null, n.title || '(제목 없음)'));
+      h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));
       c.append(h);
-      if (n.body) c.append(linkify(el('p', 'nb'), n.body));
+      if (n.body) c.append(linkify(el('p', 'nb'), n.body, f.toks));
       var items = CSMedia.itemsOf({ media: n.media, at: (n.links || []).join(' ') }), st = CSMedia.strip(items, n.title, true); if (st) c.append(st);
       if (isNew) { var a = el('div', 'acts'); a.append(btn('확인했어요', 'primary', null, function () { markSeen([n.id]); })); c.append(a); }
       list.append(c);
@@ -627,9 +699,9 @@
     renderBadges();
   }
   setInterval(function () { if (!document.hidden) refreshBridge(false); }, 60000);
-  ['rq', 'dq'].forEach(function (id) {
+  ['rq', 'dq', 'nq'].forEach(function (id) {
     var i = $(id), x = i.parentNode.querySelector('.x'), t = 0;
-    var go = function () { clearTimeout(t); t = setTimeout(function () { if (id === 'rq') { rlimit = 40; renderReq(); } else { dlimit = 40; renderDefect(); } }, 90); };
+    var go = function () { clearTimeout(t); t = setTimeout(function () { if (id === 'rq') { rlimit = 40; renderReq(); } else if (id === 'dq') { dlimit = 40; renderDefect(); } else renderNotices(); }, 90); };
     i.addEventListener('input', function () { x.hidden = !i.value; go(); });
     x.addEventListener('click', function () { i.value = ''; x.hidden = true; go(); i.focus(); });
     i.addEventListener('keydown', function (e) { if (e.key === 'Escape' && i.value) { e.preventDefault(); x.click(); } });
@@ -813,7 +885,7 @@
   document.addEventListener('keydown', function (e) {
     if (CSMedia.isOpen()) return;
     var mod = e.ctrlKey || e.metaKey;
-    if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); var i = curView === 'req' ? $('rq') : curView === 'defect' ? $('dq') : $('q'); if (curView === 'notice') { setView('scripts'); i = $('q'); } i.focus(); i.select(); return; }
+    if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); var i = curView === 'req' ? $('rq') : curView === 'defect' ? $('dq') : curView === 'notice' ? $('nq') : $('q'); i.focus(); i.select(); return; }
     if (mod && e.key === 'Enter' && curView === 'scripts') { e.preventDefault(); $('copyBtn').click(); return; }
     if (e.key === 'Escape') closePops();
   });

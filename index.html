@@ -79,7 +79,14 @@
     </section>
 
     <section class="view" id="v-notice" hidden>
-      <div class="wide"><div class="results" style="padding-top:18px"><div class="scope" id="ninfo" style="margin-bottom:10px"></div><div class="stack" id="nlist"></div></div></div>
+      <div class="wide">
+        <div class="searchrow">
+          <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+            <input id="nq" type="search" autocomplete="off" spellcheck="false" placeholder="공지에서 찾기 · 낱말 · 제품코드(SKU) · 초성" aria-label="공지 검색">
+            <button class="x" type="button" title="지우기" aria-label="검색어 지우기" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        </div>
+        <div class="results"><div class="scope" id="ninfo" style="margin-bottom:10px"></div><div class="stack" id="nlist"></div></div>
+      </div>
     </section>
   </div>
 </div>
