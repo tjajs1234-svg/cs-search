@@ -91,11 +91,11 @@
  /* ───── 위쪽 막대 ───── */
  function renderTop(){
   const at=String(status.scriptsAt||'').slice(5,16),by=status.scriptsBy||'';
-  $('live').textContent=fromServer?('상담사이 지금 보는 멘트 · '+pubVer+'판'+(at?' · '+at:'')+(by?' '+by:'')):'상담사은 지금 기본 멘트를 보고 있어요 · 아직 보낸 적 없음';
+  $('live').textContent=fromServer?('상담사가 지금 보는 멘트 · '+pubVer+'판'+(at?' · '+at:'')+(by?' '+by:'')):'상담사는 지금 기본 멘트를 보고 있어요 · 아직 보낸 적 없음';
   const n=D?D.count:0,c=$('chg');c.textContent=n?('바뀐 곳 '+n+'개 · 아직 안 보냄'):'바뀐 곳 없음';c.classList.toggle('on',!!n);
   $('review').hidden=!n;$('publish').disabled=!n||busy;
   const cl=document.querySelector('.navx[data-view="closings"]'),gd=document.querySelector('.navx[data-view="guide"]');
-  if(cl)cl.classList.toggle('mod',!!(D&&D.closings));if(gd)gd.classList.toggle('mod',!!(D&&D.guide));
+  if(cl)cl.classList.toggle('mod',!!(D&&D.closings));if(gd)gd.classList.toggle('mod',!!(D&&(D.guide||D.phrases)));
   $('nClosings').textContent=draft?String((draft.closings||[]).length):'';
   document.title=(n?'● ':'')+'멘트 관리';
  }
@@ -171,6 +171,8 @@
   if(toks.length){const tm=toks.map((t,i)=>HG.tester(t,{partial:composing&&i===toks.length-1}));
    rows=rows.filter(r=>{const hay=norm([r.k.title,r.k.group,r.k.script,r.c.name].join(' ')),hc=hay.replace(/\s+/g,''),ch=HG.cho(r.k.title||'');return tm.every(m=>m.test(hay)||(m.t.length>=2&&m.test(hc))||(m.choOnly&&ch.includes(m.t)));});
   }else if(catId)rows=rows.filter(r=>r.c.id===catId);
+  if(expiredOnly)rows=rows.filter(r=>isExpired(r.k));
+  if(unusedOnly&&window.KBTeam&&KBTeam.usage.map){const U=KBTeam.usage.map;rows=rows.filter(r=>!U[r.k.id]);}
   return {rows,toks};
  }
  function hl(el,text,toks){text=String(text||'');const low=text.toLowerCase();let i=0;const t=toks.filter(Boolean);if(!t.length){el.append(text);return el;}
@@ -180,7 +182,11 @@
   const box=$('rows');const keep=box.scrollTop;box.replaceChildren();if(view!=='cards')return;
   const {rows,toks}=listRows();const searching=toks.length>0;
   const c0=catOf(catId);
-  $('midinfo').replaceChildren(mk('span',null,searching?('모든 분류에서 '+rows.length+'개 찾음'):((c0?c0.name:'전체')+' · 멘트 '+rows.length+'개')),mk('span',null,searching||!rows.length?'':'· 끌어서 순서 바꾸기'));
+  $('midinfo').replaceChildren(mk('span',null,searching?('모든 분류에서 '+rows.length+'개 찾음'):((c0?c0.name:'전체')+' · 멘트 '+rows.length+'개')),mk('span',null,searching||!rows.length||expiredOnly?'':'· 끌어서 순서 바꾸기'));
+  {let ex=0;for(const c of cats())for(const k of c.cards)if(isExpired(k))ex++;
+   const U=window.KBTeam&&KBTeam.usage.map;if(U){let un=0;for(const c of cats())for(const k of c.cards)if(!U[k.id])un++;
+    const b2=mk('button','exbtn use'+(unusedOnly?' on':''),unusedOnly?'30일 안 쓴 것만 보는 중 · 모두 보기':'30일 안 쓴 멘트 '+un+'개');b2.type='button';b2.title='최근 30일 동안 아무도 담거나 교체하지 않은 멘트예요. 지울지 살펴보세요';b2.addEventListener('click',()=>{unusedOnly=!unusedOnly;renderRows();});$('midinfo').append(mk('span','sp'),b2);}
+   if(ex||expiredOnly){const b=mk('button','exbtn'+(expiredOnly?' on':''),expiredOnly?'기간 끝난 것만 보는 중 · 모두 보기':'기간 끝난 멘트 '+ex+'개');b.type='button';b.title='끝나는 날이 지나 상담사 화면에서 숨겨진 멘트예요. 지우거나 날짜를 바꿔 주세요';b.addEventListener('click',()=>{expiredOnly=!expiredOnly;renderRows();});if(!$('midinfo').querySelector('.sp'))$('midinfo').append(mk('span','sp'));$('midinfo').append(b);}}
   if(!rows.length){box.append(mk('div','empty',searching?'찾는 멘트가 없어요.\n다른 말로 찾아보세요.':c0?'이 분류에는 아직 멘트가 없어요.\n위쪽 [+ 새 멘트]로 만들어 보세요.':'멘트가 없어요.\n[+ 새 멘트]로 만들어 보세요.'));return;}
   let lastCat='';
   for(const {k,c} of rows){
@@ -191,6 +197,8 @@
    t.append(hl(mk('b',title?null:'none'),title||'(제목 없음)',toks));
    const st=SD.cardState(B,k,c.id);if(st==='new')t.append(mk('span','chip new','새 멘트'));else if(st==='changed')t.append(mk('span','chip chg','고침'));
    if(!String(k.script||'').trim())t.append(mk('span','chip err','내용 없음'));
+   {const U=window.KBTeam&&KBTeam.usage.map;if(U){const n=U[k.id]||0,uc=mk('span','chip '+(n?'use':'unused'),n?'30일 '+n+'회':'30일 안 씀');uc.title='최근 30일 동안 상담사가 담거나 교체한 횟수(팀 서버 사용 통계)';t.append(uc);}}
+   if(k.until){const ex=isExpired(k),u=mk('span','chip '+(ex?'err':'cat'),ex?'기간 끝남':'~'+String(k.until).slice(5).replace('-','/'));u.title=ex?k.until+'에 끝났어요. 상담사 화면에서는 숨겨져 있어요':k.until+'까지 보여요';t.append(u);}
    if(searching)t.append(mk('span','chip cat',c.name));
    let sn=String(k.script||'').replace(/\s+/g,' ').trim();
    if(toks.length){const low=sn.toLowerCase();let at=-1;for(const x of toks){const j=low.indexOf(x);if(j>=0&&(at<0||j<at))at=j;}if(at>40)sn='… '+sn.slice(at-16);}
@@ -232,13 +240,26 @@
 
  /* ───── 오른쪽: 고치는 칸 ───── */
  const guide=()=>String((draft.config||{}).processingGuide||'').trim();
+ const phrases=()=>{const c=draft.config||(draft.config={});if(!Array.isArray(c.phrases))c.phrases=[];return c.phrases;};
+ const phraseOf=key=>phrases().find(p=>String(p.key).trim()===String(key).trim()&&String(p.text).trim())||null;
+ const usesOf=key=>{let n=0;const t='{'+key+'}';for(const c of cats())for(const k of c.cards)if(String(k.script).includes(t))n++;return n;};
+ /* 비슷한 멘트: 글자 3개씩 묶어 겹치는 정도(띄어쓰기 무시) */
+ const grams=s=>{s=String(s||'').replace(/\s+/g,'');const g=new Set();for(let i=0;i<s.length-2;i++)g.add(s.slice(i,i+3));return g;};
+ function similarTo(k){const a=grams(k.script);if(a.size<15)return [];const out=[];
+  for(const c of cats())for(const x of c.cards){if(x.id===k.id)continue;const b=grams(x.script);if(!b.size)continue;let both=0;for(const g of a)if(b.has(g))both++;
+   const jac=both/(a.size+b.size-both),cont=both/Math.min(a.size,b.size);if(jac>=0.5||cont>=0.8)out.push({k:x,c,score:Math.round(Math.max(jac,cont)*100)});}
+  return out.sort((p,q)=>q.score-p.score).slice(0,3);}
+ const today=()=>KBData.todayKey();
+ const isExpired=k=>/^\d{4}-\d{2}-\d{2}$/.test(String(k.until||''))&&String(k.until)<today();
+ let expiredOnly=false,unusedOnly=false;
  function previewInto(el,raw){
   el.replaceChildren();const text=String(raw||'').replace(/\r\n?/g,'\n');
-  const parts=text.split(/(\[접수 후 처리 안내\]|\[인입 채널별 접수 경로\])/);
+  const parts=text.split(/(\[접수 후 처리 안내\]|\[인입 채널별 접수 경로\]|\{[^{}\n]{1,20}\})/);
   for(const p of parts){
    if(p===T_GUIDE&&guide()){const s=mk('span','auto',guide());s.title='‘공통 문구 → 접수 후 처리 안내’가 들어간 자리예요';el.append(s);continue;}
    if(p===T_URL){const s=mk('span','auto',svcUrl);s.title='접수 주소가 들어간 자리예요';el.append(s);continue;}
-   let pos=0;for(const b of DraftCheck.find(p)){el.append(p.slice(pos,b.start));const m=mk('mark',null,b.text);m.title='상담사이 채우는 빈칸(작성 공간에서 F2)';el.append(m);pos=b.end;}el.append(p.slice(pos));
+   if(/^\{[^{}\n]{1,20}\}$/.test(p)){const ph=phraseOf(p.slice(1,-1));const s=mk('span',ph?'auto':'auto bad',ph?ph.text:p+' (없는 공통 문구)');s.title=ph?'공통 문구 {'+ph.key+'}가 들어간 자리예요':'공통 문구에 이 이름이 없어요. 왼쪽 ‘공통 문구’에서 만들어 주세요';el.append(s);continue;}
+   let pos=0;for(const b of DraftCheck.find(p)){el.append(p.slice(pos,b.start));const m=mk('mark',null,b.text);m.title='상담사가 채우는 빈칸(작성 공간에서 F2)';el.append(m);pos=b.end;}el.append(p.slice(pos));
   }
  }
  function renderEdit(){
@@ -251,13 +272,13 @@
   const head=mk('div','fhead');let headSt=null;
   const paintHead=()=>{const x=findCard(k.id);const st=x?SD.cardState(B,k,x.c.id):'';if(st===headSt)return;headSt=st;head.replaceChildren();
    if(st==='new')head.append(mk('span','chip new','새 멘트'));else if(st==='changed')head.append(mk('span','chip chg','고침'));
-   head.append(mk('span','where',st?'아직 상담사에게 보내지 않았어요':'상담사이 보는 것과 같아요'),mk('span','sp'));
-   if(st==='changed'){const r=btn('원래대로','ghost sm',()=>{draft=SD.revert(base,draft,{kind:'changed',id:k.id});changed();if(!findCard(k.id))sel='';render();say('원래대로 되돌렸어요');});r.id='revertCard';r.title='상담사이 지금 보는 내용으로 되돌려요';r.addEventListener('mousedown',e=>e.preventDefault());head.append(r);}};
+   head.append(mk('span','where',st?'아직 상담사에게 보내지 않았어요':'상담사가 보는 것과 같아요'),mk('span','sp'));
+   if(st==='changed'){const r=btn('원래대로','ghost sm',()=>{draft=SD.revert(base,draft,{kind:'changed',id:k.id});changed();if(!findCard(k.id))sel='';render();say('원래대로 되돌렸어요');});r.id='revertCard';r.title='상담사가 지금 보는 내용으로 되돌려요';r.addEventListener('mousedown',e=>e.preventDefault());head.append(r);}};
   paintHead();form.append(head);
   // 제목 + 분류
   const two=mk('div','two');
   const fT=mk('div');const title=mk('input','in title');title.type='text';title.value=k.title;title.placeholder='예: 교환 접수 안내';title.maxLength=80;title.setAttribute('aria-label','제목');
-  fT.append(lab('제목','상담사이 목록에서 보고 찾는 이름'),title);
+  fT.append(lab('제목','상담사가 목록에서 보고 찾는 이름'),title);
   const fC=mk('div');const cs=mk('select','sel');cs.setAttribute('aria-label','분류');for(const c of cats())cs.append(new Option(c.name,c.id));cs.value=f.c.id;
   fC.append(lab('분류'),cs);two.append(fT,fC);form.append(two);
   // 내용
@@ -265,18 +286,23 @@
   const ta=mk('textarea','ta');ta.value=k.script;ta.placeholder='안녕하세요, 고객님. 슈피겐입니다.\n\n…';ta.setAttribute('aria-label','멘트 내용');ta.spellcheck=false;
   const ins=mk('div','ins');ins.append(mk('span',null,'눌러서 넣기'));
   const chip=(label,text,tip)=>{const b=mk('button',null,label);b.type='button';b.title=tip;b.addEventListener('mousedown',e=>e.preventDefault());b.addEventListener('click',()=>{const s=ta.selectionStart,e=ta.selectionEnd;ta.setRangeText(text,s,e,'end');ta.focus();ta.dispatchEvent(new Event('input'));});ins.append(b);};
-  chip('접수 후 처리 안내',T_GUIDE,'보낼 때 ‘공통 문구’의 접수 후 처리 안내로 바뀌어요. 한 곳만 고치면 모든 멘트에 반영돼요');
   chip('접수 주소',T_URL,'교환·반품·A/S 접수 주소('+svcUrl+')로 바뀌어요');
-  chip('빈칸: O월 O일','O월 O일','상담사이 채워야 하는 자리. 작성 공간에서 F2로 바로 찾아가고, 안 채우고 복사하면 알려 줘요');
-  chip('빈칸: OOO님','OOO님','상담사이 채워야 하는 자리(고객 이름)');
-  fB.append(lb,ta,ins);form.append(fB);
+  for(const ph of phrases())if(String(ph.key).trim())chip('{'+ph.key+'}','{'+ph.key+'}','공통 문구 ‘'+ph.key+'’ — 상담사 화면에서는 왼쪽 ‘공통 문구’에 적은 글로 바뀌어요');
+  chip('빈칸: O월 O일','O월 O일','상담사가 채워야 하는 자리. 작성 공간에서 F2로 바로 찾아가고, 안 채우고 복사하면 알려 줘요');
+  chip('빈칸: OOO님','OOO님','상담사가 채워야 하는 자리(고객 이름)');
+  const sim=mk('div','sim');sim.hidden=true;
+  fB.append(lb,ta,ins,sim);form.append(fB);
   // 미리보기
   const pv=mk('div','pv'),pb=mk('div','pb');pv.append(mk('div','ph','상담사 화면에서는 이렇게 보여요'),pb);form.append(pv);
   // 더 적기
-  const more=mk('details','more');const sum=mk('summary',null,'대분류 · 주의사항 (선택)');const inner=mk('div','inner');
+  const more=mk('details','more');const sum=mk('summary',null,'대분류 · 주의사항 · 끝나는 날 (선택)');const inner=mk('div','inner');
   const g=mk('input','in');g.type='text';g.value=k.group;g.placeholder='예: 필름, 교환·반품';g.maxLength=40;g.setAttribute('aria-label','검색용 꼬리표');
   const n=mk('input','in');n.type='text';n.value=k.note;n.placeholder='상담사 화면에만 보이는 주의사항 (고객에게는 안 보내요)';n.maxLength=1000;n.setAttribute('aria-label','주의사항');
-  const d1=mk('div');d1.append(lab('대분류 · 검색용 꼬리표','상담사 화면 문안 위에 작게 보이고, 이 말로 찾아도 나와요'),g);const d2=mk('div');d2.append(lab('주의사항','상담사 화면 문안 아래에 보여요'),n);inner.append(d1,d2);more.append(sum,inner);if(k.group||k.note)more.open=true;form.append(more);
+  const d1=mk('div');d1.append(lab('대분류 · 검색용 꼬리표','상담사 화면 문안 위에 작게 보이고, 이 말로 찾아도 나와요'),g);const d2=mk('div');d2.append(lab('주의사항','상담사 화면 문안 아래에 보여요'),n);
+  const u=mk('input','in');u.type='date';u.value=k.until||'';u.setAttribute('aria-label','끝나는 날');u.style.maxWidth='200px';
+  const uc=mk('button','btn ghost sm','지우기');uc.type='button';uc.hidden=!k.until;
+  const d3=mk('div');const uw=mk('div','urow');uw.append(u,uc);d3.append(lab('끝나는 날','행사·이슈처럼 기간이 있는 멘트만. 이 날이 지나면 상담사 화면에서 저절로 숨겨지고, 여기 목록에는 ‘기간 끝남’으로 남아요'),uw);
+  inner.append(d1,d2,d3);more.append(sum,inner);if(k.group||k.note||k.until)more.open=true;form.append(more);
   // 아래 버튼
   const acts=mk('div','facts');
   const up=btn('위로','ghost sm',()=>step(-1)),dn=btn('아래로','ghost sm',()=>step(1));up.title='목록에서 한 칸 위로 (Alt+↑)';dn.title='목록에서 한 칸 아래로 (Alt+↓)';
@@ -293,6 +319,11 @@
   title.addEventListener('input',()=>{k.title=title.value;on();});
   ta.addEventListener('input',()=>{k.script=ta.value.replace(/\r\n?/g,'\n');on();});
   g.addEventListener('input',()=>{k.group=g.value;on();});n.addEventListener('input',()=>{k.note=n.value;on();});
+  u.addEventListener('change',()=>{k.until=u.value||'';uc.hidden=!k.until;on();});uc.addEventListener('click',()=>{u.value='';k.until='';uc.hidden=true;on();});
+  let simT=0;const paintSim=()=>{const list=similarTo(k);sim.replaceChildren();sim.hidden=!list.length;if(!list.length)return;
+   sim.append(mk('span','sl','비슷한 멘트가 있어요'));
+   for(const x of list){const b=mk('button','sb');b.type='button';b.append(mk('b',null,x.k.title||'(제목 없음)'),mk('span',null,x.c.name+' · '+x.score+'%'));b.title='눌러서 그 멘트 보기';b.addEventListener('click',()=>pickCard(x.k.id));sim.append(b);}};
+  ta.addEventListener('input',()=>{clearTimeout(simT);simT=setTimeout(paintSim,350);});paintSim();
   for(const el of [title,g,n])el.addEventListener('blur',()=>{const v=el.value.trim();if(v!==el.value){el.value=v;el.dispatchEvent(new Event('input'));}});
   cs.addEventListener('change',()=>{const to=catOf(cs.value);if(!to)return;const x=findCard(k.id);x.c.cards.splice(x.i,1);to.cards.unshift(k);if(catId)catId=to.id;changed();render();say('‘'+to.name+'’(으)로 옮겼어요');});
   paint();
@@ -324,13 +355,29 @@
   }
   if(view==='guide'){
    let uses=0;for(const c of cats())for(const k of c.cards)if(String(k.script).includes(T_GUIDE))uses++;
-   w.append(mk('h2',null,'공통 문구'),mk('p','desc','여러 멘트에 똑같이 들어가는 글이에요. 멘트 내용에 '+T_GUIDE+' 라고 적어 두면, 상담사 화면에서는 아래 글로 바뀌어 보여요. 여기 한 곳만 고치면 그 멘트들이 모두 바뀌어요.'));
-   const p=mk('div','panel');
-   const d1=mk('div');const l=lab('접수 후 처리 안내','지금 멘트 '+uses+'개에 들어가 있어요');const ta=mk('textarea','ta');ta.value=String((draft.config||{}).processingGuide||'');ta.style.minHeight='180px';ta.setAttribute('aria-label','접수 후 처리 안내');
-   ta.addEventListener('input',()=>{draft.config={...(draft.config||{}),processingGuide:ta.value.replace(/\r\n?/g,'\n')};changed();});d1.append(l,ta);
-   const d2=mk('div');const u=mk('input','in');u.type='text';u.value=svcUrl;u.readOnly=true;u.setAttribute('aria-label','접수 주소');d2.append(lab('접수 주소','교환·반품·A/S 접수는 이 주소 하나로 통일했어요(고칠 수 없음)'),u);
-   p.append(d1,d2);
-   if(D&&D.guide){const rv=btn('원래대로','ghost sm',()=>{draft=SD.revert(base,draft,{kind:'guide'});changed();renderWide();});rv.style.alignSelf='flex-start';p.append(rv);}
+   w.append(mk('h2',null,'공통 문구'),mk('p','desc','계좌번호·매장 안내·카톡 링크처럼 여러 멘트에 똑같이 들어가는 글을 여기 한 곳에 적어 두세요. 멘트 내용에 {이름}을 넣으면(고치는 칸의 단추로 넣을 수 있어요) 상담사 화면에서는 아래 글로 바뀌어 보여요. 여기만 고치면 그 멘트가 모두 바뀌어요.'));
+   const p=mk('div','panel');const list=phrases();
+   list.forEach((ph,i)=>{const r=mk('div','phrow');
+    const key=mk('input','in');key.type='text';key.value=ph.key||'';key.placeholder='이름 (예: 계좌)';key.maxLength=20;key.setAttribute('aria-label','공통 문구 이름');
+    const body=mk('textarea','ta');body.value=ph.text||'';body.placeholder='들어갈 글 (예: 기업은행 666-005246-01-014 (주)슈피겐코리아)';body.setAttribute('aria-label','공통 문구 내용');
+    const n=usesOf(String(ph.key||'').trim()),info=mk('div','phinfo');const paintInfo=()=>{const kk=String(ph.key||'').trim();info.textContent=kk?('멘트에 {'+kk+'} 로 넣기 · 지금 멘트 '+usesOf(kk)+'개에 들어가 있어요'):'이름을 적어 주세요';};paintInfo();
+    let was=String(ph.key||'').trim();
+    key.addEventListener('change',()=>{const nk=key.value.replace(/[{}]/g,'').trim().slice(0,20);key.value=nk;
+     if(nk&&list.some(x=>x!==ph&&String(x.key).trim()===nk)){say('같은 이름의 공통 문구가 있어요','err');key.value=was;return;}
+     // 이름을 바꾸면 멘트 안의 {옛 이름}도 함께 바꿈
+     if(was&&nk&&was!==nk){let m=0;for(const c of cats())for(const k of c.cards){const t='{'+was+'}';if(String(k.script).includes(t)){k.script=String(k.script).split(t).join('{'+nk+'}');m++;}}if(m)say('멘트 '+m+'개의 {'+was+'}도 {'+nk+'}로 바꿨어요');}
+     ph.key=nk;was=nk;changed();paintInfo();});
+    body.addEventListener('input',()=>{ph.text=body.value.replace(/\r\n?/g,'\n');changed();});
+    const x=mk('button','tb');x.type='button';x.innerHTML=ICON.trash;x.title='이 공통 문구 지우기';x.setAttribute('aria-label','공통 문구 지우기');
+    x.addEventListener('click',()=>{const kk=String(ph.key||'').trim(),used=kk?usesOf(kk):0;if(used){say('멘트 '+used+'개에 {'+kk+'}가 들어가 있어요. 먼저 그 멘트에서 빼 주세요(찾아 바꾸기로 한 번에 바꿀 수 있어요)','err');return;}
+     list.splice(i,1);changed();renderWide();say('공통 문구를 지웠어요','',{label:'되돌리기',fn:()=>{list.splice(Math.min(i,list.length),0,ph);changed();renderWide();}});});
+    const left=mk('div','phl');left.append(key,info);r.append(left,body,x);p.append(r);});
+   if(!list.length)p.append(mk('div','empty','아직 공통 문구가 없어요. 자주 바뀌는 글(계좌번호, 매장 운영시간 등)부터 만들어 보세요.'));
+   const add=btn('+ 공통 문구 추가','ghost',()=>{list.push({key:'',text:''});changed();renderWide();const all=w.querySelectorAll('.phrow .in');if(all.length)all[all.length-1].focus();});add.style.alignSelf='flex-start';p.append(add);
+   const d2=mk('div');const u=mk('input','in');u.type='text';u.value=svcUrl;u.readOnly=true;u.setAttribute('aria-label','접수 주소');d2.append(lab('접수 주소 [인입 채널별 접수 경로]','교환·반품·A/S 접수는 이 주소 하나로 통일했어요'),u);p.append(d2);
+   if(uses){const d1=mk('div');const l=lab('접수 후 처리 안내 [접수 후 처리 안내]','지금 멘트 '+uses+'개에 들어가 있어요');const ta=mk('textarea','ta');ta.value=String((draft.config||{}).processingGuide||'');ta.style.minHeight='120px';ta.setAttribute('aria-label','접수 후 처리 안내');
+    ta.addEventListener('input',()=>{draft.config={...(draft.config||{}),processingGuide:ta.value.replace(/\r\n?/g,'\n')};changed();});d1.append(l,ta);p.append(d1);}
+   if(D&&(D.guide||D.phrases)){const rv=btn('공통 문구 원래대로','ghost sm',()=>{if(D.phrases)draft=SD.revert(base,draft,{kind:'phrases'});if(D.guide)draft=SD.revert(base,draft,{kind:'guide'});changed();renderWide();});rv.style.alignSelf='flex-start';p.append(rv);}
    w.append(p);return;
   }
   if(KBAdminExtra.views[view]){KBAdminExtra.views[view](w);return;}
@@ -350,7 +397,7 @@
  async function loadHistory(){histItems=null;renderWide();const r=await send({type:'ADMIN_CALL',action:'scripts.history'}).catch(()=>null);histItems=r&&r.ok?(r.items||[]):'err';if(view==='history')renderWide();}
  async function restore(h){
   if(D&&D.count){say('보내지 않은 수정이 있어요. 먼저 보내거나 [바뀐 곳 보기]에서 버린 뒤 되돌려 주세요.','err');return;}
-  if(!(await confirmDlg(h.version+'판으로 되돌릴까요?','상담사이 보는 멘트가 '+h.version+'판('+String(h.at||'').slice(0,16)+') 내용으로 바뀌어요. 2분 안에 모든 PC에 반영돼요.','되돌리기')))return;
+  if(!(await confirmDlg(h.version+'판으로 되돌릴까요?','상담사가 보는 멘트가 '+h.version+'판('+String(h.at||'').slice(0,16)+') 내용으로 바뀌어요. 2분 안에 모든 PC에 반영돼요.','되돌리기')))return;
   const r=await send({type:'ADMIN_CALL',action:'scripts.restore',params:{version:h.version,baseVersion:pubVer}}).catch(e=>({ok:false,error:e.message}));
   if(!r||!r.ok){say(r&&r.conflict?'그 사이 멘트가 바뀌었어요. 잠시 뒤 다시 해 주세요.':((r&&r.error)||'되돌리지 못했어요'),'err');if(r&&r.conflict){await send({type:'KNOW_REFRESH'}).catch(()=>{});await load();loadHistory();}return;}
   minVer=Number(r.version)||0;say(h.version+'판으로 되돌렸어요('+r.version+'판). 2분 안에 모두에게 반영돼요.','ok');
@@ -374,7 +421,7 @@
    const r=await dialog((d,close)=>{d.style.width='520px';d.append(mk('h3',null,'바뀐 곳 '+D.count+'개'),mk('p',null,'아직 상담사에게 보내지 않은 수정이에요. 잘못 고친 것은 [원래대로]로 하나씩 되돌릴 수 있어요.'),changeList(D.items,true,close));
     const a=mk('div','acts');const all=btn('모두 버리기','danger-ghost',()=>close('discard'));all.style.marginRight='auto';a.append(all,btn('닫기','ghost',()=>close(null)),btn('상담사에게 보내기','primary',()=>close('publish')));d.append(a);});
    if(r==='again')continue;
-   if(r==='discard'){if(await confirmDlg('고친 것을 모두 버릴까요?','바뀐 곳 '+D.count+'개가 모두 사라지고 상담사이 지금 보는 멘트로 돌아가요.','모두 버리기',true)){draft=SD.clone(base);sel='';if(catId&&!catOf(catId))catId='';changed();render();banner('');say('고친 것을 모두 버렸어요');}return;}
+   if(r==='discard'){if(await confirmDlg('고친 것을 모두 버릴까요?','바뀐 곳 '+D.count+'개가 모두 사라지고 상담사가 지금 보는 멘트로 돌아가요.','모두 버리기',true)){draft=SD.clone(base);sel='';if(catId&&!catOf(catId))catId='';changed();render();banner('');say('고친 것을 모두 버렸어요');}return;}
    if(r==='publish')publish();
    return;
   }
@@ -410,6 +457,31 @@
  }
  $('publish').addEventListener('click',publish);
 
+ /* ───── 찾아 바꾸기: 모든 멘트 내용에서 한 번에(보내기 전까지는 이 PC에만) ───── */
+ async function findReplace(){
+  leaveCard();
+  const before=SD.clone(draft);
+  const r=await dialog((d,close)=>{d.style.width='560px';
+   d.append(mk('h3',null,'찾아 바꾸기'),mk('p',null,'모든 멘트 내용(제목 빼고)에서 글자를 한 번에 바꿔요. 바꾼 뒤에도 [상담사에게 보내기] 전까지는 상담사에게 안 보여요.'));
+   const f=mk('input','in');f.type='text';f.placeholder='찾을 글 (예: 6,000원)';f.setAttribute('aria-label','찾을 글');
+   const t=mk('textarea','ta');t.placeholder='바꿀 글 (비워 두면 지워요)';t.style.minHeight='64px';t.setAttribute('aria-label','바꿀 글');
+   const ins=mk('div','ins');if(phrases().some(p=>String(p.key).trim())){ins.append(mk('span',null,'공통 문구로 바꾸기'));for(const ph of phrases()){const kk=String(ph.key).trim();if(!kk)continue;const b=mk('button',null,'{'+kk+'}');b.type='button';b.addEventListener('click',()=>{t.value='{'+kk+'}';t.dispatchEvent(new Event('input'));});ins.append(b);}}
+   const res=mk('div','frres');
+   const hits=()=>{const q=f.value;const out=[];if(!q)return out;for(const c of cats())for(const k of c.cards){const n=String(k.script).split(q).length-1;if(n)out.push({k,c,n});}return out;};
+   const paint=()=>{const h=hits(),n=h.reduce((a,x)=>a+x.n,0);res.replaceChildren();go.disabled=!h.length;
+    if(!f.value){res.append(mk('div','muted','찾을 글을 적으면 들어 있는 멘트가 여기 보여요.'));return;}
+    res.append(mk('div','frsum',h.length?('멘트 '+h.length+'개 · '+n+'곳'):'들어 있는 멘트가 없어요'));
+    const ul=mk('ul','frl');for(const x of h.slice(0,40)){const li=mk('li');li.append(mk('b',null,x.k.title||'(제목 없음)'),mk('span',null,x.c.name+(x.n>1?' · '+x.n+'곳':'')));ul.append(li);}if(h.length>40)ul.append(mk('li','muted','외 '+(h.length-40)+'개'));res.append(ul);};
+   const a=mk('div','acts');const go=btn('모두 바꾸기','primary',()=>close({q:f.value,to:t.value.replace(/\r\n?/g,'\n')}));go.disabled=true;a.append(btn('취소','ghost',()=>close(null)),go);
+   f.addEventListener('input',paint);t.addEventListener('input',paint);
+   d.append(lab('찾을 글'),f,lab('바꿀 글'),t,ins,res,a);paint();setTimeout(()=>f.focus(),0);});
+  if(!r||!r.q)return;
+  let m=0,n=0;for(const c of cats())for(const k of c.cards){const parts=String(k.script).split(r.q);if(parts.length>1){k.script=parts.join(r.to);m++;n+=parts.length-1;}}
+  changed();render();
+  say('멘트 '+m+'개에서 '+n+'곳을 바꿨어요. [상담사에게 보내기]를 눌러야 상담사에게 보여요','ok',{label:'되돌리기',fn:()=>{draft=before;changed();render();}});
+ }
+ $('findRep').addEventListener('click',findReplace);
+
  /* ───── 전체 ───── */
  function render(){renderTop();renderCats();renderRows();renderEdit();}
  document.addEventListener('keydown',e=>{
@@ -417,10 +489,11 @@
   const mod=e.ctrlKey||e.metaKey;
   if(mod&&!e.altKey&&(e.key==='s'||e.key==='S'||e.code==='KeyS')){e.preventDefault();if(D&&D.count)publish();else say('바뀐 곳이 없어요');}
   else if(mod&&!e.altKey&&(e.code==='KeyN')){e.preventDefault();newCard();}
+  else if(mod&&!e.altKey&&(e.code==='KeyH')){e.preventDefault();findReplace();}
   else if(mod&&!e.altKey&&(e.code==='KeyF')){e.preventDefault();if(view!=='cards'){view='cards';render();}q.focus();q.select();}
   else if(e.altKey&&!mod&&(e.key==='ArrowUp'||e.key==='ArrowDown')&&view==='cards'&&sel){const f=document.querySelector('#edit .form');if(f&&f.rgStep){e.preventDefault();f.rgStep(e.key==='ArrowUp'?-1:1);}}
  });
  chrome.storage.onChanged.addListener((ch,area)=>{if(area==='local'&&ch.kbContent&&!busy&&!KBAdminExtra.connecting)load();});
- window.KBAdminApp={say,dialog,confirmDlg,btn,mk,lab:(...a)=>lab(...a),reload:()=>load(),current:()=>({draft,base,pubVer,D}),setView:v=>{leaveCard();view=v;render();}};
+ window.KBAdminApp={refresh:()=>{if(base)render();},say,dialog,confirmDlg,btn,mk,lab:(...a)=>lab(...a),reload:()=>load(),current:()=>({draft,base,pubVer,D}),setView:v=>{leaveCard();view=v;render();}};
  load(true);
 })();

@@ -93,6 +93,7 @@
     M.recent = [r.id].concat(M.recent.filter(function (x) { return x !== r.id; })).slice(0, 12);
     var p = M.usage[r.id] || { count: 0 }; M.usage[r.id] = { count: (p.count || 0) + 1, lastUsed: new Date().toISOString() };
     S.put(K.recent, M.recent); S.put(K.usage, M.usage);
+    if (r.kind === 'official') queueUse(r.id);
   }
 
   /* ───── 문안 자료 ───── */
@@ -117,6 +118,7 @@
     showOnboard(false);
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
+    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && curView === 'board') setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false);
     rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
@@ -125,7 +127,7 @@
   }
 
   /* ───── 화면 전환 ───── */
-  var VIEWS = ['scripts', 'req', 'defect', 'notice'];
+  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board'];
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts'; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
@@ -135,6 +137,7 @@
     if (v === 'req') { ensureArchive(); renderReq(); }
     if (v === 'defect') { S.put('csx:defOpened', Date.now()); renderDefect(); renderBadges(); }
     if (v === 'notice') renderNotices();
+    if (v === 'board') loadBoard(true); else freshNow.clear();
     if (focus !== false) { var input = v === 'scripts' ? $('q') : v === 'req' ? $('rq') : v === 'defect' ? $('dq') : null; if (input) setTimeout(function () { input.focus(); }, 0); }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { setView(t.dataset.v); }); });
@@ -191,6 +194,16 @@
     i.addEventListener('change', save); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); i.blur(); } });
     w.append(i); return w;
   }
+  /* 1차·2차 짝: 제목에서 ‘1차’를 ‘2차’로 바꾼 멘트가 있으면 짝(고객이 수긍하지 않을 때 쓰는 2차 안내) */
+  var pairCache = null, pairOpen = new Set();
+  function secondOf(r) {
+    if (!pairCache || pairCache.recs !== recs) {
+      var byTitle = new Map(); recs.forEach(function (x) { if (x.kind === 'official') byTitle.set(x.sheet + '|' + x.situation, x); });
+      pairCache = { recs: recs, map: new Map() };
+      recs.forEach(function (x) { if (x.kind !== 'official' || !/1차/.test(x.situation)) return; var y = byTitle.get(x.sheet + '|' + x.situation.replace(/1차/g, '2차')); if (y && y !== x) pairCache.map.set(x.id, y); });
+    }
+    return pairCache.map.get(r.id) || null;
+  }
   function card(r, terms) {
     var open = openId === r.id, c = el('article', 'card' + (open ? ' open' : '') + (isAdded(r.script) ? ' added' : '')); c.dataset.id = r.id;
     if (!open) peekOn(c, r, terms);
@@ -221,10 +234,20 @@
     var rb = btn('교체', '', 'swap', function () { replaceWith(r.script, r); }); rb.title = '작성공간을 비우고 이 문안만 담아요';
     a.append(btn('담기', 'primary', 'plus', function () { add(r.script, r); }), rb,
       btn(open ? '접기' : '전체 보기', 'ghost', null, function () { openId = open ? '' : r.id; renderScripts(); }));
+    var two = secondOf(r);
+    if (two) { var po = pairOpen.has(r.id), pb = btn(po ? '2차 접기' : '2차 보기', 'ghost', null, function () { if (pairOpen.has(r.id)) pairOpen.delete(r.id); else pairOpen.add(r.id); renderScripts(); }); pb.title = '고객이 수긍하지 않을 때 쓰는 2차 안내: ' + two.situation; a.append(pb); }
     if (r.kind === 'mine') a.append(btn('고치기', 'ghost', 'edit', function () { editCustom(r.id); }));
     if (r.kind === 'pclosing') a.append(btn('고치기', 'ghost', 'edit', function () { editPClosing(r.id); }));
     if ((r.kind === 'closing' || r.kind === 'pclosing') && view === 'bye' && !q.trim()) { var sp = el('span'); sp.style.flex = '1'; a.append(sp, shortcutField(r.kind === 'closing' ? 'shared' : 'personal', r.id)); }
     c.append(a);
+    if (two && pairOpen.has(r.id)) {
+      var pz = el('div', 'pair'), ph = el('div', 'pair-h');
+      ph.append(el('span', 'ptag', '2차'), el('b', null, two.situation), el('span', 'pair-s', '고객이 수긍하지 않을 때'));
+      var pt = el('div', 'pair-t'); KBSearch.splitParagraphs(two.script).forEach(function (p) { pt.append(el('p', null, p)); });
+      var pa = el('div', 'acts'); pa.append(btn('담기', 'primary', 'plus', function () { add(two.script, two); }), btn('교체', '', 'swap', function () { replaceWith(two.script, two); }));
+      pz.append(ph, pt, pa); c.append(pz);
+      c.classList.add('paired');
+    }
     return c;
   }
   function renderScripts() {
@@ -279,7 +302,58 @@
     var m = note.value.match(PLACEHOLDER);
     if (m) { b.append(ic('warn'), el('span', null, '채울 곳: ' + Array.from(new Set(m)).slice(0, 3).join(' ') + (m.length > 3 ? ' 외' : ''))); var go = el('button', null, '첫 칸으로'); go.type = 'button'; go.addEventListener('click', jumpBlank); b.append(go); }
     $('cc').textContent = note.value.length.toLocaleString() + '자';
-    markAdded();
+    markAdded(); renderFill();
+  }
+  /* 날짜 빈칸 채우기: 작성공간의 ‘O월 O일(요일)’ · ‘오늘/내일/다음 주 월요일’ 같은 자리를 단추 한 번으로.
+     출고일 추천: 평일 오후 3시 전이면 오늘, 아니면 다음 평일(금요일 3시 뒤·주말이면 다음 주 월요일). 공휴일은 따로 안 셈 */
+  var DATE_BLANK = /[OoＯ○〇n]\s*월\s*[OoＯ○〇n]\s*일(\s*\(\s*(?:[OoＯ○〇n]\s*)?요일\s*\)|\s*[OoＯ○〇n]\s*요일)?/;
+  var DAY_CHOICE = /\[?((?:오늘|내일|다음\s*주\s*월요일)(?:\s*\/\s*(?:오늘|내일|다음\s*주\s*월요일))+)\]?/;
+  var WD = '일월화수목금토';
+  function dayOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var x = dayOnly(d); x.setDate(x.getDate() + n); return x; }
+  function nextBiz(d) { var x = addDays(d, 1); while (x.getDay() === 0 || x.getDay() === 6) x = addDays(x, 1); return x; }
+  function shipDay(now) { var wk = now.getDay() !== 0 && now.getDay() !== 6; return wk && now.getHours() < 15 ? dayOnly(now) : nextBiz(now); }
+  function dateText(d, how) { var s = (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; return how === 'paren' ? s + '(' + WD[d.getDay()] + ')' : how === 'word' ? s + ' ' + WD[d.getDay()] + '요일' : s; }
+  function choiceWord(d, now) { var t = dayOnly(now), diff = Math.round((dayOnly(d) - t) / 864e5); return diff === 0 ? '오늘' : diff === 1 ? '내일' : d.getDay() === 1 && diff <= 3 ? '다음 주 월요일' : dateText(d); }
+  function fillDate(d) {
+    var m = DATE_BLANK.exec(note.value); if (!m) return;
+    var how = m[1] ? (/\(/.test(m[1]) ? 'paren' : 'word') : '';
+    note.value = note.value.slice(0, m.index) + dateText(d, how) + note.value.slice(m.index + m[0].length);
+    saveNote(); blanks();
+  }
+  function fillChoice(word) {
+    var m = DAY_CHOICE.exec(note.value); if (!m) return;
+    note.value = note.value.slice(0, m.index) + word + note.value.slice(m.index + m[0].length);
+    saveNote(); blanks();
+  }
+  function renderFill() {
+    var f = $('fill'); if (!f) return; f.replaceChildren();
+    var v = note.value, dm = DATE_BLANK.exec(v), cm = DAY_CHOICE.exec(v);
+    if (!dm && !cm) { f.hidden = true; return; }
+    f.hidden = false;
+    var now = new Date(), ship = shipDay(now);
+    var mk = function (label, sub, fn, rec) { var b = el('button', 'fb' + (rec ? ' rec' : '')); b.type = 'button'; b.append(el('b', null, label)); if (sub) b.append(el('span', null, sub)); if (rec) b.title = '지금 시각 기준 출고일(평일 오후 3시 전 결제 → 오늘)'; b.addEventListener('click', fn); return b; };
+    if (cm) {
+      var row = el('div', 'frow'); row.append(el('span', 'fl', '출고일'));
+      cm[1].split('/').map(function (s) { return s.trim().replace(/\s+/g, ' '); }).forEach(function (w) {
+        var rec = w === choiceWord(ship, now);
+        row.append(mk(w, rec ? '추천' : '', function () { fillChoice(w); }, rec));
+      });
+      f.append(row);
+    }
+    if (dm) {
+      var n = (v.match(new RegExp(DATE_BLANK.source, 'g')) || []).length, row2 = el('div', 'frow');
+      row2.append(el('span', 'fl', '날짜' + (n > 1 ? ' ' + n + '곳' : '')));
+      var today = dayOnly(now), tmr = addDays(now, 1), nb = nextBiz(now);
+      row2.append(mk('오늘', (today.getMonth() + 1) + '/' + today.getDate() + '(' + WD[today.getDay()] + ')', function () { fillDate(today); }));
+      row2.append(mk('내일', (tmr.getMonth() + 1) + '/' + tmr.getDate() + '(' + WD[tmr.getDay()] + ')', function () { fillDate(tmr); }));
+      if (nb.getTime() !== tmr.getTime()) row2.append(mk('다음 평일', (nb.getMonth() + 1) + '/' + nb.getDate() + '(' + WD[nb.getDay()] + ')', function () { fillDate(nb); }));
+      var pick = el('label', 'fb pick'); pick.append(el('b', null, '달력'));
+      var inp = el('input'); inp.type = 'date'; inp.setAttribute('aria-label', '날짜 고르기');
+      inp.addEventListener('change', function () { if (!inp.value) return; var p = inp.value.split('-'); fillDate(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))); });
+      pick.append(inp); row2.append(pick);
+      f.append(row2);
+    }
   }
   function jumpBlank() { PLACEHOLDER.lastIndex = 0; var m = PLACEHOLDER.exec(note.value); if (!m) return; note.focus(); note.setSelectionRange(m.index, m.index + m[0].length); }
   function splitP(t) { return KBSearch.splitParagraphs(t); }
@@ -707,6 +781,86 @@
     i.addEventListener('keydown', function (e) { if (e.key === 'Escape' && i.value) { e.preventDefault(); x.click(); } });
   });
   $('ry').addEventListener('change', function () { rlimit = 40; renderReq(); });
+
+  /* ───── 요청·건의: 상담사가 필요한 것(멘트·기능·불편한 점)을 자유롭게 · 팀장이 상태와 답글로 처리 ───── */
+  var board = { posts: null, filter: 'open', at: 0, err: '' }, BSEEN = 'csx:boardSeen', BNAME = 'csx:myName', freshNow = new Set(); // freshNow: 이번에 보는 동안은 ‘새 답’ 표시를 남겨 둠
+  function myName() { return String(S.get(BNAME) || '').trim(); }
+  function seenMap() { var m = S.json(BSEEN, {}); return m && typeof m === 'object' ? m : {}; }
+  function boardNew(p) { var me = myName(); return !!me && p.author === me && (p.adminAt || 0) > (seenMap()[p.id] || 0); }
+  function boardBadge() { var b = $('boardBadge'); if (!b) return; var n = (board.posts || []).filter(boardNew).length; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
+  async function loadBoard(show) {
+    if (!CSTeam.ready()) return;
+    if (show) renderBoard();
+    try { var r = await CSTeam.call('board.list', {}, 20000); board.posts = r.posts || []; board.err = ''; board.at = Date.now(); }
+    catch (e) { board.err = e.message || '불러오지 못했어요'; }
+    boardBadge(); if (curView === 'board') renderBoard();
+  }
+  setInterval(function () { if (!document.hidden && CSTeam.ready() && (curView === 'board' || Date.now() - board.at > 5 * 60000)) loadBoard(false); }, 60000);
+  var BST = { '접수': 'st-new', '진행 중': 'st-doing', '완료': 'st-done', '보류': 'st-hold' };
+  function renderBoard() {
+    var L = $('blist'); if (!L) return; L.replaceChildren();
+    var head = el('div', 'bhead'); head.append(el('h2', null, '요청·건의'), el('p', null, '필요한 멘트, 불편한 점, 바라는 기능… 무엇이든 적어 주세요. 팀장이 확인하고 답을 달아요. 모두가 같이 봐요.'));
+    L.append(head);
+    // 쓰기
+    var w = el('div', 'bwrite'), nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '내 이름'; nm.value = myName(); nm.setAttribute('aria-label', '내 이름');
+    var ta = el('textarea', 'bbody'); ta.placeholder = '예) 폴드8 힌지 소리 문의가 많은데 2차 안내 멘트가 있으면 좋겠어요'; ta.setAttribute('aria-label', '요청·건의 내용'); ta.maxLength = 4000;
+    var go = btn('올리기', 'primary', 'plus', async function () {
+      var name = nm.value.trim(), body = ta.value.trim();
+      if (!name) { toast('이름을 적어 주세요', { warn: true }); nm.focus(); return; }
+      if (!body) { toast('내용을 적어 주세요', { warn: true }); ta.focus(); return; }
+      S.set(BNAME, name); go.disabled = true;
+      try { await CSTeam.call('board.post', { author: name, body: body }); ta.value = ''; toast('올렸어요. 팀장이 확인하면 여기 답이 달려요'); board.filter = 'open'; await loadBoard(false); }
+      catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
+    });
+    var wr = el('div', 'brow'); wr.append(nm, el('span', 'grow'), go); w.append(ta, wr); L.append(w);
+    // 거르기
+    var posts = board.posts || [], me = myName();
+    var fs = el('div', 'filters'), F = [['open', '진행 중'], ['done', '완료'], ['mine', '내 글'], ['all', '전체']];
+    var cnt = { open: posts.filter(function (p) { return p.status === '접수' || p.status === '진행 중'; }).length, done: posts.filter(function (p) { return p.status === '완료'; }).length, mine: posts.filter(function (p) { return me && p.author === me; }).length, all: posts.length };
+    F.forEach(function (f) { var b = el('button', 'fchip', f[1] + ' ' + cnt[f[0]]); b.type = 'button'; b.setAttribute('aria-pressed', String(board.filter === f[0])); b.addEventListener('click', function () { board.filter = f[0]; renderBoard(); }); fs.append(b); });
+    L.append(fs);
+    if (board.err && !board.posts) { L.append(el('div', 'empty', '요청·건의를 불러오지 못했어요.\n' + board.err)); return; }
+    if (!board.posts) { L.append(el('div', 'empty', '불러오는 중…')); return; }
+    var list = posts.filter(function (p) { return board.filter === 'all' ? true : board.filter === 'done' ? p.status === '완료' : board.filter === 'mine' ? (me && p.author === me) : (p.status === '접수' || p.status === '진행 중'); });
+    if (!list.length) L.append(el('div', 'empty', board.filter === 'mine' ? '내가 쓴 글이 없어요.' : '아직 없어요.'));
+    var seen = seenMap(), touched = false;
+    list.forEach(function (p) {
+      if (boardNew(p)) freshNow.add(p.id);
+      var isFresh = freshNow.has(p.id), c = el('article', 'bpost' + (isFresh ? ' fresh' : '')), h = el('div', 'bph');
+      h.append(el('span', 'bst ' + (BST[p.status] || ''), p.status), el('b', null, p.author), el('span', 'muted', when(p.at)));
+      if (isFresh) h.append(el('span', 'ptag new', '새 답'));
+      c.append(h, el('p', 'bbody-t', p.body));
+      (p.comments || []).forEach(function (m) { var r = el('div', 'bcm' + (m.admin ? ' admin' : '')); r.append(el('b', null, m.admin ? '팀장 · ' + m.author : m.author), el('span', 'muted', when(m.at)), el('p', null, m.body)); c.append(r); });
+      var a = el('div', 'acts'), liked = me && (p.likes || []).indexOf(me) >= 0;
+      var lk = btn((liked ? '나도 필요해요 ✓ ' : '나도 필요해요 ') + ((p.likes || []).length || ''), liked ? 'sm on' : 'sm', null, async function () {
+        var name = myName() || nm.value.trim(); if (!name) { toast('위에 내 이름을 먼저 적어 주세요', { warn: true }); nm.focus(); return; }
+        S.set(BNAME, name); try { await CSTeam.call('board.like', { id: p.id, author: name }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); }
+      });
+      lk.title = (p.likes || []).join(', ');
+      var ci = el('input', 'bci'); ci.type = 'text'; ci.placeholder = '댓글 달기'; ci.maxLength = 2000; ci.setAttribute('aria-label', '댓글');
+      var send = async function () { var name = myName() || nm.value.trim(), body = ci.value.trim(); if (!body) return; if (!name) { toast('위에 내 이름을 먼저 적어 주세요', { warn: true }); nm.focus(); return; } S.set(BNAME, name); try { await CSTeam.call('board.comment', { id: p.id, author: name, body: body }); ci.value = ''; loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } };
+      ci.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
+      a.append(lk, ci, btn('달기', 'sm', null, send));
+      if (me && p.author === me && !(p.comments || []).some(function (m) { return m.admin; })) a.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 글을 지울까요?')) return; try { await CSTeam.call('board.delete', { id: p.id, author: me }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } }));
+      c.append(a); L.append(c);
+      if (boardNew(p)) { seen[p.id] = p.adminAt; touched = true; }
+    });
+    if (touched && curView === 'board') { S.put(BSEEN, seen); setTimeout(boardBadge, 0); }
+  }
+  function when(t) { if (!t) return ''; var d = new Date(t), now = new Date(); var same = d.toDateString() === now.toDateString(); return same ? '오늘 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : (d.getMonth() + 1) + '/' + d.getDate(); }
+
+  /* 멘트 사용 통계: 담기·교체한 멘트 번호만 하루치로 모아 10분마다 팀 서버에 보냄(고객 내용은 안 보냄) */
+  var USE = 'csx:useQ';
+  function queueUse(id) { var q = S.json(USE, {}); if (!q || typeof q !== 'object') q = {}; var d = KBData.todayKey(); if (q.day !== d) { if (q.day && q.counts) flushUse(q); q = { day: d, counts: {} }; } q.counts[id] = (q.counts[id] || 0) + 1; S.put(USE, q); }
+  async function flushUse(given, keep) {
+    if (!CSTeam.ready()) return;
+    var q = given || S.json(USE, {}); if (!q || !q.counts || !Object.keys(q.counts).length) return;
+    if (!given) S.put(USE, { day: q.day, counts: {} });
+    try { await CSTeam.call('usage.add', { day: q.day, counts: q.counts }, 20000, keep); }
+    catch (e) { if (!given) { var now = S.json(USE, {}); if (now && now.day === q.day) { Object.keys(q.counts).forEach(function (k) { now.counts[k] = (now.counts[k] || 0) + q.counts[k]; }); S.put(USE, now); } } }
+  }
+  setInterval(function () { flushUse(); }, 10 * 60000);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) flushUse(null, true); });
 
   /* ───── 계산기 ───── */
   var AS_FEE = 6000, AS_TIERS = [{ label: '1~12개월', rate: 0.30 }, { label: '13~24개월', rate: 0.60 }, { label: '25~36개월', rate: 0.80 }, { label: '37~48개월', rate: 0.90 }, { label: '49개월 이상', rate: 1.00, blocked: true }];

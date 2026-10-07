@@ -20,13 +20,25 @@
   function cleanMulti(v) {
     return str(v).replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   }
+  /* 공통 문구: 멘트 안의 {이름} 자리에 관리자가 한 곳에 적어 둔 글(계좌번호·매장 안내 등)이 들어감 */
+  var PHRASE = /\{([^{}\n]{1,20})\}/g;
+  function phraseKey(v) { return clean(v).replace(/[{}]/g, '').slice(0, 20); }
+  function phrasesOf(c) {
+    var seen = {};
+    return (Array.isArray(c && c.phrases) ? c.phrases : []).map(function (p) { return p && { key: phraseKey(p.key), text: cleanMulti(p.text) }; })
+      .filter(function (p) { if (!p || !p.key || !p.text || seen[p.key]) return false; seen[p.key] = 1; return true; }).slice(0, 100);
+  }
+  /* 끝나는 날(YYYY-MM-DD)이 지난 멘트는 상담사 화면에서 숨김(한국 시간 기준, 그날까지는 보임) */
+  function todayKey(ms) { return new Date((ms || Date.now()) + 9 * 3600e3).toISOString().slice(0, 10); }
+  function expired(card, ms) { var u = clean(card && card.until); return /^\d{4}-\d{2}-\d{2}$/.test(u) && u < todayKey(ms); }
   function configOf(sc) {
     var c = (sc && sc.config && typeof sc.config === 'object') ? sc.config : {};
     return {
       appTitle: clean(c.appTitle) || DEFAULT_CONFIG.appTitle,
       serviceUrl: clean(c.serviceUrl) || DEFAULT_CONFIG.serviceUrl,
       processingGuide: cleanMulti(c.processingGuide) || DEFAULT_CONFIG.processingGuide,
-      announcement: cleanMulti(c.announcement)
+      announcement: cleanMulti(c.announcement),
+      phrases: phrasesOf(c)
     };
   }
   /* 예전 검색기(Code.gs expandCommonText_)와 같은 바꾸기. 값이 비어도 멈추지 않고 기본값으로 */
@@ -38,6 +50,8 @@
         .replace(/신청\s*(?:링크|경로)\s*:\s*\n+\s*(신청\s*(?:링크|경로)\s*:)/g, '$1');
     }
     if (value.indexOf(T_FOLLOW) >= 0) value = value.split(T_FOLLOW).join(cfg.processingGuide || DEFAULT_CONFIG.processingGuide);
+    var ph = cfg.phrases || [];
+    if (ph.length && value.indexOf('{') >= 0) value = value.replace(PHRASE, function (all, key) { var k = phraseKey(key); for (var i = 0; i < ph.length; i++) if (ph[i].key === k) return ph[i].text; return all; });
     return value;
   }
   function hash(s) {
@@ -70,6 +84,7 @@
     (sc.categories || []).forEach(function (c, ci) {
       var name = clean(c.name) || '분류 ' + (ci + 1);
       (c.cards || []).forEach(function (k, ki) {
+        if (expired(k, meta.now)) return;
         var title = clean(k.title), group = clean(k.group), script = expand(k.script, cfg), note = cleanMulti(k.note);
         if (!title && !group && !script && !note) return;
         if (sheets.indexOf(c.id) < 0) sheets.push(c.id);
@@ -104,6 +119,8 @@
       out.sources.requests = (Array.isArray(s.requests) ? s.requests : []).map(function (x) { return x && sheetRef(x.url) ? { url: str(x.url).trim(), label: clean(x.label).slice(0, 40) } : null; }).filter(Boolean).slice(0, 10);
       out.sources.defects = s.defects && sheetRef(s.defects.url) ? { url: str(s.defects.url).trim(), label: clean(s.defects.label).slice(0, 40) } : null;
       out.sources.notice = s.notice && sheetRef(s.notice.url) ? { url: str(s.notice.url).trim(), label: clean(s.notice.label).slice(0, 40) } : null;
+      // 팀 서버(요청·건의 · 사용 통계 · 팀 현황) 주소: 앱스크립트 웹 앱 주소만
+      if (s.team && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]{20,}\/exec$/.test(str(s.team.url).trim())) out.sources.team = { url: str(s.team.url).trim() };
       out.updatedAt = Number(obj.updatedAt) || 0;
     }
     return out;
@@ -143,7 +160,7 @@
   var api = { T_CHANNEL: T_CHANNEL, T_FOLLOW: T_FOLLOW, DEFAULT_CONFIG: DEFAULT_CONFIG, FILE_FORMAT: FILE_FORMAT,
     clean: clean, cleanMulti: cleanMulti, configOf: configOf, expand: expand, hash: hash, stamp: stamp, validScripts: validScripts, count: count,
     toPayload: toPayload, parseContent: parseContent, buildFile: buildFile, sheetRef: sheetRef, makeCode: makeCode, readCode: readCode, repoRef: repoRef,
-    b64e: b64e, b64d: b64d };
+    b64e: b64e, b64d: b64d, phrasesOf: phrasesOf, phraseKey: phraseKey, todayKey: todayKey, expired: expired, PHRASE: PHRASE };
   root.KBData = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

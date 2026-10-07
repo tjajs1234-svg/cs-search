@@ -5,10 +5,12 @@
   'use strict';
   const clone = x => JSON.parse(JSON.stringify(x == null ? null : x));
   const str = v => String(v == null ? '' : v);
-  const CARD_F = ['title', 'group', 'script', 'note'];
-  const FIELD_KO = { title: '제목', group: '꼬리표', script: '내용', note: '메모' };
+  const CARD_F = ['title', 'group', 'script', 'note', 'until'];
+  const FIELD_KO = { title: '제목', group: '꼬리표', script: '내용', note: '메모', until: '끝나는 날' };
   const nameOf = k => str(k && k.title).trim() || '(제목 없음)';
   const guideOf = d => str(d && d.config && d.config.processingGuide);
+  const phrasesOf = d => (d && d.config && Array.isArray(d.config.phrases) ? d.config.phrases : []);
+  const phrasesSig = d => JSON.stringify(phrasesOf(d).map(p => [str(p.key), str(p.text)]));
 
   /* 창구에서 받은 멘트 자료를 편집용으로: 판 번호 같은 덧붙은 값은 빼고, 빠진 칸은 채움 */
   function clean(d) {
@@ -41,7 +43,7 @@
   /* 바뀐 곳: 지금 상담원이 보는 판(base)과 내가 고친 것(draft)을 견줌 */
   function diff(base, draft) {
     const B = index(base), M = index(draft);
-    const out = { added: [], removed: [], changed: [], catsAdded: [], catsRemoved: [], catsRenamed: [], catsReordered: false, reordered: [], closings: false, guide: false, items: [], count: 0 };
+    const out = { added: [], removed: [], changed: [], catsAdded: [], catsRemoved: [], catsRenamed: [], catsReordered: false, reordered: [], closings: false, guide: false, phrases: false, items: [], count: 0 };
     for (const [id, m] of M.cards) {
       const b = B.cards.get(id);
       if (!b) { out.added.push({ id, title: nameOf(m.card), cat: m.catName }); continue; }
@@ -55,6 +57,7 @@
     for (const c of draft.categories || []) if (orderChanged(base, draft, c.id)) out.reordered.push({ id: c.id, name: c.name });
     out.closings = JSON.stringify((base.closings || []).map(c => [c.id, c.title, c.body])) !== JSON.stringify((draft.closings || []).map(c => [c.id, c.title, c.body]));
     out.guide = guideOf(base) !== guideOf(draft);
+    out.phrases = phrasesSig(base) !== phrasesSig(draft);
     // 사람이 읽는 목록(바뀐 곳 보기 · 보내기 전 확인). kind: 되돌릴 때 쓰는 종류
     const it = out.items;
     for (const x of out.added) it.push({ kind: 'added', id: x.id, tag: '새 멘트', text: x.title, sub: x.cat });
@@ -67,6 +70,7 @@
     for (const x of out.reordered) it.push({ kind: 'order', id: x.id, tag: '순서', text: '‘' + x.name + '’ 안의 멘트 순서', sub: '' });
     if (out.closings) it.push({ kind: 'closings', id: '', tag: '끝인사', text: '끝인사', sub: '' });
     if (out.guide) it.push({ kind: 'guide', id: '', tag: '공통 문구', text: '접수 후 처리 안내', sub: '' });
+    if (out.phrases) it.push({ kind: 'phrases', id: '', tag: '공통 문구', text: '공통 문구', sub: phrasesOf(draft).map(p => '{' + str(p.key) + '}').join(' ').slice(0, 80) });
     out.count = it.length;
     return out;
   }
@@ -98,6 +102,7 @@
     else if (item.kind === 'order') { const c = d.categories.find(x => x.id === item.id), b = B.cats.get(item.id); if (c && b) c.cards = stableBy(c.cards, b.cat.cards.map(k => k.id)); }
     else if (item.kind === 'closings') d.closings = clone(base.closings || []);
     else if (item.kind === 'guide') d.config = { ...(d.config || {}), processingGuide: guideOf(base) };
+    else if (item.kind === 'phrases') d.config = { ...(d.config || {}), phrases: clone(phrasesOf(base)) };
     return d;
   }
   // want에 있는 것은 그 순서대로, 없는 것(새로 생긴 것)은 지금 자리 근처를 지키도록 앞 항목 뒤에 붙임
@@ -142,6 +147,7 @@
       else if (catsReordered(base, draft)) out.categories = stableBy(out.categories, want); }
     if (JSON.stringify(base.closings || []) !== JSON.stringify(draft.closings || [])) out.closings = clone(draft.closings || []);
     if (guideOf(base) !== guideOf(draft)) out.config = { ...(out.config || {}), processingGuide: guideOf(draft) };
+    if (phrasesSig(base) !== phrasesSig(draft)) out.config = { ...(out.config || {}), phrases: clone(phrasesOf(draft)) };
     return { data: out, both };
   }
 
@@ -159,6 +165,9 @@
       }
     }
     for (const c of draft.closings || []) if (!str(c.title).trim() || !str(c.body).trim()) errors.push({ kind: 'closing', id: c.id, text: '이름이나 내용이 빈 끝인사가 있어요' });
+    // 멘트에 적은 {이름}이 공통 문구에 없으면 상담사 화면에 {이름}이 그대로 보임
+    const keys = new Set(phrasesOf(draft).map(p => str(p.key).trim()));
+    for (const c of draft.categories || []) for (const k of c.cards || []) for (const m of str(k.script).matchAll(/\{([^{}\n]{1,20})\}/g)) if (!keys.has(m[1].trim())) { errors.push({ kind: 'phrase', catId: c.id, id: k.id, text: '‘' + nameOf(k) + '’에 없는 공통 문구 {' + m[1] + '}가 있어요' }); break; }
     return { errors, warns };
   }
   return { clone, clean, index, diff, cardState, summary, revert, rebase, check, orderChanged, catsReordered, stableBy, CARD_F };

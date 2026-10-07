@@ -103,7 +103,8 @@
   /* 공지 · 요청시트 주소 · 연결 화면에서 쓰는 것 */
   async function latest() { await getConn(); if (!conn) throw new Error('깃허브 연결이 필요해요'); return remote(); }
   async function saveNotices(fn, message) { await getConn(); return writeParts(function (parts) { parts.notices = fn(parts.notices.slice()); }, message); }
-  async function saveSources(sources) { await getConn(); return writeParts(function (parts) { parts.sources = sources; }, '요청시트 주소 바꿈'); }
+  // 화면마다 자기 칸만 바꿈(요청시트 화면이 팀 서버 주소를 지우지 않게)
+  async function saveSources(sources, message) { await getConn(); return writeParts(function (parts) { parts.sources = Object.assign({}, parts.sources || {}, sources); }, message || '요청시트 주소 바꿈'); }
 
   /* 화면 밝기: 검색기 설정(밝게 · 어둡게 · 시스템 따라)과 같음 */
   window.ReplyTheme = {
