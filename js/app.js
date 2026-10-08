@@ -302,58 +302,7 @@
     var m = note.value.match(PLACEHOLDER);
     if (m) { b.append(ic('warn'), el('span', null, '채울 곳: ' + Array.from(new Set(m)).slice(0, 3).join(' ') + (m.length > 3 ? ' 외' : ''))); var go = el('button', null, '첫 칸으로'); go.type = 'button'; go.addEventListener('click', jumpBlank); b.append(go); }
     $('cc').textContent = note.value.length.toLocaleString() + '자';
-    markAdded(); renderFill();
-  }
-  /* 날짜 빈칸 채우기: 작성공간의 ‘O월 O일(요일)’ · ‘오늘/내일/다음 주 월요일’ 같은 자리를 단추 한 번으로.
-     출고일 추천: 평일 오후 3시 전이면 오늘, 아니면 다음 평일(금요일 3시 뒤·주말이면 다음 주 월요일). 공휴일은 따로 안 셈 */
-  var DATE_BLANK = /[OoＯ○〇n]\s*월\s*[OoＯ○〇n]\s*일(\s*\(\s*(?:[OoＯ○〇n]\s*)?요일\s*\)|\s*[OoＯ○〇n]\s*요일)?/;
-  var DAY_CHOICE = /\[?((?:오늘|내일|다음\s*주\s*월요일)(?:\s*\/\s*(?:오늘|내일|다음\s*주\s*월요일))+)\]?/;
-  var WD = '일월화수목금토';
-  function dayOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
-  function addDays(d, n) { var x = dayOnly(d); x.setDate(x.getDate() + n); return x; }
-  function nextBiz(d) { var x = addDays(d, 1); while (x.getDay() === 0 || x.getDay() === 6) x = addDays(x, 1); return x; }
-  function shipDay(now) { var wk = now.getDay() !== 0 && now.getDay() !== 6; return wk && now.getHours() < 15 ? dayOnly(now) : nextBiz(now); }
-  function dateText(d, how) { var s = (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; return how === 'paren' ? s + '(' + WD[d.getDay()] + ')' : how === 'word' ? s + ' ' + WD[d.getDay()] + '요일' : s; }
-  function choiceWord(d, now) { var t = dayOnly(now), diff = Math.round((dayOnly(d) - t) / 864e5); return diff === 0 ? '오늘' : diff === 1 ? '내일' : d.getDay() === 1 && diff <= 3 ? '다음 주 월요일' : dateText(d); }
-  function fillDate(d) {
-    var m = DATE_BLANK.exec(note.value); if (!m) return;
-    var how = m[1] ? (/\(/.test(m[1]) ? 'paren' : 'word') : '';
-    note.value = note.value.slice(0, m.index) + dateText(d, how) + note.value.slice(m.index + m[0].length);
-    saveNote(); blanks();
-  }
-  function fillChoice(word) {
-    var m = DAY_CHOICE.exec(note.value); if (!m) return;
-    note.value = note.value.slice(0, m.index) + word + note.value.slice(m.index + m[0].length);
-    saveNote(); blanks();
-  }
-  function renderFill() {
-    var f = $('fill'); if (!f) return; f.replaceChildren();
-    var v = note.value, dm = DATE_BLANK.exec(v), cm = DAY_CHOICE.exec(v);
-    if (!dm && !cm) { f.hidden = true; return; }
-    f.hidden = false;
-    var now = new Date(), ship = shipDay(now);
-    var mk = function (label, sub, fn, rec) { var b = el('button', 'fb' + (rec ? ' rec' : '')); b.type = 'button'; b.append(el('b', null, label)); if (sub) b.append(el('span', null, sub)); if (rec) b.title = '지금 시각 기준 출고일(평일 오후 3시 전 결제 → 오늘)'; b.addEventListener('click', fn); return b; };
-    if (cm) {
-      var row = el('div', 'frow'); row.append(el('span', 'fl', '출고일'));
-      cm[1].split('/').map(function (s) { return s.trim().replace(/\s+/g, ' '); }).forEach(function (w) {
-        var rec = w === choiceWord(ship, now);
-        row.append(mk(w, rec ? '추천' : '', function () { fillChoice(w); }, rec));
-      });
-      f.append(row);
-    }
-    if (dm) {
-      var n = (v.match(new RegExp(DATE_BLANK.source, 'g')) || []).length, row2 = el('div', 'frow');
-      row2.append(el('span', 'fl', '날짜' + (n > 1 ? ' ' + n + '곳' : '')));
-      var today = dayOnly(now), tmr = addDays(now, 1), nb = nextBiz(now);
-      row2.append(mk('오늘', (today.getMonth() + 1) + '/' + today.getDate() + '(' + WD[today.getDay()] + ')', function () { fillDate(today); }));
-      row2.append(mk('내일', (tmr.getMonth() + 1) + '/' + tmr.getDate() + '(' + WD[tmr.getDay()] + ')', function () { fillDate(tmr); }));
-      if (nb.getTime() !== tmr.getTime()) row2.append(mk('다음 평일', (nb.getMonth() + 1) + '/' + nb.getDate() + '(' + WD[nb.getDay()] + ')', function () { fillDate(nb); }));
-      var pick = el('label', 'fb pick'); pick.append(el('b', null, '달력'));
-      var inp = el('input'); inp.type = 'date'; inp.setAttribute('aria-label', '날짜 고르기');
-      inp.addEventListener('change', function () { if (!inp.value) return; var p = inp.value.split('-'); fillDate(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))); });
-      pick.append(inp); row2.append(pick);
-      f.append(row2);
-    }
+    markAdded();
   }
   function jumpBlank() { PLACEHOLDER.lastIndex = 0; var m = PLACEHOLDER.exec(note.value); if (!m) return; note.focus(); note.setSelectionRange(m.index, m.index + m[0].length); }
   function splitP(t) { return KBSearch.splitParagraphs(t); }
