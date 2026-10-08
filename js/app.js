@@ -940,8 +940,9 @@
         ra.append(go); d.append(ra);
       }
       d.append(el('h3', null, '화면 밝기'));
-      var seg = el('div', 'seg'), cur = S.get(K.theme) || 'system';
-      [['system', '시스템 따라'], ['light', '밝게'], ['dark', '어둡게']].forEach(function (o) { var b = el('button', null, o[1]); b.type = 'button'; b.setAttribute('aria-pressed', String(cur === o[0])); b.addEventListener('click', function () { if (o[0] === 'system') S.del(K.theme); else S.set(K.theme, o[0]); applyTheme(); openSettings(); }); seg.append(b); });
+      // 밝게 · 어둡게 두 가지만(아직 안 골랐으면 지금 보이는 쪽이 눌려 있음)
+      var seg = el('div', 'seg'), cur = S.get(K.theme) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      [['light', '밝게'], ['dark', '어둡게']].forEach(function (o) { var b = el('button', null, o[1]); b.type = 'button'; b.setAttribute('aria-pressed', String(cur === o[0])); b.addEventListener('click', function () { S.set(K.theme, o[0]); applyTheme(); openSettings(); }); seg.append(b); });
       d.append(seg);
       d.append(el('h3', null, '앱처럼 쓰기 · 탭으로 쓰기'));
       var standalone = matchMedia('(display-mode: standalone)').matches;
