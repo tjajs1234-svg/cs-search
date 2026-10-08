@@ -68,9 +68,10 @@
     var r; try { r = await CSTeam.call('team.get', { days: 14 }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 이 화면은 30초마다 새로 읽어요.'));
+    var ub = await updateBox(); if (ub) w.append(ub);
     var live = (r.live || []).slice().sort(function (a, b) { return (b.oldestMin || 0) - (a.oldestMin || 0); });
     var g = mk('div', 'tgrid');
-    if (!live.length) g.append(mk('div', 'empty', '아직 신호를 보낸 상담사가 없어요.\n상담사 PC 기록기가 2.3.8 이상이고, 기록기에 팀 서버 주소가 들어가 있어야 해요.'));
+    if (!live.length) g.append(mk('div', 'empty', '아직 신호를 보낸 상담사가 없어요.\n상담사 PC 기록기가 2.3.11 이상이어야 해요(팀 서버 주소가 들어 있는 판).'));
     live.forEach(function (x) {
       var off = Date.now() - x.at > 3 * 60000, hot = !off && (x.oldestMin || 0) >= 20, warm = !off && !hot && (x.oldestMin || 0) >= 10;
       var c = mk('div', 'tcard' + (off ? ' off' : hot ? ' hot' : warm ? ' warm' : ''));
@@ -113,11 +114,39 @@
     try { var r = await CSTeam.call('usage.get', { days: 30 }); var m = {}; Object.keys(r.days || {}).forEach(function (d) { var x = r.days[d]; Object.keys(x).forEach(function (id) { m[id] = (m[id] || 0) + x[id]; }); }); usage.map = m; usage.at = Date.now(); if (A() && A().refresh) A().refresh(); } catch (e) {}
   }
 
+  /* ───── 팀 서버 코드 새 판 알림: 배포해 둔 서버 판이 이 사이트의 team-server.gs보다 예전이면 고치는 법을 보여 줌 ───── */
+  async function gsText() { var t = await (await fetch('admin/team-server.gs', { cache: 'no-store' })).text(); return t; }
+  var verCheck = null;
+  function serverVersion() {
+    // 확인에 성공한 결과만 기억(주소를 넣기 전·연결 실패는 다음에 다시 물음)
+    if (!verCheck) verCheck = (async function () {
+      if (!CSTeam.url) return null;
+      var t = await gsText().catch(function () { return ''; }), m = /TEAM_VERSION\s*=\s*'([\d.]+)'/.exec(t);
+      if (!m) return null;
+      var r = await CSTeam.call('ping', {}, 15000).catch(function () { return null; });
+      return r ? { now: String(r.version || ''), latest: m[1] } : null;
+    })();
+    var p = verCheck; p.then(function (v) { if (!v && verCheck === p) verCheck = null; });
+    return p;
+  }
+  async function updateBox() {
+    var v = await serverVersion(); if (!v || v.now === v.latest) return null;
+    var box = mk('div', 'upd');
+    box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
+      mk('p', null, '팀장 화면에 상담사의 보류 · 답함 · 우선 응대가 상담사 화면과 똑같이 보이게 하는 판이에요. 주소는 그대로예요.'),
+      mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
+    var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
+    var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });
+    var row = mk('div', 'facts'); row.append(cp, again); box.append(row);
+    return box;
+  }
+
   /* ───── 팀 서버 연결(처음 한 번) ───── */
   async function setup(w) {
     var T = '팀 서버 연결';
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '요청·건의 게시판 · 멘트 사용 통계 · 팀 현황에 쓰는 작은 서버예요. 구글 시트를 쓰지 않고, 문의기록 시트·기록 서버와도 상관없어요. 처음 한 번만 아래대로 만들면 돼요(5분).'));
     await ensureUrl();
+    var ub = await updateBox(); if (ub) w.append(ub);
     var p = mk('div', 'panel');
     var steps = mk('ol', 'steps');
     [['script.google.com', ' 을 열고 왼쪽 위 [새 프로젝트]를 눌러요. (회사 구글 계정)'],
@@ -143,7 +172,7 @@
     });
     var row = mk('div', 'facts'); row.append(test, save);
     p.append(lab('웹 앱 URL', '저장하면 모든 상담사 검색기에 함께 전해져요'), u, row, res);
-    p.append(mk('p', 'muted', '상담사 기록기(팀 현황)에도 이 주소가 들어가야 해요. 기록기는 검색기와 따로라서, 다음 기록기 판에 이 주소를 넣어 배포해요.'));
+    p.append(mk('p', 'muted', '상담사 기록기(팀 현황 · 팀장 보기 맞추기)는 2.3.11부터 이 주소가 들어 있어요. 주소를 바꾸면 기록기 새 판이 필요해요.'));
     w.append(p);
   }
 

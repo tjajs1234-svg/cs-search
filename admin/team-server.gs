@@ -2,9 +2,12 @@
    · 요청·건의 게시판 · 멘트 사용 통계 · 팀 현황(상담사별 기다림 숫자)
    · 구글 시트를 쓰지 않아요. 자료는 이 스크립트를 만든 계정의 드라이브 폴더 ‘슈피겐CS 팀서버 자료’에 JSON 파일로 남아요.
    · 문의기록 시트·기록 서버(Code.gs 1.1.0)와는 아무 상관이 없어요.
+   · 1.1.0: 팀장 보기 맞추기 — 상담사 기록기가 '내 상담 상태'(상담 번호 · 마지막 메시지 번호 · 대기 시작 · 보류 여부)를 보내고,
+            팀장 기록기가 받아서 보류·우선 응대·답함을 상담사 화면과 똑같이 보여 줌. 고객 이름·대화 내용은 받지 않음
+   고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.0.0';
+var TEAM_VERSION = '1.1.0';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -32,6 +35,7 @@ function handle_(req) {
   if (a === 'usage.add') return withLock_(function () { return usageAdd_(req); });
   if (a === 'usage.get') return { ok: true, days: usageGet_(Number(req.days) || 30) };
   if (a === 'team.beat') return teamBeat_(req);
+  if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
   if (a === 'team.get') return { ok: true, live: teamLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
   return { ok: false, error: '모르는 요청이에요: ' + a };
@@ -155,6 +159,7 @@ function teamBeat_(req) {
   // 사람마다 따로 담아 둠(여러 PC가 동시에 보내도 서로 덮어쓰지 않게) · 이름 목록은 새 사람이 생길 때만 고침
   var cache = CacheService.getScriptCache();
   cache.put('live:' + who, JSON.stringify(row), 21600);
+  if (req.cases && typeof req.cases === 'object') cache.put('cases:' + who, JSON.stringify(cases_(req.cases, now, who)), 21600);
   var names = liveNames_();
   if (names.indexOf(who) < 0) withLock_(function () { var n = liveNames_(); if (n.indexOf(who) < 0) { n.push(who); PropertiesService.getScriptProperties().setProperty('liveNames', JSON.stringify(n.slice(-60))); } return { ok: true }; });
   // 하루 합계는 5분에 한 번만 파일에 남김(파일 쓰기를 줄임)
@@ -169,6 +174,28 @@ function teamBeat_(req) {
     cache.put('dayw:' + who + ':' + day, '1', 300);
   }
   return { ok: true };
+}
+/* ── 팀장 보기 맞추기: 상담사 PC가 본 내 상담 상태(상담 번호와 메시지 번호만) ── */
+var CASE_MAX = 300;
+function ms_(v) { var n = Number(v); return isFinite(n) && n > 0 && n < 4102444800000 ? Math.round(n) : 0; }
+function caseText_(v) { return String(v == null ? '' : v).slice(0, 80); }
+function caseList_(list, withSince) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, CASE_MAX).filter(function (x) { return x && (x.ch === 'kakao' || x.ch === 'naver') && x.id; }).map(function (x) {
+    var o = { ch: x.ch, id: caseText_(x.id), m: caseText_(x.m), at: ms_(x.at) };
+    if (withSince) { o.s = ms_(x.s); o.r = x.r ? 1 : 0; }
+    return o;
+  });
+}
+function cases_(c, now, who) {
+  var st = {};
+  ['kakao', 'naver'].forEach(function (ch) { var v = c.st && c.st[ch]; if (v && typeof v === 'object') st[ch] = { ok: !!v.ok, at: ms_(v.at), tag: text_(v.tag, 40) }; });
+  return { name: who, at: now, st: st, pend: caseList_(c.pend, true), hold: caseList_(c.hold, false), done: caseList_(c.done, false) };
+}
+function casesGet_() {
+  var names = liveNames_(); if (!names.length) return [];
+  var got = CacheService.getScriptCache().getAll(names.map(function (n) { return 'cases:' + n; })), now = Date.now();
+  return names.map(function (n) { try { return JSON.parse(got['cases:' + n] || 'null'); } catch (e) { return null; } }).filter(function (r) { return r && now - (r.at || 0) < 15 * 60e3; });
 }
 function num_(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.min(Math.round(n), 1e7) : 0; }
 function liveNames_() { try { var v = JSON.parse(PropertiesService.getScriptProperties().getProperty('liveNames') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
