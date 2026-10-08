@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개인정보 처리방침 · 슈피겐 CS 상담 도구</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1f2733; --muted: #5b6676; --line: #e3e7ee; --head: #0f2a52; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14181f; --fg: #e6e9ef; --muted: #a3acba; --line: #2a313c; --head: #9cc0ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.7 "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { color: var(--head); font-size: 26px; margin: 0 0 4px; }
+  h2 { color: var(--head); font-size: 19px; margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  p.meta { color: var(--muted); margin: 0 0 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border: 1px solid var(--line); }
+  th { width: 34%; }
+  ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>개인정보 처리방침</h1>
+  <p class="meta">대상: 크롬 확장 「슈피겐 CS 통합 기록기」 · 「슈피겐 CS 검색기 연결」 · 시행일 2026-10-08</p>
+
+  <p>두 확장은 슈피겐코리아 CS팀 상담사가 회사 업무에만 쓰는 내부 도구예요. 일반 사용자를 위한 제품이 아니에요.</p>
+
+  <h2>1. 슈피겐 CS 통합 기록기</h2>
+  <table>
+    <tr><th>읽는 것</th><td>상담사가 로그인해 둔 카카오톡 채널·네이버 톡톡 파트너센터의 상담 목록(고객 표시 이름, 마지막 메시지, 안 읽은 수, 시각, 담당 태그). 쇼핑몰 관리자 화면의 문의 글과 답변(상담사가 [기록]을 눌렀을 때만).</td></tr>
+    <tr><th>쓰는 곳</th><td>답변을 기다리는 상담을 상담사 본인 화면(옆 패널)에 보여 줘요. 상담사가 [기록]을 누르면 그 상담의 분류·문의·답변·상담 주소를 회사 문의기록 시트에 남겨요.</td></tr>
+    <tr><th>밖으로 보내는 것</th><td>
+      <ul>
+        <li>회사 기록 서버(구글 Apps Script, 회사 계정): 상담사가 [기록]을 누른 상담 1건의 분류·문의·답변·상품명·상담 주소</li>
+        <li>회사 팀 서버(구글 Apps Script, 회사 계정): 대기 수·대기 시간 같은 숫자와 상담 번호·메시지 번호. <b>고객 이름과 대화 내용은 보내지 않아요.</b></li>
+      </ul>
+    </td></tr>
+    <tr><th>이 PC에만 두는 것</th><td>상담별 대기 상태, 보류 목록, 설정(태그 등). 크롬 저장소(chrome.storage.local)에 있고 다른 곳으로 보내지 않아요.</td></tr>
+    <tr><th>사이트에 쓰는 것</th><td>없어요. 카카오·톡톡·쇼핑몰 화면은 읽기만 하고, 메시지를 보내거나 상태를 바꾸지 않아요.</td></tr>
+  </table>
+
+  <h2>2. 슈피겐 CS 검색기 연결</h2>
+  <table>
+    <tr><th>읽는 것</th><td>상담사 크롬에 로그인된 회사 구글 계정으로, 회사 요청시트·불량 모음·공지 시트와 거기 걸린 드라이브 사진(읽기 전용).</td></tr>
+    <tr><th>쓰는 곳</th><td>상담 스크립트 검색기 화면(https://tjajs1234-svg.github.io/cs-search/)에서 지난 문의·불량 가이드·공지를 찾을 수 있게 넘겨 줘요.</td></tr>
+    <tr><th>개인정보 가림</th><td>시트의 고객명·연락처·주문번호·주소·이메일 열은 처음부터 읽지 않아요. 글 속 전화번호·긴 숫자·이메일은 가려서 보여 줘요.</td></tr>
+    <tr><th>밖으로 보내는 것</th><td>없어요. 읽은 내용은 이 PC 크롬 저장소에만 둬요. 시트에는 아무것도 쓰지 않아요.</td></tr>
+  </table>
+
+  <h2>3. 공통 약속</h2>
+  <ul>
+    <li>모은 정보를 팔거나 다른 곳에 넘기지 않아요.</li>
+    <li>광고·신용 평가·업무 밖 목적으로 쓰지 않아요.</li>
+    <li>회사 밖 서버로 보내지 않아요. 보내는 곳은 회사 계정의 구글 Apps Script뿐이에요.</li>
+    <li>확장을 지우면 이 PC에 둔 자료도 함께 지워져요.</li>
+  </ul>
+
+  <h2>English summary</h2>
+  <p>These two Chrome extensions are internal tools used only by Spigen Korea customer-service agents. The Recorder reads the agent's own Kakao/Naver TalkTalk partner-center chat lists to show which chats are waiting for a reply, and, only when the agent clicks [Record], sends that one inquiry's category, question, answer and URL to the company's own Google Apps Script endpoint, which writes it to a company spreadsheet. A separate company Apps Script endpoint receives only counts plus chat/message IDs (no customer names, no message text). The Search Connector reads company Google Sheets and Drive images with the agent's signed-in company account, read-only, masks personal data, and keeps the result in local extension storage. No data is sold, shared with third parties, used for advertising or credit decisions, or sent to any server outside the company's own Google account. Neither extension sends messages or changes anything on the sites it reads.</p>
+</main>
+</body>
+</html>
