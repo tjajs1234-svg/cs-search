@@ -748,7 +748,7 @@
   var BST = { '접수': 'st-new', '진행 중': 'st-doing', '완료': 'st-done', '보류': 'st-hold' };
   function renderBoard() {
     var L = $('blist'); if (!L) return; L.replaceChildren();
-    var head = el('div', 'bhead'); head.append(el('h2', null, '요청·건의'), el('p', null, '필요한 멘트, 불편한 점, 바라는 기능… 무엇이든 적어 주세요. 팀장이 확인하고 답을 달아요. 모두가 같이 봐요.'));
+    var head = el('div', 'bhead'); head.append(el('h2', null, '요청·건의'), el('p', null, '필요한 멘트, 불편한 점, 바라는 기능… 무엇이든 적어 주세요.'));
     L.append(head);
     // 쓰기
     var w = el('div', 'bwrite'), nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '내 이름'; nm.value = myName(); nm.setAttribute('aria-label', '내 이름');
@@ -758,7 +758,7 @@
       if (!name) { toast('이름을 적어 주세요', { warn: true }); nm.focus(); return; }
       if (!body) { toast('내용을 적어 주세요', { warn: true }); ta.focus(); return; }
       S.set(BNAME, name); go.disabled = true;
-      try { await CSTeam.call('board.post', { author: name, body: body }); ta.value = ''; toast('올렸어요. 팀장이 확인하면 여기 답이 달려요'); board.filter = 'open'; await loadBoard(false); }
+      try { await CSTeam.call('board.post', { author: name, body: body }); ta.value = ''; toast('올렸어요'); board.filter = 'open'; await loadBoard(false); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
     var wr = el('div', 'brow'); wr.append(nm, el('span', 'grow'), go); w.append(ta, wr); L.append(w);
