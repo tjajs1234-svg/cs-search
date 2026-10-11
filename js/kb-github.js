@@ -111,7 +111,21 @@
     }
   }
 
-  var api = { getFile: getFile, putFile: putFile, history: history, repoInfo: repoInfo, canWrite: canWrite, friendly: friendly, utf8b64: utf8b64, b64utf8: b64utf8 };
+  /* 2.x: 저장소의 다른 파일(예: archive-2425.json.gz)을 원문 그대로 받기. etag가 같으면 {status:304} · 없으면 {status:404} */
+  async function getRaw(conn, path, etag) {
+    if (!conn || !conn.token) throw GhError(-1, '연결 정보가 없어요');
+    var q = conn.branch ? '?ref=' + encodeURIComponent(conn.branch) : '';
+    var headers = { 'Authorization': 'Bearer ' + conn.token, 'Accept': 'application/vnd.github.raw', 'X-GitHub-Api-Version': '2022-11-28' };
+    if (etag) headers['If-None-Match'] = etag;
+    var res;
+    try { res = await fetch(API + repoPath(conn) + '/contents/' + enc(path) + q, { headers: headers, cache: 'no-store' }); }
+    catch (e) { throw GhError(0, friendly(0)); }
+    if (res.status === 304) return { status: 304 };
+    if (res.status === 404) return { status: 404 };
+    if (!res.ok) throw GhError(res.status, friendly(res.status, null, res));
+    return { status: 200, buf: await res.arrayBuffer(), etag: res.headers.get('etag') || '' };
+  }
+  var api = { getRaw: getRaw, getFile: getFile, putFile: putFile, history: history, repoInfo: repoInfo, canWrite: canWrite, friendly: friendly, utf8b64: utf8b64, b64utf8: b64utf8 };
   root.KBGitHub = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

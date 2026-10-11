@@ -510,15 +510,37 @@
     rows.sort(function (a, b) { return b.k - a.k; }); Rrows = rows;
     Drows = (BD && BD.def && Array.isArray(BD.def.rows) ? BD.def.rows : []).map(function (x) { return Object.assign({}, x, { hay: norm([x.sku, x.name, x.kind, x.sym, x.found, x.guide, x.note].join(' ')) }); });
   }
+  // 2024·2025 요청시트 사본: 비공개 저장소(cs-content)의 archive-2425.json.gz를 연결 코드로 받음(이 PC에 보관 · 바뀌었을 때만 다시 받음)
+  //  예전 ‘검색기 연결’ 1.0.0은 확장 안에 사본이 있어서, 저장소에서 못 받으면 그쪽에서 받음
+  var ARCH_FILE = 'archive-2425.json.gz';
+  async function archFromRepo() {
+    var c = CSContent.connOf(); if (!c) return null;
+    var cache = null, key = 'https://cs-archive.invalid/' + encodeURIComponent(c.owner + '/' + c.repo), hit = null;
+    try { cache = await caches.open('cs-archive-v1'); hit = await cache.match(key); } catch (e) { cache = null; }
+    try {
+      var r = await KBGitHub.getRaw(c, ARCH_FILE, hit ? hit.headers.get('x-etag') || '' : '');
+      if (r.status === 304 && hit) return await hit.arrayBuffer();
+      if (r.status === 200) { if (cache) { try { await cache.put(key, new Response(r.buf.slice(0), { headers: { 'x-etag': r.etag } })); } catch (e) {} } return r.buf; }
+    } catch (e) { if (hit) return await hit.arrayBuffer(); }
+    return null;
+  }
+  async function archFromBridge() {
+    if (!CSBridge.ready) return null;
+    var r = await CSBridge.call('archive', {}, 30000);
+    var bin = atob(r.gz), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u.buffer;
+  }
   async function ensureArchive() {
-    if (ARCH || archLoading || !CSBridge.ready) return;
+    if (ARCH || archLoading) return;
     archLoading = (async function () {
       try {
-        var r = await CSBridge.call('archive', {}, 30000);
-        var bin = atob(r.gz), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        var text = await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+        var buf = await archFromRepo().catch(function () { return null; });
+        if (!buf) buf = await archFromBridge().catch(function () { return null; });
+        if (!buf) throw new Error('no archive');
+        var text = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
         var d = JSON.parse(text); ARCH = Array.isArray(d.rows) ? d.rows : [];
-      } catch (e) { ARCH = []; }
+      } catch (e) { ARCH = null; } // 못 받았으면 다음에 [문의 검색]을 열 때 다시 해 봄
+      archLoading = ARCH ? archLoading : null;
       rebuildReq(); if (curView === 'req') renderReq();
     })();
   }
