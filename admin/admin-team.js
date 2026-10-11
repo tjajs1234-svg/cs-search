@@ -58,14 +58,77 @@
     w.append(p);
   }
 
-  /* ───── 팀 현황: 지금(1분마다) + 하루 합계 ───── */
-  var tDay = 'today', tTimer = 0;
+  /* ───── 팀 현황: 지금(1분마다) + 상담사별 일·주·월 + 하루 합계 ───── */
+  var tDay = 'today', tTimer = 0, tWeek = 0;
+  // 상담사 이름: 카톡 태그 영원3 → 영원 · 톡톡 태그 김영원 → 영원(기록기 match.js person · 팀 서버 person_과 같은 규칙)
+  // 예전 판이 '김영원'으로 쌓아 둔 날도 '영원'으로 합쳐 보여 줌
+  function person(n) { var s = String(n || '').replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; }
+  function dayMs(key) { return Date.parse(key + 'T00:00:00Z'); }
+  function keyOf(ms) { return new Date(ms).toISOString().slice(0, 10); }
+  function addDays(key, n) { return keyOf(dayMs(key) + n * 864e5); }
+  // 고른 주(tWeek: 0 이번 주, -1 지난주 …)의 월요일~일요일 · 월간은 그 주 일요일(오늘을 넘지 않게)이 든 달
+  function weekRange(off) {
+    var today = KBData.todayKey(), dow = (new Date(dayMs(today)).getUTCDay() + 6) % 7, mon = addDays(today, -dow + 7 * off), sun = addDays(mon, 6);
+    var ref = sun > today ? today : sun;
+    return { today: today, mon: mon, sun: sun, days: [0, 1, 2, 3, 4, 5, 6].map(function (i) { return addDays(mon, i); }), month: ref.slice(0, 7) };
+  }
+  function needDays(off) { var w = weekRange(off), from = w.mon < w.month + '-01' ? w.mon : w.month + '-01'; return Math.min(400, Math.max(14, Math.round((dayMs(w.today) - dayMs(from)) / 864e5) + 1)); }
+  // 날짜 → 이름 → { answered, records } (이름은 성 뺀 이름으로 합침)
+  function byPerson(days) {
+    var out = {};
+    Object.keys(days || {}).forEach(function (d) { var x = days[d] || {}, o = out[d] = {}; Object.keys(x).forEach(function (n) { var k = person(n); if (!k) return; var v = x[n] || {}, s = o[k] || (o[k] = { answered: 0, records: 0 }); s.answered += v.answered || 0; s.records += v.records || 0; }); });
+    return out;
+  }
+  function countPanel(w, days) {
+    var R = weekRange(tWeek), P = byPerson(days), WD = ['월', '화', '수', '목', '금', '토', '일'];
+    var p = mk('div', 'panel'); p.style.maxWidth = '980px';
+    var hd = mk('div', 'ins'); hd.append(mk('span', null, '상담사별 건수'));
+    var prev = btn('◀ 지난주', null, function () { tWeek--; team(w); }), cur = btn('이번 주', null, function () { tWeek = 0; team(w); }), next = btn('다음 주 ▶', null, function () { tWeek++; team(w); });
+    [prev, cur, next].forEach(function (b) { b.className = ''; }); if (tWeek === 0) { cur.className = 'on'; next.disabled = true; }
+    var md = function (k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)); };
+    hd.append(prev, cur, next, mk('span', null, md(R.mon) + '(월) ~ ' + md(R.sun) + '(일)'));
+    p.append(hd);
+    var weekend = [5, 6].filter(function (i) { var o = P[R.days[i]] || {}; return Object.keys(o).some(function (n) { return o[n].answered || o[n].records; }); });
+    var cols = [0, 1, 2, 3, 4].concat(weekend);
+    var names = {}, add = function (d) { Object.keys(P[d] || {}).forEach(function (n) { names[n] = 1; }); };
+    R.days.forEach(add); Object.keys(P).forEach(function (d) { if (d.slice(0, 7) === R.month) add(d); });
+    var list = Object.keys(names).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+    if (!list.length) { p.append(mk('div', 'empty', '이 주에는 쌓인 숫자가 아직 없어요.')); w.append(p); return; }
+    var get = function (n, d) { var o = P[d] && P[d][n]; return o || { answered: 0, records: 0 }; };
+    var sumOf = function (n, keys) { return keys.reduce(function (s, d) { var o = get(n, d); s.answered += o.answered; s.records += o.records; return s; }, { answered: 0, records: 0 }); };
+    var monthKeys = Object.keys(P).filter(function (d) { return d.slice(0, 7) === R.month && d <= R.today; });
+    var cellOf = function (o, future, cls) {
+      var td = mk('td', 'tc' + (cls ? ' ' + cls : ''));
+      if (future) { td.textContent = ''; return td; }
+      if (!o.answered && !o.records) { td.append(mk('span', 'z', '–')); return td; }
+      td.append(mk('b', null, String(o.answered)), mk('small', null, '기록 ' + o.records)); return td;
+    };
+    var tb = mk('table', 'ttable tcount'), tr = mk('tr');
+    tr.append(mk('th', null, '상담사'));
+    cols.forEach(function (i) { var th = mk('th', R.days[i] === R.today ? 'now' : null, WD[i] + ' ' + md(R.days[i])); tr.append(th); });
+    tr.append(mk('th', 'sum', '주간'), mk('th', 'sum', Number(R.month.slice(5)) + '월'));
+    var th = mk('thead'); th.append(tr); tb.append(th);
+    var bd = mk('tbody'), tot = { days: {}, week: { answered: 0, records: 0 }, month: { answered: 0, records: 0 } };
+    list.forEach(function (n) {
+      var r = mk('tr'); r.append(mk('td', null, n));
+      cols.forEach(function (i) { var d = R.days[i], o = get(n, d), t = tot.days[d] || (tot.days[d] = { answered: 0, records: 0 }); t.answered += o.answered; t.records += o.records; r.append(cellOf(o, d > R.today)); });
+      var wk = sumOf(n, R.days.filter(function (d) { return d <= R.today; })), mo = sumOf(n, monthKeys);
+      ['answered', 'records'].forEach(function (k) { tot.week[k] += wk[k]; tot.month[k] += mo[k]; });
+      r.append(cellOf(wk, false, 'sum'), cellOf(mo, false, 'sum')); bd.append(r);
+    });
+    var tr2 = mk('tr', 'total'); tr2.append(mk('td', null, '팀 합계'));
+    cols.forEach(function (i) { var d = R.days[i]; tr2.append(cellOf(tot.days[d] || { answered: 0, records: 0 }, d > R.today)); });
+    tr2.append(cellOf(tot.week, false, 'sum'), cellOf(tot.month, false, 'sum')); bd.append(tr2);
+    tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); p.append(wrap);
+    p.append(mk('p', 'muted', '큰 숫자 = 답한 상담(카톡·톡톡 대기 목록에서 빠진 수) · 작은 숫자 = 기록(게시판 포함) · 상담사 PC 기록기가 켜져 있던 동안만 세요 · 이름은 성 뺀 이름(카톡 영원3 · 톡톡 김영원 → 영원)'));
+    w.append(p);
+  }
   async function team(w) {
     clearTimeout(tTimer);
     var T = '팀 현황';
     if (!w.querySelector('.tgrid')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 이 화면은 30초마다 새로 읽어요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
-    var r; try { r = await CSTeam.call('team.get', { days: 14 }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
+    var r; try { r = await CSTeam.call('team.get', { days: needDays(tWeek) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 이 화면은 30초마다 새로 읽어요.'));
     var ub = await updateBox(); if (ub) w.append(ub);
@@ -83,6 +146,7 @@
       c.append(m); g.append(c);
     });
     w.append(g);
+    countPanel(w, r.days || {});
     // 하루 합계
     var days = r.days || {}, keys = Object.keys(days).sort().reverse(), today = KBData.todayKey();
     var p = mk('div', 'panel'); p.style.maxWidth = '980px';
@@ -91,7 +155,7 @@
     p.append(hd);
     var pick = tDay === 'today' ? [today] : tDay === 'yday' ? [KBData.todayKey(Date.now() - 864e5)] : keys.slice(0, tDay === 'd7' ? 7 : 14);
     var sum = {};
-    pick.forEach(function (d) { var x = days[d] || {}; Object.keys(x).forEach(function (n) { var s = sum[n] || (sum[n] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: 0 }), v = x[n]; ['answered', 'waitSum', 'over20', 'holds', 'records'].forEach(function (k) { s[k] += v[k] || 0; }); s.maxWait = Math.max(s.maxWait, v.maxWait || 0); }); });
+    pick.forEach(function (d) { var x = days[d] || {}; Object.keys(x).forEach(function (n) { var s = sum[person(n)] || (sum[person(n)] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: 0 }), v = x[n]; ['answered', 'waitSum', 'over20', 'holds', 'records'].forEach(function (k) { s[k] += v[k] || 0; }); s.maxWait = Math.max(s.maxWait, v.maxWait || 0); }); });
     var names = Object.keys(sum).sort(function (a, b) { return sum[b].over20 - sum[a].over20 || a.localeCompare(b); });
     if (!names.length) p.append(mk('div', 'empty', '이 기간 합계가 아직 없어요.'));
     else {
