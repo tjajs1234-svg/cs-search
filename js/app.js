@@ -549,7 +549,7 @@
     c.append(el('h3', null, '‘검색기 연결’ 확장이 없어요'),
       el('p', null, '문의 검색 · 불량가이드 · 사진은 이 PC 크롬에 깐 작은 확장 ‘슈피겐 CS 검색기 연결’이 회사 구글 계정으로 읽어 와요(상담기록기와는 따로예요). 설치한 뒤 이 화면을 새로고침해 주세요.'),
       el('p', null, '스크립트 · 관리자 공지는 확장 없이도 다 돼요.'));
-    var a = el('div', 'acts'); a.append(btn('다시 확인', 'primary', null, function () { location.reload(); })); c.append(a); list.append(c);
+    var a = el('div', 'acts'); a.append(btn('스토어에서 설치', 'primary', null, function () { window.open('https://chromewebstore.google.com/detail/ohphmjfibdbbepckglcdkgdomaipicno', '_blank', 'noopener'); }), btn('설치했어요 · 다시 확인', '', null, function () { location.reload(); })); c.append(a); list.append(c);
   }
   function problemLine(box) {
     if (!BD) return;
