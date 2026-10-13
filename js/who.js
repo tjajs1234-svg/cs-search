@@ -23,7 +23,8 @@
     for (var i = 0; i < list.length; i++) {
       var r = await ask(list[i]);
       if (r) {
-        var n = String(r.name || '').trim().slice(0, 20), was = auto; auto = n;
+        var n = String(r.name || '').trim().slice(0, 20); if (n === '팀장') n = ''; // 이름만 보이게(팀장 PC는 이름을 한 번 적어 둠)
+        var was = auto; auto = n;
         try { if (n) localStorage.setItem(AUTO, n); else localStorage.removeItem(AUTO); } catch (e) {}
         if (was !== n) listeners.forEach(function (fn) { try { fn(n); } catch (e) {} });
         return n;

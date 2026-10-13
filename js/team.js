@@ -13,7 +13,7 @@
       var res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ token: TOKEN, action: action }, params || {})), redirect: 'follow', signal: ctl ? ctl.signal : undefined, keepalive: !!keepalive, cache: 'no-store' });
       var j = await res.json().catch(function () { return null; });
       if (!j) throw new Error('팀 서버 대답을 읽지 못했어요(' + res.status + ')');
-      if (!j.ok) throw new Error(j.error || '팀 서버에서 처리하지 못했어요');
+      if (!j.ok) { var se = new Error(j.error || '팀 서버에서 처리하지 못했어요'); se.server = true; throw se; }
       return j;
     } catch (e) { if (e && e.name === 'AbortError') throw new Error('팀 서버가 대답하지 않아요. 잠시 뒤 다시 해 주세요'); throw e; }
     finally { if (t) clearTimeout(t); }
@@ -28,6 +28,11 @@
     return p;
   }
   var rawCall = call;
-  call = function (action, params, ms, keepalive) { if (!READ.test(action)) memo = {}; return rawCall(action, params, ms, keepalive); };
+  // 읽기는 인터넷이 잠깐 끊기거나 서버가 늦으면 한 번 더 물어봄(서버가 ‘안 돼요’라고 답한 건 다시 안 물음)
+  call = async function (action, params, ms, keepalive) {
+    if (!READ.test(action)) { memo = {}; return rawCall(action, params, ms, keepalive); }
+    try { return await rawCall(action, params, ms, keepalive); }
+    catch (e) { if (e && e.server) throw e; await new Promise(function (r) { setTimeout(r, 700); }); return rawCall(action, params, ms, keepalive); }
+  };
   root.CSTeam = { valid: valid, set: set, call: function (a, p, m, k) { return call(a, p, m, k); }, get: get, ready: function () { return !!url; }, get url() { return url; } };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

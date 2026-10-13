@@ -779,7 +779,7 @@
   function nameBox(onSet) {
     var me = myName(), w = el('span', 'who');
     if (CSWho.auto()) { w.append(el('span', 'muted', '쓴 사람'), el('b', null, me)); w.title = '기록기에 넣은 태그로 정해져요'; return w; }
-    var nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '내 이름'; nm.value = me; nm.setAttribute('aria-label', '내 이름');
+    var nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '이름(성까지 · 김수빈)'; nm.value = me; nm.setAttribute('aria-label', '내 이름');
     nm.addEventListener('change', function () { CSWho.setManual(nm.value); if (onSet) onSet(); });
     w.append(nm); w._input = nm; return w;
   }
@@ -819,8 +819,8 @@
       if ((p.comments || []).length) h.append(el('span', 'muted ccount', '댓글 ' + p.comments.length));
       c.append(h, el('p', 'bbody-t', p.body));
       (p.comments || []).forEach(function (m) {
-        var lead = m.admin || m.author === '팀장', r = el('div', 'bcm' + (lead ? ' admin' : ''));
-        r.append(el('b', null, m.admin && m.author !== '팀장' ? '팀장 · ' + m.author : m.author), el('span', 'muted', when(m.at)));
+        var r = el('div', 'bcm'); // 모두 이름만(직함 표시 없음)
+        r.append(el('b', null, m.author), el('span', 'muted', when(m.at)));
         if (me && m.author === me) { var x = el('button', 'lk', '지우기'); x.type = 'button'; x.addEventListener('click', async function () { if (!confirm('이 댓글을 지울까요?')) return; try { await CSTeam.call('board.uncomment', { id: p.id, cid: m.id, author: me }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } }); r.append(x); }
         r.append(el('p', null, m.body)); c.append(r);
       });
@@ -836,7 +836,7 @@
     if (curView === 'board') { if (touched) S.put(BSEEN, seen); S.set(BVISIT, String(Date.now())); setTimeout(boardBadge, 0); }
   }
 
-  /* ───── 공지 확인: [확인했어요]를 누른 공지 번호·제목을 팀 서버에(팀장이 누가 읽었는지 봄) ───── */
+  /* ───── 공지 확인: [확인했어요]를 누른 공지 번호·제목을 팀 서버에(관리 화면에서 누가 읽었는지 봄) ───── */
   var RSENT = 'csx:readSent', readT = 0;
   function syncReads() {
     clearTimeout(readT);
@@ -906,7 +906,8 @@
     L.append(nav);
     if (work.err && !work.items) { var eb = el('div', 'empty', '불러오지 못했어요.\n' + work.err); var rb = btn('다시 불러오기', 'sm', null, function () { work.err = ''; renderWork(); loadWork(); }); eb.append(el('br'), rb); L.append(eb); return; }
     if (work.err) L.append(el('div', 'scope', '새로 불러오지 못해 지난번 내용을 보여 줘요 · ' + work.err));
-    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName();
+    // 내 이름은 성 뺀 이름으로 맞춰 비교(김수빈 → 수빈 · 서버도 같은 규칙)
+    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = (function (v) { var t = String(v || '').replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(t) ? t.slice(1) : t; })(myName());
     // 순서: 명단에 적힌 성 포함 이름(강유미 · 김수빈 · 김영원 · 박범수 · 신호정) 가나다순 — 명단에 없으면 그 이름으로
     var fullOf = {}; (work.roster || []).forEach(function (x) { if (x && x.name) fullOf[x.name] = x.full || x.name; });
     items.forEach(function (x) { if (x.full && !fullOf[x.name]) fullOf[x.name] = x.full; });
@@ -933,17 +934,17 @@
     var side = el('div', 'wside'), tot = el('div', 'wsum');
     tot.append(el('h3', null, Number(m.slice(5, 7)) + '월 야근 합계'));
     if (!names.length) tot.append(el('p', 'muted', work.items ? '아직 없어요' : '불러오는 중…'));
-    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, nm(n)), el('small', null, by[n].length + '일'), el('b', null, hm(sum[n]))); tot.append(r); });
+    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n), el('small', null, by[n].length + '일'), el('b', null, hm(sum[n]))); tot.append(r); });
     var cards = el('div', 'wcards');
     names.forEach(function (n) {
       var c = el('div', 'wcard' + (n === me ? ' me' : '')), h = el('div', 'wch');
       h.append(el('span', 'av', nm(n).slice(0, 1)), el('b', null, nm(n)), el('span', 'grow'), el('span', 'muted', by[n].length + '일 · '), el('b', 'wct', hm(sum[n])));
-      c.append(h);
+      c.append(h); var wl = el('div', 'wcl'); c.append(wl);
       by[n].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (x) {
         var r = el('div', 'wcr');
         r.append(el('span', 'd', Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', 't', x.to), el('span', 'grow'), el('span', 'm', hm(x.mins || 0)));
         if (x.name === me && x.status === '신청') { var del = el('button', 'wdel', '×'); del.type = 'button'; del.title = '이 날 지우기'; del.setAttribute('aria-label', '이 날 지우기'); del.addEventListener('click', async function () { if (!confirm(Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }); r.append(del); }
-        c.append(r);
+        wl.append(r);
       });
       cards.append(c);
     });

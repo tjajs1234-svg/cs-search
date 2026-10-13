@@ -425,3 +425,6 @@ button.wsr:hover{background:var(--surface2)}
 .wit .btn{margin-left:auto}
 @media (max-width:1100px){.wgrid{grid-template-columns:1fr}.wside .wsum{max-width:none}}
 @media (max-width:640px){.wcal .wc{min-height:48px}.wcal .ot{font-size:10px}}
+
+/* OT: 사람 칸이 한 달 내내 늘어나도 칸 높이는 그대로(안에서 스크롤) */
+.wcl{max-height:236px;overflow-y:auto;margin-right:-6px;padding-right:6px;scrollbar-width:thin}

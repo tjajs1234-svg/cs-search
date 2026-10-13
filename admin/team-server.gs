@@ -11,10 +11,11 @@
    · 1.3.1: 야근은 퇴근 시각만(17:00부터 · 정시 19:00 뒤가 야근) · 같은 날 다시 적으면 고침 · 팀장 [확인함]
    · 1.3.2: 상담사 명단에 성까지(김수빈) 적으면 달력·목록이 성 포함 이름 가나다순
    · 1.3.3: 빠르게(드라이브 파일 번호·내용 캐시) · 근무 탭은 한 번에 받음(work.get)
+   · 1.3.4: 큰 파일도 캐시(나눠 담기) · 요청·건의에 ‘팀장’ 대신 이름
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.3';
+var TEAM_VERSION = '1.3.4';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -75,19 +76,33 @@ function file_(name) {
   var it = folder_().getFilesByName(name); if (!it.hasNext()) return null;
   var f = it.next(); p.setProperty(k, f.getId()); return f;
 }
-var CACHE_MAX = 90000;
+// 캐시: 한 칸에 3만 자까지 · 큰 파일(팀 숫자 등)은 여러 칸에 나눠 담음(8칸까지)
+var CACHE_MAX = 30000, CACHE_PARTS = 8;
+function cacheGet_(c, name) {
+  var h = c.get('j:' + name); if (h === null) return null;
+  if (h.charAt(0) !== 'n') return h;
+  var n = Number(h.slice(1)), keys = []; for (var i = 0; i < n; i++) keys.push('j:' + name + ':' + i);
+  var g = c.getAll(keys), out = ''; for (var j = 0; j < n; j++) { if (g[keys[j]] == null) return null; out += g[keys[j]]; }
+  return out;
+}
+function cachePut_(c, name, text) {
+  if (text.length <= CACHE_MAX) { c.put('j:' + name, text, 21600); return; }
+  var n = Math.ceil(text.length / CACHE_MAX); if (n > CACHE_PARTS) { c.remove('j:' + name); return; }
+  var o = {}; for (var i = 0; i < n; i++) o['j:' + name + ':' + i] = text.slice(i * CACHE_MAX, (i + 1) * CACHE_MAX);
+  c.putAll(o, 21600); c.put('j:' + name, 'n' + n, 21600);
+}
 function readJson_(name, fallback) {
-  var c = CacheService.getScriptCache(), hit = c.get('j:' + name);
+  var c = CacheService.getScriptCache(), hit = cacheGet_(c, name);
   if (hit !== null) { try { return JSON.parse(hit); } catch (e) {} }
   var f = file_(name); if (!f) return fallback;
   var t = f.getBlob().getDataAsString('UTF-8');
-  if (t.length < CACHE_MAX) c.put('j:' + name, t, 21600);
+  cachePut_(c, name, t);
   try { return JSON.parse(t); } catch (e) { return fallback; }
 }
 function writeJson_(name, obj) {
   var text = JSON.stringify(obj), f = file_(name), c = CacheService.getScriptCache();
   if (f) f.setContent(text); else { f = folder_().createFile(name, text, 'application/json'); prop_().setProperty('fid:' + name, f.getId()); }
-  if (text.length < CACHE_MAX) c.put('j:' + name, text, 21600); else c.remove('j:' + name);
+  cachePut_(c, name, text);
 }
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
@@ -118,7 +133,13 @@ function isAdmin_(token) {
 
 /* ── 요청·건의 게시판 ── */
 function posts_() { var p = readJson_('board.json', []); return Array.isArray(p) ? p : []; }
-function listPosts_() { return posts_().sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }).slice(0, 300); }
+// 상담사 화면에는 ‘팀장’ 대신 이름만: 예전에 ‘팀장’으로 남은 글·댓글은 팀장이 댓글을 달 때 쓴 이름으로 보여 줌
+function listPosts_() {
+  var lead = settings_().leadName || '', fix = function (n) { return n === '팀장' && lead ? lead : n; };
+  return posts_().sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }).slice(0, 300).map(function (p) {
+    p.author = fix(p.author); (p.comments || []).forEach(function (c) { c.author = fix(c.author); }); return p;
+  });
+}
 function find_(posts, id) { for (var i = 0; i < posts.length; i++) if (posts[i].id === id) return posts[i]; return null; }
 function boardPost_(req) {
   var body = text_(req.body), author = name_(req.author);
@@ -146,6 +167,7 @@ function boardComment_(req) {
   if (!body || !who) return { ok: false, error: '이름과 내용을 적어 주세요' };
   var admin = !!req.adminToken && isAdmin_(req.adminToken);
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
+  if (admin && who !== '팀장') { var st0 = settings_(); if (st0.leadName !== who) { st0.leadName = who; writeJson_('settings.json', st0); } }
   var now = Date.now();
   p.comments.push({ id: id_(), author: who, body: body, at: now, admin: admin });
   p.updated = now; if (admin) p.adminAt = now;

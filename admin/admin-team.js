@@ -16,7 +16,8 @@
     return CSTeam.ready();
   }
   async function adminToken() { var c = await KBAdmin.getConn(); return c && c.token || ''; }
-  async function adminName() { return '팀장'; }
+  // 댓글에 직함 대신 이름(관리 화면에 연결할 때 적은 이름 · 성 뺀 이름)
+  async function adminName() { var c = null; try { c = await KBAdmin.getConn(); } catch (e) {} var n = person(c && c.name || ''); return n && n !== '관리자' && n !== '팀장' ? n : 'CS팀'; }
   function needServer(w, title) {
     w.replaceChildren(mk('h2', null, title), mk('div', 'empty', '팀 서버가 아직 연결되지 않았어요.\n왼쪽 아래 [팀 서버 연결]에서 한 번만 연결해 주세요.'));
     var b = btn('팀 서버 연결로 가기', 'primary', function () { A().setView('teamsetup'); }); b.style.margin = '0 auto'; b.style.display = 'flex'; w.append(b);
@@ -25,7 +26,7 @@
   /* ───── 요청·건의: 커뮤니티처럼(상태 없음 · 댓글로 주고받기) ───── */
   async function board(w) {
     var T = '요청·건의';
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사들이 검색기 [요청·건의]에 올린 글과 댓글이에요. 여기서 단 댓글은 상담사 화면에 ‘팀장’으로 강조돼요.'), mk('div', 'empty', '불러오는 중…'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사들이 검색기 [요청·건의]에 올린 글과 댓글이에요. 여기서 단 댓글도 상담사 화면에는 이름으로만 보여요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     var r; try { r = await CSTeam.call('board.list', {}); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     var posts = r.posts || [];
@@ -41,9 +42,9 @@
       (x.comments || []).forEach(function (m) {
         var r2 = mk('div', 'bcm' + (m.admin || m.author === '팀장' ? ' admin' : ''));
         var del = btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('board.uncomment', { id: x.id, cid: m.id, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); } });
-        r2.append(mk('b', null, (m.admin && m.author !== '팀장' ? '팀장 · ' : '') + m.author), mk('span', 'muted', when(m.at)), del, mk('p', null, m.body)); c.append(r2);
+        r2.append(mk('b', null, m.author), mk('span', 'muted', when(m.at)), del, mk('p', null, m.body)); c.append(r2);
       });
-      var a = mk('div', 'facts'), ci = mk('input', 'in'); ci.type = 'text'; ci.placeholder = '댓글 (상담사 화면에 ‘팀장’으로 보여요)'; ci.style.flex = '1 1 260px';
+      var a = mk('div', 'facts'), ci = mk('input', 'in'); ci.type = 'text'; ci.placeholder = '댓글 (상담사 화면에는 이름으로 보여요)'; ci.style.flex = '1 1 260px';
       var send = async function () { var body = ci.value.trim(); if (!body) return; try { await CSTeam.call('board.comment', { id: x.id, author: await adminName(), body: body, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); } };
       ci.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
       a.append(ci, btn('댓글 달기', 'primary sm', send), btn('글 지우기', 'danger-ghost sm', async function () {
