@@ -849,8 +849,8 @@
     }, 1500);
   }
 
-  /* ───── 근무: 야근(OT) 신청 · 내 신청 상태 · 이달 달력(공휴일) ───── */
-  var work = { month: '', items: null, cfg: null, err: '' };
+  /* ───── 근무: 그날 퇴근 시각만 적음(정시 19:00 뒤 넘은 시간이 야근) · 달력에 모두의 퇴근 시각 · 이달 야근 합계 ───── */
+  var work = { month: '', items: null, cfg: null, err: '' }, OT_FROM = '19:00';
   function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
   function monthOf(k) { return k.slice(0, 7); }
   function addMonth(m, n) { var y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7)) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + String(mo + 1).padStart(2, '0'); }
@@ -858,41 +858,42 @@
   async function loadWork() {
     if (!CSTeam.ready()) return;
     if (!work.month) work.month = monthOf(kstToday());
-    var me = myName(), m = work.month, last = WorkClock.addDays(addMonth(m, 1) + '-01', -1);
+    var m = work.month, last = WorkClock.addDays(addMonth(m, 1) + '-01', -1);
     try {
-      var r = await Promise.all([me ? CSTeam.call('ot.list', { name: me, from: m + '-01', to: last }, 20000) : Promise.resolve({ items: [] }), work.cfg ? Promise.resolve(null) : CSTeam.call('cfg.get', {}, 20000)]);
-      work.items = r[0].items || []; if (r[1]) work.cfg = r[1].cfg || {}; work.err = '';
+      var r = await Promise.all([CSTeam.call('ot.list', { from: m + '-01', to: last }, 20000), work.cfg ? Promise.resolve(null) : CSTeam.call('cfg.get', {}, 20000)]);
+      work.items = (r[0].items || []).filter(function (x) { return x.status !== '반려'; }); if (r[1]) work.cfg = r[1].cfg || {}; work.err = '';
     } catch (e) { work.err = e.message || '불러오지 못했어요'; }
     if (curView === 'work') renderWork();
   }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
-    var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근(OT)을 여기서 신청해요. 팀장이 승인하면 ‘승인’으로 바뀌어요.')); L.append(head);
-    // 신청
-    var w = el('div', 'bwrite wform'), who = nameBox(function () { work.items = null; loadWork(); renderWork(); });
+    var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
+    // 퇴근 시각 적기
+    var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
     var d = el('input', 'win'); d.type = 'date'; d.value = kstToday(); d.setAttribute('aria-label', '날짜');
-    var f = el('input', 'win'); f.type = 'time'; f.value = '19:00'; f.step = 600; f.setAttribute('aria-label', '시작');
-    var t = el('input', 'win'); t.type = 'time'; t.value = '20:00'; t.step = 600; t.setAttribute('aria-label', '끝');
-    var nt = el('input', 'win wnote'); nt.type = 'text'; nt.maxLength = 200; nt.placeholder = '메모(선택) · 예) 교환 접수 몰림'; nt.setAttribute('aria-label', '메모');
-    var go = btn('야근 신청', 'primary', 'plus', async function () {
+    var t = el('input', 'win'); t.type = 'time'; t.value = '20:00'; t.step = 300; t.setAttribute('aria-label', '퇴근 시각');
+    var go = btn('적기', 'primary', 'plus', async function () {
       if (who._input) CSWho.setManual(who._input.value);
       var name = needName(who); if (!name) return;
-      if (!d.value || !f.value || !t.value || t.value <= f.value) { toast('날짜와 시작·끝 시각을 확인해 주세요', { warn: true }); return; }
+      var v = String(t.value || '').slice(0, 5), mm = /^(\d{2}):(\d{2})$/.exec(v);
+      if (!d.value || !mm) { toast('날짜와 퇴근 시각을 골라 주세요', { warn: true }); return; }
+      if (Number(mm[2]) % 5) { v = mm[1] + ':' + String(Math.round(Number(mm[2]) / 5) * 5 % 60).padStart(2, '0'); }
+      if (v <= OT_FROM) { toast('정시(19:00)보다 늦은 시각만 적을 수 있어요', { warn: true }); return; }
       go.disabled = true;
-      try { await CSTeam.call('ot.add', { name: name, date: d.value, from: f.value, to: t.value, note: nt.value.trim() }, 20000); nt.value = ''; toast('신청했어요'); work.month = monthOf(d.value); await loadWork(); }
+      try { await CSTeam.call('ot.add', { name: name, date: d.value, from: OT_FROM, to: v }, 20000); toast('적었어요'); work.month = monthOf(d.value); await loadWork(); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
-    var r1 = el('div', 'wrow'); r1.append(lab2('날짜', d), lab2('시작', f), lab2('끝', t));
-    var r2 = el('div', 'brow'); r2.append(who, nt, go);
-    w.append(r1, r2); L.append(w);
+    var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', d), lab2('퇴근 시각', t), el('span', 'grow'), who, go);
+    w.append(r1); L.append(w);
     // 달 넘기기
     if (!work.month) work.month = monthOf(kstToday());
     var nav = el('div', 'filters wnav'), m = work.month;
     nav.append(btn('◀', 'sm', null, function () { work.month = addMonth(m, -1); work.items = null; renderWork(); loadWork(); }), el('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5, 7)) + '월'), btn('▶', 'sm', null, function () { work.month = addMonth(m, 1); work.items = null; renderWork(); loadWork(); }));
     L.append(nav);
     if (work.err && !work.items) { L.append(el('div', 'empty', '불러오지 못했어요.\n' + work.err)); return; }
-    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {});
-    // 달력: 공휴일은 빨갛게 · 내 야근은 칸 안에
+    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName();
+    var grid = el('div', 'wgrid');
+    // 달력: 공휴일은 빨갛게 · 칸마다 그날 야근한 사람과 퇴근 시각
     var cal = el('div', 'wcal'); ['월', '화', '수', '목', '금', '토', '일'].forEach(function (x) { cal.append(el('div', 'wd', x)); });
     var first = m + '-01', lead = (WorkClock.weekday(first) + 6) % 7, days = Number(WorkClock.addDays(addMonth(m, 1) + '-01', -1).slice(8, 10)), today = kstToday();
     for (var i = 0; i < lead; i++) cal.append(el('div', 'wc blank'));
@@ -900,22 +901,28 @@
       var k = m + '-' + String(dd).padStart(2, '0'), wd = WorkClock.weekday(k), cell = el('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === today ? ' today' : ''));
       cell.append(el('span', 'n', String(dd)));
       if (hol[k]) cell.append(el('span', 'h', hol[k]));
-      items.filter(function (x) { return x.date === k; }).forEach(function (x) { cell.append(el('span', 'ot ' + (x.status === '승인' ? 'ok' : x.status === '반려' ? 'no' : 'wait'), x.from + '–' + x.to)); });
+      items.filter(function (x) { return x.date === k; }).forEach(function (x) { cell.append(el('span', 'ot' + (x.name === me ? ' me' : ''), x.name + ' ' + x.to)); });
       cal.append(cell);
     }
-    L.append(cal);
-    // 내 신청 목록
-    var ok = items.filter(function (x) { return x.status === '승인'; }).reduce(function (s2, x) { return s2 + (x.mins || 0); }, 0), wait = items.filter(function (x) { return x.status === '신청'; }).length;
-    L.append(el('div', 'scope', '이달 승인된 야근 ' + hm(ok) + (wait ? ' · 승인 기다리는 신청 ' + wait + '건' : '')));
-    if (!items.length) L.append(el('div', 'empty', work.items ? '이달 야근 신청이 없어요.' : '불러오는 중…'));
-    items.slice().reverse().forEach(function (x) {
-      var c = el('div', 'wit'), st = el('span', 'bst ' + (x.status === '승인' ? 'st-done' : x.status === '반려' ? 'st-hold' : 'st-new'), x.status);
-      c.append(st, el('b', null, Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', null, x.from + ' – ' + x.to + ' · ' + hm(x.mins || 0)));
-      if (x.note) c.append(el('span', 'muted', x.note));
-      if (x.reply) c.append(el('span', 'muted', '팀장: ' + x.reply));
-      if (x.status === '신청') c.append(btn('취소', 'ghost sm', null, async function () { try { await CSTeam.call('ot.cancel', { id: x.id, name: myName() }); toast('취소했어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }));
-      L.append(c);
-    });
+    // 이달 야근 합계(누구나 봄)
+    var sum = {}; items.forEach(function (x) { sum[x.name] = (sum[x.name] || 0) + (x.mins || 0); });
+    var side = el('div', 'wsum'), all = 0; side.append(el('h3', null, Number(m.slice(5, 7)) + '월 야근 합계'));
+    var names = Object.keys(sum).sort(function (a, b) { return sum[b] - sum[a]; });
+    if (!names.length) side.append(el('p', 'muted', work.items ? '아직 없어요' : '불러오는 중…'));
+    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n), el('b', null, hm(sum[n]))); side.append(r); });
+    if (names.length) { var tr = el('div', 'wsr tot'); tr.append(el('span', null, '합계'), el('b', null, hm(all))); side.append(tr); }
+    grid.append(cal, side); L.append(grid);
+    // 내가 적은 날(고치려면 같은 날 다시 적기)
+    var mine = items.filter(function (x) { return x.name === me; });
+    if (mine.length) {
+      L.append(el('div', 'scope', '내가 적은 날 · 잘못 적었으면 같은 날로 다시 적으면 고쳐져요'));
+      mine.slice().reverse().forEach(function (x) {
+        var c = el('div', 'wit');
+        c.append(el('b', null, Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', null, '퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)));
+        if (x.status === '신청') c.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 날 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }));
+        L.append(c);
+      });
+    }
   }
   function lab2(t, input) { var l = el('label', 'wl'); l.append(el('span', null, t), input); return l; }
 

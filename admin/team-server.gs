@@ -43,6 +43,7 @@ function handle_(req) {
   if (a === 'team.get') return { ok: true, live: teamLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
   if (a === 'board.uncomment') return withLock_(function () { return boardUncomment_(req); });
+  if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
   if (a === 'qa.get') return { ok: true, days: qaDays_(Number(req.days) || 7), live: qaLive_(), now: Date.now() };
   if (a === 'cfg.get') return { ok: true, cfg: cfgOut_(settings_()), roster: settings_().roster || [] };
   if (a === 'cfg.set') return withLock_(function () { return cfgSet_(req); });
@@ -230,9 +231,18 @@ function qaClean_(q) {
 function qaDays_(days) { var q = readJson_('qa.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(q || {}).forEach(function (k) { if (k >= from) out[k] = q[k]; }); return out; }
 function qaLive_() {
   var names = liveNames_(), out = {}; if (!names.length) return out;
-  var got = CacheService.getScriptCache().getAll(names.map(function (n) { return 'qa:' + n; })), now = Date.now();
-  names.forEach(function (n) { try { var v = JSON.parse(got['qa:' + n] || 'null'); if (v && now - (v.at || 0) < 12 * 3600e3) out[n] = v; } catch (e) {} });
+  var got = CacheService.getScriptCache().getAll(names.map(function (n) { return 'qa:' + n; })), now = Date.now(), ok = readJson_('qaok.json', {}) || {};
+  var keep = function (x) { return !ok[x.ch + ':' + x.id]; };
+  names.forEach(function (n) { try { var v = JSON.parse(got['qa:' + n] || 'null'); if (v && now - (v.at || 0) < 12 * 3600e3) { v.miss = (v.miss || []).filter(keep); v.lh = (v.lh || []).filter(keep); out[n] = v; } } catch (e) {} });
   return out;
+}
+// 팀장이 [확인함]을 누른 상담은 ‘기록 안 한 상담’ · ‘오래된 상담’에서 뺌(7일)
+function qaOk_(req) {
+  if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 할 수 있어요' };
+  var k = String(req.key || ''); if (!/^(kakao|naver):.{1,80}$/.test(k)) return { ok: false, error: '상담 확인 필요' };
+  var ok = readJson_('qaok.json', {}) || {}, now = Date.now(); ok[k] = now;
+  Object.keys(ok).forEach(function (x) { if (now - ok[x] > 7 * 864e5) delete ok[x]; });
+  writeJson_('qaok.json', ok); return { ok: true };
 }
 
 /* ── 1.3.0 근무 설정: 비수기 · 공휴일(기본값은 기록기 workclock.js에) · 상담사 명단(입사·퇴사일) ── */
@@ -259,17 +269,19 @@ function otList_(req) {
   var who = req.name ? person_(req.name) : '';
   return ots_().filter(function (x) { return x.date >= from && x.date <= to && (!who || x.name === who); }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.at || 0) - (b.at || 0); });
 }
+// 상담사는 그날 퇴근 시각만 적음(정시 19:00 뒤 넘은 시간이 야근) · 같은 날 다시 적으면 고쳐짐
 function otAdd_(req) {
-  var name = person_(req.name), date = String(req.date || ''), f = hm_(req.from), t = hm_(req.to);
+  var name = person_(req.name), date = String(req.date || ''), from = req.from || '19:00', f = hm_(from), t = hm_(req.to);
   if (!name) return { ok: false, error: '이름이 없어요' };
   if (!dateOk_(date)) return { ok: false, error: '날짜를 골라 주세요' };
-  if (f < 0 || t < 0 || t <= f) return { ok: false, error: '시작·끝 시각을 확인해 주세요' };
+  if (f < 0 || t < 0 || t <= f) return { ok: false, error: '퇴근 시각을 확인해 주세요(정시 ' + from + ' 뒤)' };
   var admin = !!req.adminToken && isAdmin_(req.adminToken);
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
-  var list = ots_(), now = Date.now();
-  var x = { id: id_(), name: name, date: date, from: req.from, to: req.to, mins: t - f, note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name };
+  var list = ots_(), now = Date.now(), x = null;
+  list.forEach(function (o) { if (o.name === name && o.date === date && o.status !== '반려') x = o; });
+  if (x) { if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = t - f; x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
+  else { x = { id: id_(), name: name, date: date, from: from, to: req.to, mins: t - f, note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
   if (admin) x.decidedAt = now;
-  list.push(x);
   var cut = dayKey_(now - TEAM_KEEP_DAYS * 864e5); list = list.filter(function (o) { return o.date >= cut; });
   writeJson_('ot.json', list);
   return { ok: true, item: x };

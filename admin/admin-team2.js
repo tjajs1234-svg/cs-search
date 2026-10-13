@@ -52,11 +52,10 @@
   }
   async function flow(w) {
     var title = '업무 흐름';
-    if (!(await ready(w, title, '기록한 시각으로 본 하루 흐름이에요. 시간당 건수 · 기록 사이 텀(점심 빼고) · 30분 넘게 기록이 없던 구간 · 게시판 사이트별 건수. 긴 통화나 어려운 상담도 빈 구간으로 보이니 참고용으로만 봐 주세요.'))) return;
+    if (!(await ready(w, title, '기록한 시각으로 본 하루 흐름이에요. 시간당 건수 · 기록 사이 텀(점심 빼고) · 30분 넘게 기록이 없던 구간. 긴 통화나 어려운 상담도 빈 구간으로 보이니 참고용으로만 봐 주세요.'))) return;
     var td = today(); if (!fDay || fDay > td) fDay = td;
-    var back = diffDays(fDay, td) + 1, mon = fDay.slice(0, 7), monBack = diffDays(mon + '-01', td) + 1;
-    var q, g;
-    try { var r = await Promise.all([CSTeam.call('qa.get', { days: Math.min(62, back) }), CSTeam.call('team.get', { days: Math.min(400, Math.max(back, monBack)) })]); q = r[0]; g = r[1]; }
+    var back = diffDays(fDay, td) + 1, q;
+    try { q = await CSTeam.call('qa.get', { days: Math.min(62, back) }); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var nav = mk('div', 'ins qnav');
@@ -90,35 +89,49 @@
       p.append(mk('p', 'muted', '시간당 = 그날 기록 수 ÷ 첫 기록부터 마지막 기록까지 시간(점심 빼고) · 텀(보통) = 기록과 기록 사이 시간의 가운데 값'));
     }
     w.append(p);
-    // 게시판 사이트별
-    var days = g.days || {}, p2 = mk('div', 'panel'); p2.style.maxWidth = '1100px';
-    p2.append(mk('h3', 'qh', '게시판 사이트별 기록'));
+  }
+
+  /* ───── 게시판 건수: 그날 게시판 사이트별 기록 수(사람별) · 이달 합계 ───── */
+  var sDay = '';
+  async function sites(w) {
+    var title = '게시판 건수';
+    if (!(await ready(w, title, '게시판에서 기록할 때 고른 구매처로 저절로 세요. 상담사 PC는 1분마다 · 팀장 PC(태그 여러 개)는 5분마다 ‘팀장’ 줄로 들어와요.'))) return;
+    var td = today(); if (!sDay || sDay > td) sDay = td;
+    var mon = sDay.slice(0, 7), back = Math.max(diffDays(sDay, td), diffDays(mon + '-01', td)) + 1, g;
+    try { g = await CSTeam.call('team.get', { days: Math.min(400, back) }); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
+    w.lastChild.remove();
+    var nav = mk('div', 'ins qnav');
+    var di = mk('input', 'in'); di.type = 'date'; di.value = sDay; di.max = td; di.style.width = '160px'; di.addEventListener('change', function () { if (di.value) { sDay = di.value; sites(w); } });
+    nav.append(btn('◀ 전날', '', function () { sDay = W.addDays(sDay, -1); sites(w); }), di, btn('다음 날 ▶', '', function () { if (sDay < td) { sDay = W.addDays(sDay, 1); sites(w); } }), btn('오늘', sDay === td ? 'on' : '', function () { sDay = td; sites(w); }), mk('span', null, md(sDay)));
+    Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) { b.className = b.className.replace('btn ghost', '').replace('btn ', '').trim(); });
+    w.append(nav);
+    var days = g.days || {}, P = T().person;
     var sumBy = function (keys) { var o = {}; keys.forEach(function (d) { var x = days[d] || {}; Object.keys(x).forEach(function (n) { var k = P(n), s2 = (x[n] || {}).sites || {}; var t2 = o[k] || (o[k] = {}); Object.keys(s2).forEach(function (st) { t2[st] = (t2[st] || 0) + s2[st]; }); }); }); return o; };
-    var dayS = sumBy([fDay]), monS = sumBy(Object.keys(days).filter(function (d) { return d.slice(0, 7) === mon && d <= td; }));
     var siteTable = function (S, label) {
-      var sites = {}; Object.keys(S).forEach(function (n) { Object.keys(S[n]).forEach(function (st) { sites[st] = (sites[st] || 0) + S[n][st]; }); });
-      var cols = Object.keys(sites).sort(function (a, b) { return sites[b] - sites[a]; }), ppl = Object.keys(S).filter(function (n) { return Object.keys(S[n]).length; }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+      var all2 = {}; Object.keys(S).forEach(function (n) { Object.keys(S[n]).forEach(function (st) { all2[st] = (all2[st] || 0) + S[n][st]; }); });
+      var cols = Object.keys(all2).sort(function (a, b) { return all2[b] - all2[a]; }), ppl = Object.keys(S).filter(function (n) { return Object.keys(S[n]).length; }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
       if (!cols.length) return mk('div', 'empty', label + ' 게시판 기록이 없어요.');
       var rows = ppl.map(function (n) { var tot = 0; var cells = [n].concat(cols.map(function (c) { var v = S[n][c] || 0; tot += v; return { text: v ? String(v) : '–', cls: v ? '' : 'z' }; })); cells.push({ text: String(tot), cls: 'sum' }); return { cells: cells }; });
-      var all = 0; rows.push({ cls: 'total', cells: ['합계'].concat(cols.map(function (c) { all += sites[c]; return String(sites[c]); }), [{ text: String(all), cls: 'sum' }]) });
+      var all = 0; rows.push({ cls: 'total', cells: ['합계'].concat(cols.map(function (c) { all += all2[c]; return String(all2[c]); }), [{ text: String(all), cls: 'sum' }]) });
       return table(['상담사'].concat(cols, ['합계']), rows, 'tsite');
     };
-    p2.append(mk('div', 'ins', md(fDay)), siteTable(dayS, '이날'), mk('div', 'ins', Number(mon.slice(5)) + '월 합계'), siteTable(monS, '이달'));
-    p2.append(mk('p', 'muted', '게시판에서 기록할 때 고른 구매처로 셈 · 팀장 PC(태그 여러 개)는 ‘팀장’으로 들어가요'));
-    w.append(p2);
+    var p1 = mk('div', 'panel'); p1.style.maxWidth = '1100px'; p1.append(mk('h3', 'qh', md(sDay)), siteTable(sumBy([sDay]), '이날'));
+    var p2 = mk('div', 'panel'); p2.style.maxWidth = '1100px'; p2.append(mk('h3', 'qh', Number(mon.slice(5)) + '월 합계'), siteTable(sumBy(Object.keys(days).filter(function (d) { return d.slice(0, 7) === mon && d <= td; })), '이달'));
+    w.append(p1, p2);
   }
 
   /* ───── 확인할 상담 ───── */
   var qDay = '';
   async function qa(w) {
     var title = '확인할 상담';
-    if (!(await ready(w, title, '상담사 기록기가 보낸 상담 번호와 링크만 있어요(고객 이름·대화 내용은 없음). [열기]를 누르면 그 상담이 새 탭에서 열려요(카카오·톡톡에 로그인돼 있어야 해요).'))) return;
+    if (!(await ready(w, title, '팀장만 보는 화면이에요(상담사 화면에는 안 나와요). 상담 번호와 링크만 있고 고객 이름·대화 내용은 없어요. [열기]를 누르면 그 상담이 새 탭에서 열려요(카카오·톡톡에 로그인돼 있어야 해요).'))) return;
     var td = today(); if (!qDay || qDay > td) qDay = td;
     var r, reads = {}, cfg = null;
     try { var got = await Promise.all([CSTeam.call('qa.get', { days: Math.min(62, diffDays(qDay, td) + 1) }), CSTeam.call('notice.reads', {}).catch(function () { return { reads: {} }; }), getCfg().catch(function () { return null; })]); r = got[0]; reads = got[1].reads || {}; cfg = got[2]; }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
-    var P = T().person, live = r.live || {}, liveNames = Object.keys(live).map(P);
+    var P = T().person, live = r.live || {}, liveNames = Object.keys(live).map(P), tok = await T().adminToken();
+    var okBtn = function (x, row) { return btn('확인함', 'ghost sm', async function () { try { await CSTeam.call('qa.ok', { key: x.ch + ':' + x.id, adminToken: tok }); row.remove(); say('목록에서 뺐어요', 'ok'); } catch (e) { say(e.message, 'err'); } }); };
     var sec = function (h, sub) { var p = mk('div', 'panel'); p.style.maxWidth = '980px'; p.append(mk('h3', 'qh', h)); if (sub) p.append(mk('p', 'muted', sub)); w.append(p); return p; };
     var personList = function (p, map, render, empty) {
       var names = Object.keys(map).filter(function (n) { return map[n].length; }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
@@ -127,8 +140,8 @@
     };
     // 1) 기록 안 한 상담(지금)
     var miss = {}; Object.keys(live).forEach(function (n) { miss[P(n)] = (miss[P(n)] || []).concat(live[n].miss || []); });
-    personList(sec('기록 안 한 상담 · 지금', '오늘 답했는데 같은 상담 링크로 남긴 기록이 없는 상담(상담사가 [괜찮아요]로 뺀 건 빠짐)'), miss, function (x) {
-      var row = mk('div', 'qrow'); row.append(mk('span', 'chb ' + x.ch, chName(x.ch)), mk('span', null, clock(x.at) + ' 답함'), link(x)); return row;
+    personList(sec('기록 안 한 상담 · 지금', '오늘 답했는데 같은 상담 링크로 남긴 기록이 없는 상담 · 상담사 화면에는 안 보여요 · 기록이 필요 없던 건 [확인함]으로 빼요'), miss, function (x) {
+      var row = mk('div', 'qrow'); row.append(mk('span', 'chb ' + x.ch, chName(x.ch)), mk('span', null, clock(x.at) + ' 답함'), link(x), okBtn(x, row)); return row;
     }, '없어요 👍');
     // 2) 20분 넘긴 상담(날짜별)
     var p2 = sec('20분 넘긴 상담', '업무시간 기준으로 20분 넘게 기다리게 한 뒤 답한 상담');
@@ -143,7 +156,7 @@
     // 3) 오래된 상담(지금)
     var lh = {}; Object.keys(live).forEach(function (n) { lh[P(n)] = (lh[P(n)] || []).concat(live[n].lh || []); });
     Object.keys(lh).forEach(function (n) { lh[n].sort(function (a, b) { return (b.d || 0) - (a.d || 0); }); });
-    personList(sec('오래된 상담 · 지금', '마지막 대화 뒤 영업일 2일 넘게 지난 상담(카톡 진행중 · 톡톡 진행중 · 톡톡 보류 탭)'), lh, function (x) { var row = mk('div', 'qrow'); row.append(mk('span', 'chb ' + x.ch, chName(x.ch)), mk('span', null, (x.h ? '보류 탭' : '진행중') + ' · 영업일 ' + (x.d || 0) + '일'), link(x)); return row; }, '없어요 👍');
+    personList(sec('오래된 상담 · 지금', '마지막 대화 뒤 영업일 2일 넘게 지난 상담(카톡 진행중 · 톡톡 진행중 · 톡톡 보류 탭)'), lh, function (x) { var row = mk('div', 'qrow'); row.append(mk('span', 'chb ' + x.ch, chName(x.ch)), mk('span', null, (x.h ? '보류 탭' : '진행중') + ' · 영업일 ' + (x.d || 0) + '일'), link(x), okBtn(x, row)); return row; }, '없어요 👍');
     // 4) 공지 확인
     var p4 = sec('공지 확인', '상담사가 검색기에서 [확인했어요]를 누른 공지예요(기록기 2.4.0 · 이름은 기록기 태그로 자동)');
     var team = activeNames(cfg && cfg.roster, td, liveNames).filter(function (n) { return n !== '팀장'; });
@@ -160,7 +173,7 @@
   var cMonth = '';
   async function cal(w) {
     var title = '근무 달력';
-    if (!(await ready(w, title, '상담사가 검색기 [근무] 탭에서 야근을 신청하면 여기서 승인해요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
+    if (!(await ready(w, title, '상담사가 검색기 [근무] 탭에 그날 퇴근 시각을 적으면 여기 쌓여요(정시 19:00 뒤 넘은 시간이 야근). 승인은 이 화면에서만 해요 · 상담사 화면에는 승인 여부가 안 보여요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got;
@@ -172,12 +185,12 @@
     var hol = W.holidays(cfg);
     var lastRec = function (name, day) { var x = qd[day] || {}, best = -1; Object.keys(x).forEach(function (n) { if (P(n) === name) (x[n].rt || []).forEach(function (v) { best = Math.max(best, v); }); }); return best >= 0 ? hhmm(best) : ''; };
     var tok = await T().adminToken();
-    var decide = async function (x, st) { var rep = st === '반려' ? prompt('반려 이유(상담사에게 보여요 · 비워도 돼요)', '') : ''; if (rep === null) return; try { await CSTeam.call('ot.decide', { id: x.id, status: st, reply: rep || '', adminToken: tok }); say(st === '승인' ? '승인했어요' : '반려했어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } };
+    var decide = async function (x, st) { var rep = ''; try { await CSTeam.call('ot.decide', { id: x.id, status: st, reply: rep || '', adminToken: tok }); say(st === '승인' ? '승인했어요' : '반려했어요(상담사 달력에서도 빠져요)', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } };
     // 달 넘기기 · 내려받기
     var nav = mk('div', 'ins qnav');
     nav.append(btn('◀', '', function () { cMonth = addMonth(m, -1); cal(w); }), mk('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5)) + '월'), btn('▶', '', function () { cMonth = addMonth(m, 1); cal(w); }), btn('이번 달', m === td.slice(0, 7) ? 'on' : '', function () { cMonth = td.slice(0, 7); cal(w); }),
       btn('엑셀(CSV) 내려받기', '', function () {
-        var lines = [['날짜', '요일', '이름', '시작', '끝', '시간(분)', '상태', '메모', '팀장 메모', '그날 마지막 기록']].concat(items.map(function (x) { return [x.date, WD[W.weekday(x.date)], x.name, x.from, x.to, x.mins, x.status, x.note || '', x.reply || '', lastRec(x.name, x.date)]; }));
+        var lines = [['날짜', '요일', '이름', '퇴근', '야근(분)', '야근', '상태', '그날 마지막 기록']].concat(items.map(function (x) { return [x.date, WD[W.weekday(x.date)], x.name, x.to, x.mins, hm(x.mins || 0), x.status, lastRec(x.name, x.date)]; }));
         var csv = '﻿' + lines.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
         var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = '야근_' + m + '.csv'; document.body.append(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       }));
@@ -185,11 +198,11 @@
     w.append(nav);
     // 승인 기다리는 신청
     var wait = items.filter(function (x) { return x.status === '신청'; });
-    var p1 = mk('div', 'panel'); p1.style.maxWidth = '980px'; p1.append(mk('h3', 'qh', '승인 기다리는 야근 ' + wait.length));
-    if (!wait.length) p1.append(mk('div', 'empty', '이달에 승인 기다리는 신청이 없어요.'));
+    var p1 = mk('div', 'panel'); p1.style.maxWidth = '980px'; p1.append(mk('h3', 'qh', '승인할 야근 ' + wait.length));
+    if (!wait.length) p1.append(mk('div', 'empty', '이달에 승인할 야근이 없어요.'));
     wait.forEach(function (x) {
       var r2 = mk('div', 'qrow ot'), lr = lastRec(x.name, x.date);
-      r2.append(mk('b', null, x.name), mk('span', null, md(x.date) + ' ' + x.from + '–' + x.to + ' · ' + hm(x.mins || 0)));
+      r2.append(mk('b', null, x.name), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)));
       if (x.note) r2.append(mk('span', 'muted', x.note));
       if (lr) r2.append(mk('span', 'chip use', '그날 마지막 기록 ' + lr));
       r2.append(mk('span', 'sp'), btn('승인', 'primary sm', function () { decide(x, '승인'); }), btn('반려', 'danger-ghost sm', function () { decide(x, '반려'); }));
@@ -204,7 +217,7 @@
     for (var d = 1; d <= nd; d++) {
       var k = m + '-' + String(d).padStart(2, '0'), wd = W.weekday(k), cell = mk('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === td ? ' today' : ''));
       cell.append(mk('span', 'n', String(d))); if (hol[k]) cell.append(mk('span', 'h', hol[k]));
-      items.filter(function (x) { return x.date === k; }).forEach(function (x) { var o = mk('span', 'ot ' + (x.status === '승인' ? 'ok' : x.status === '반려' ? 'no' : 'wait'), x.name + ' ' + x.from + '–' + x.to); o.title = x.status + (x.note ? ' · ' + x.note : ''); cell.append(o); });
+      items.filter(function (x) { return x.date === k; }).forEach(function (x) { var o = mk('span', 'ot ' + (x.status === '승인' ? 'ok' : x.status === '반려' ? 'no' : 'wait'), x.name + ' ' + x.to); o.title = x.status + ' · 야근 ' + hm(x.mins || 0); cell.append(o); });
       grid.append(cell);
     }
     p2.append(grid);
@@ -212,11 +225,9 @@
     var names = activeNames(roster, td, liveNames);
     var f = mk('div', 'facts'), sel = mk('select', 'sel'); sel.style.width = '120px'; sel.setAttribute('aria-label', '이름'); names.forEach(function (n) { sel.append(new Option(n, n)); });
     var di = mk('input', 'in'); di.type = 'date'; di.value = td.slice(0, 7) === m ? td : from; di.style.width = '150px';
-    var fi = mk('input', 'in'); fi.type = 'time'; fi.value = '19:00'; fi.style.width = '110px';
-    var ti = mk('input', 'in'); ti.type = 'time'; ti.value = '20:00'; ti.style.width = '110px';
-    var ni = mk('input', 'in'); ni.type = 'text'; ni.placeholder = '메모(선택)'; ni.style.flex = '1 1 160px';
-    f.append(sel, di, fi, ti, ni, btn('바로 적기(승인)', 'ghost sm', async function () { if (!sel.value) { say('근무 달력 아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: fi.value, to: ti.value, note: ni.value, adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } }));
-    p2.append(mk('p', 'muted', '팀장이 대신 적기(바로 승인돼요)'), f);
+    var ti = mk('input', 'in'); ti.type = 'time'; ti.value = '20:00'; ti.step = 300; ti.style.width = '120px'; ti.title = '퇴근 시각';
+    f.append(sel, di, ti, btn('바로 적기(승인)', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } }));
+    p2.append(mk('p', 'muted', '팀장이 대신 적기(퇴근 시각 · 바로 승인돼요)'), f);
     w.append(p2);
     // 이달 합계
     var p3 = mk('div', 'panel'); p3.style.maxWidth = '980px'; p3.append(mk('h3', 'qh', Number(m.slice(5)) + '월 야근 합계'));
@@ -224,11 +235,11 @@
     items.forEach(function (x) { var s2 = sum[x.name] || (sum[x.name] = { ok: 0, okN: 0, wait: 0, no: 0 }); if (x.status === '승인') { s2.ok += x.mins || 0; s2.okN++; } else if (x.status === '신청') s2.wait++; else s2.no++; });
     var sn = Object.keys(sum).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
     var all = 0;
-    p3.append(table(['상담사', '승인된 야근', '건수', '승인 기다림', '반려'], sn.map(function (n) { var s2 = sum[n]; all += s2.ok; return { cells: [n, { text: s2.ok ? hm(s2.ok) : '–' }, String(s2.okN), { text: String(s2.wait), cls: s2.wait ? 'warnc' : '' }, String(s2.no)] }; }).concat([{ cls: 'total', cells: ['합계', hm(all), '', '', ''] }])));
+    p3.append(table(['상담사', '승인된 야근', '건수', '승인할 것', '반려'], sn.map(function (n) { var s2 = sum[n]; all += s2.ok; return { cells: [n, { text: s2.ok ? hm(s2.ok) : '–' }, String(s2.okN), { text: String(s2.wait), cls: s2.wait ? 'warnc' : '' }, String(s2.no)] }; }).concat([{ cls: 'total', cells: ['합계', hm(all), '', '', ''] }])));
     var done = items.filter(function (x) { return x.status !== '신청'; });
     if (done.length) {
       var det = mk('details', 'qdet'); det.append(mk('summary', null, '처리한 신청 ' + done.length + '건 보기'));
-      done.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('span', 'chip ' + (x.status === '승인' ? 'new' : 'err'), x.status), mk('b', null, x.name), mk('span', null, md(x.date) + ' ' + x.from + '–' + x.to + ' · ' + hm(x.mins || 0)), mk('span', 'muted', [x.note, x.reply ? '팀장: ' + x.reply : ''].filter(Boolean).join(' · ')), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); cal(w); } catch (e) { say(e.message, 'err'); } })); det.append(r3); });
+      done.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('span', 'chip ' + (x.status === '승인' ? 'new' : 'err'), x.status), mk('b', null, x.name), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); cal(w); } catch (e) { say(e.message, 'err'); } })); det.append(r3); });
       p3.append(det);
     }
     w.append(p3);
@@ -269,7 +280,7 @@
     w.append(p4);
   }
 
-  var add = function () { if (!window.KBAdminExtra || !window.KBTeam) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { flow: flow, qa: qa, cal: cal }); };
+  var add = function () { if (!window.KBAdminExtra || !window.KBTeam) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { flow: flow, sites: sites, qa: qa, cal: cal }); };
   add();
   window.KBTeam2 = { flowOf: flowOf };
 })();
