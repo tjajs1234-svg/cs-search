@@ -118,7 +118,7 @@
     showOnboard(false);
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
-    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && curView === 'board') setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false);
+    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads();
     rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
@@ -127,7 +127,7 @@
   }
 
   /* ───── 화면 전환 ───── */
-  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board'];
+  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work'];
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts'; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
@@ -138,6 +138,7 @@
     if (v === 'defect') { S.put('csx:defOpened', Date.now()); renderDefect(); renderBadges(); }
     if (v === 'notice') renderNotices();
     if (v === 'board') loadBoard(true); else freshNow.clear();
+    if (v === 'work') { renderWork(); loadWork(); }
     if (focus !== false) { var input = v === 'scripts' ? $('q') : v === 'req' ? $('rq') : v === 'defect' ? $('dq') : null; if (input) setTimeout(function () { input.focus(); }, 0); }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { setView(t.dataset.v); }); });
@@ -679,7 +680,7 @@
     return out;
   }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
-  function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices(); }
+  function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices();  syncReads(); }
   function linkify(node, text, terms) {
     var re = /https?:\/\/[^\s<>"']+/g, s = String(text || ''), i = 0, m;
     var put = function (t) { if (terms && terms.length) markText(node, t, terms); else node.append(t); };
@@ -753,12 +754,18 @@
   });
   $('ry').addEventListener('change', function () { rlimit = 40; renderReq(); });
 
-  /* ───── 요청·건의: 상담사가 필요한 것(멘트·기능·불편한 점)을 자유롭게 · 팀장이 상태와 답글로 처리 ───── */
-  var board = { posts: null, filter: 'open', at: 0, err: '' }, BSEEN = 'csx:boardSeen', BNAME = 'csx:myName', freshNow = new Set(); // freshNow: 이번에 보는 동안은 ‘새 답’ 표시를 남겨 둠
-  function myName() { return String(S.get(BNAME) || '').trim(); }
+  /* ───── 요청·건의: 커뮤니티처럼 — 누구나 글 · 누구나 댓글. 쓴 사람은 기록기가 알려 준 이름(이름 칸 없음) ───── */
+  var board = { posts: null, filter: 'all', at: 0, err: '' }, BSEEN = 'csx:boardSeen', BVISIT = 'csx:boardVisit', freshNow = new Set(); // freshNow: 이번에 보는 동안은 ‘새 글·새 댓글’ 표시를 남겨 둠
+  function myName() { return CSWho.name(); }
   function seenMap() { var m = S.json(BSEEN, {}); return m && typeof m === 'object' ? m : {}; }
-  function boardNew(p) { var me = myName(); return !!me && p.author === me && (p.adminAt || 0) > (seenMap()[p.id] || 0); }
-  function boardBadge() { var b = $('boardBadge'); if (!b) return; var n = (board.posts || []).filter(boardNew).length; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
+  function lastOther(p, me) { return (p.comments || []).reduce(function (t, c) { return c.author !== me ? Math.max(t, c.at || 0) : t; }, 0); }
+  // 새것: 내 글에 다른 사람이 단 새 댓글 · 지난번에 본 뒤 다른 사람이 올린 글
+  function boardNew(p) {
+    var me = myName(), visit = Number(S.get(BVISIT) || 0);
+    if (me && p.author === me) return lastOther(p, me) > (seenMap()[p.id] || p.at || 0);
+    return !!visit && (p.at || 0) > visit;
+  }
+  function boardBadge() { var b = $('boardBadge'); if (!b) return; if (!S.get(BVISIT)) S.set(BVISIT, String(Date.now())); var n = (board.posts || []).filter(boardNew).length; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
   async function loadBoard(show) {
     if (!CSTeam.ready()) return;
     if (show) renderBoard();
@@ -767,57 +774,151 @@
     boardBadge(); if (curView === 'board') renderBoard();
   }
   setInterval(function () { if (!document.hidden && CSTeam.ready() && (curView === 'board' || Date.now() - board.at > 5 * 60000)) loadBoard(false); }, 60000);
-  var BST = { '접수': 'st-new', '진행 중': 'st-doing', '완료': 'st-done', '보류': 'st-hold' };
+  CSWho.on(function () { if (curView === 'board') renderBoard(); if (curView === 'work') renderWork(); boardBadge(); syncReads(); });
+  // 이름: 기록기가 알려 주면 그 이름. 없으면(기록기 없는 PC) 한 번만 적게 함
+  function nameBox(onSet) {
+    var me = myName(), w = el('span', 'who');
+    if (CSWho.auto()) { w.append(el('span', 'muted', '쓴 사람'), el('b', null, me)); w.title = '기록기에 넣은 태그로 정해져요'; return w; }
+    var nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '내 이름'; nm.value = me; nm.setAttribute('aria-label', '내 이름');
+    nm.addEventListener('change', function () { CSWho.setManual(nm.value); if (onSet) onSet(); });
+    w.append(nm); w._input = nm; return w;
+  }
+  function needName(box) { var n = myName(); if (n) return n; toast('이름을 적어 주세요', { warn: true }); if (box && box._input) box._input.focus(); return ''; }
   function renderBoard() {
     var L = $('blist'); if (!L) return; L.replaceChildren();
     var head = el('div', 'bhead'); head.append(el('h2', null, '요청·건의'), el('p', null, '필요한 멘트, 불편한 점, 바라는 기능… 무엇이든 적어 주세요.'));
     L.append(head);
     // 쓰기
-    var w = el('div', 'bwrite'), nm = el('input', 'bname'); nm.type = 'text'; nm.maxLength = 20; nm.placeholder = '내 이름'; nm.value = myName(); nm.setAttribute('aria-label', '내 이름');
+    var w = el('div', 'bwrite'), who = nameBox(function () { renderBoard(); });
     var ta = el('textarea', 'bbody'); ta.placeholder = '예) 폴드8 힌지 소리 문의가 많은데 2차 안내 멘트가 있으면 좋겠어요'; ta.setAttribute('aria-label', '요청·건의 내용'); ta.maxLength = 4000;
     var go = btn('올리기', 'primary', 'plus', async function () {
-      var name = nm.value.trim(), body = ta.value.trim();
-      if (!name) { toast('이름을 적어 주세요', { warn: true }); nm.focus(); return; }
+      if (who._input) CSWho.setManual(who._input.value);
+      var name = needName(who), body = ta.value.trim(); if (!name) return;
       if (!body) { toast('내용을 적어 주세요', { warn: true }); ta.focus(); return; }
-      S.set(BNAME, name); go.disabled = true;
-      try { await CSTeam.call('board.post', { author: name, body: body }); ta.value = ''; toast('올렸어요'); board.filter = 'open'; await loadBoard(false); }
+      go.disabled = true;
+      try { await CSTeam.call('board.post', { author: name, body: body }); ta.value = ''; toast('올렸어요'); board.filter = 'all'; await loadBoard(false); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
-    var wr = el('div', 'brow'); wr.append(nm, el('span', 'grow'), go); w.append(ta, wr); L.append(w);
-    // 거르기
+    var wr = el('div', 'brow'); wr.append(who, el('span', 'grow'), go); w.append(ta, wr); L.append(w);
+    // 거르기: 전체 · 내 글
     var posts = board.posts || [], me = myName();
-    var fs = el('div', 'filters'), F = [['open', '진행 중'], ['done', '완료'], ['mine', '내 글'], ['all', '전체']];
-    var cnt = { open: posts.filter(function (p) { return p.status === '접수' || p.status === '진행 중'; }).length, done: posts.filter(function (p) { return p.status === '완료'; }).length, mine: posts.filter(function (p) { return me && p.author === me; }).length, all: posts.length };
+    var fs = el('div', 'filters'), F = [['all', '전체'], ['mine', '내 글']];
+    var cnt = { all: posts.length, mine: posts.filter(function (p) { return me && p.author === me; }).length };
     F.forEach(function (f) { var b = el('button', 'fchip', f[1] + ' ' + cnt[f[0]]); b.type = 'button'; b.setAttribute('aria-pressed', String(board.filter === f[0])); b.addEventListener('click', function () { board.filter = f[0]; renderBoard(); }); fs.append(b); });
     L.append(fs);
     if (board.err && !board.posts) { L.append(el('div', 'empty', '요청·건의를 불러오지 못했어요.\n' + board.err)); return; }
     if (!board.posts) { L.append(el('div', 'empty', '불러오는 중…')); return; }
-    var list = posts.filter(function (p) { return board.filter === 'all' ? true : board.filter === 'done' ? p.status === '완료' : board.filter === 'mine' ? (me && p.author === me) : (p.status === '접수' || p.status === '진행 중'); });
-    if (!list.length) L.append(el('div', 'empty', board.filter === 'mine' ? '내가 쓴 글이 없어요.' : '아직 없어요.'));
+    var list = posts.filter(function (p) { return board.filter === 'mine' ? (me && p.author === me) : true; });
+    if (!list.length) L.append(el('div', 'empty', board.filter === 'mine' ? '내가 쓴 글이 없어요.' : '아직 글이 없어요. 첫 글을 남겨 보세요.'));
     var seen = seenMap(), touched = false;
     list.forEach(function (p) {
       if (boardNew(p)) freshNow.add(p.id);
       var isFresh = freshNow.has(p.id), c = el('article', 'bpost' + (isFresh ? ' fresh' : '')), h = el('div', 'bph');
-      h.append(el('span', 'bst ' + (BST[p.status] || ''), p.status), el('b', null, p.author), el('span', 'muted', when(p.at)));
-      if (isFresh) h.append(el('span', 'ptag new', '새 답'));
+      h.append(el('span', 'av', String(p.author || '?').slice(0, 1)), el('b', null, p.author), el('span', 'muted', when(p.at)));
+      if (isFresh) h.append(el('span', 'ptag new', me && p.author === me ? '새 댓글' : '새 글'));
+      if ((p.comments || []).length) h.append(el('span', 'muted ccount', '댓글 ' + p.comments.length));
       c.append(h, el('p', 'bbody-t', p.body));
-      (p.comments || []).forEach(function (m) { var r = el('div', 'bcm' + (m.admin ? ' admin' : '')); r.append(el('b', null, m.admin ? '팀장 · ' + m.author : m.author), el('span', 'muted', when(m.at)), el('p', null, m.body)); c.append(r); });
-      var a = el('div', 'acts'), liked = me && (p.likes || []).indexOf(me) >= 0;
-      var lk = btn((liked ? '나도 필요해요 ✓ ' : '나도 필요해요 ') + ((p.likes || []).length || ''), liked ? 'sm on' : 'sm', null, async function () {
-        var name = myName() || nm.value.trim(); if (!name) { toast('위에 내 이름을 먼저 적어 주세요', { warn: true }); nm.focus(); return; }
-        S.set(BNAME, name); try { await CSTeam.call('board.like', { id: p.id, author: name }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); }
+      (p.comments || []).forEach(function (m) {
+        var lead = m.admin || m.author === '팀장', r = el('div', 'bcm' + (lead ? ' admin' : ''));
+        r.append(el('b', null, m.admin && m.author !== '팀장' ? '팀장 · ' + m.author : m.author), el('span', 'muted', when(m.at)));
+        if (me && m.author === me) { var x = el('button', 'lk', '지우기'); x.type = 'button'; x.addEventListener('click', async function () { if (!confirm('이 댓글을 지울까요?')) return; try { await CSTeam.call('board.uncomment', { id: p.id, cid: m.id, author: me }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } }); r.append(x); }
+        r.append(el('p', null, m.body)); c.append(r);
       });
-      lk.title = (p.likes || []).join(', ');
+      var a = el('div', 'acts');
       var ci = el('input', 'bci'); ci.type = 'text'; ci.placeholder = '댓글 달기'; ci.maxLength = 2000; ci.setAttribute('aria-label', '댓글');
-      var send = async function () { var name = myName() || nm.value.trim(), body = ci.value.trim(); if (!body) return; if (!name) { toast('위에 내 이름을 먼저 적어 주세요', { warn: true }); nm.focus(); return; } S.set(BNAME, name); try { await CSTeam.call('board.comment', { id: p.id, author: name, body: body }); ci.value = ''; loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } };
+      var send = async function () { var body = ci.value.trim(); if (!body) return; var name = needName(who); if (!name) return; try { await CSTeam.call('board.comment', { id: p.id, author: name, body: body }); ci.value = ''; loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } };
       ci.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
-      a.append(lk, ci, btn('달기', 'sm', null, send));
-      if (me && p.author === me && !(p.comments || []).some(function (m) { return m.admin; })) a.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 글을 지울까요?')) return; try { await CSTeam.call('board.delete', { id: p.id, author: me }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } }));
+      a.append(ci, btn('달기', 'sm', null, send));
+      if (me && p.author === me) a.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 글을 지울까요? 댓글도 함께 사라져요.')) return; try { await CSTeam.call('board.delete', { id: p.id, author: me }); loadBoard(false); } catch (e) { toast(e.message, { warn: true }); } }));
       c.append(a); L.append(c);
-      if (boardNew(p)) { seen[p.id] = p.adminAt; touched = true; }
+      if (me && p.author === me) { var lo = lastOther(p, me); if (lo > (seen[p.id] || 0)) { seen[p.id] = lo; touched = true; } }
     });
-    if (touched && curView === 'board') { S.put(BSEEN, seen); setTimeout(boardBadge, 0); }
+    if (curView === 'board') { if (touched) S.put(BSEEN, seen); S.set(BVISIT, String(Date.now())); setTimeout(boardBadge, 0); }
   }
+
+  /* ───── 공지 확인: [확인했어요]를 누른 공지 번호·제목을 팀 서버에(팀장이 누가 읽었는지 봄) ───── */
+  var RSENT = 'csx:readSent', readT = 0;
+  function syncReads() {
+    clearTimeout(readT);
+    readT = setTimeout(async function () {
+      if (!CSTeam.ready()) return; var me = myName(); if (!me) return;
+      var sent = S.json(RSENT, []); if (!Array.isArray(sent)) sent = [];
+      var items = allNotices().filter(function (n) { return M.seen.indexOf(n.id) >= 0 && sent.indexOf(me + '|' + n.id) < 0; }).slice(0, 50).map(function (n) { return { id: n.id, title: String(n.title || '').slice(0, 80) }; });
+      if (!items.length) return;
+      try { await CSTeam.call('notice.read', { name: me, items: items }, 20000); S.put(RSENT, sent.concat(items.map(function (x) { return me + '|' + x.id; })).slice(-600)); } catch (e) { /* 다음에 */ }
+    }, 1500);
+  }
+
+  /* ───── 근무: 야근(OT) 신청 · 내 신청 상태 · 이달 달력(공휴일) ───── */
+  var work = { month: '', items: null, cfg: null, err: '' };
+  function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  function monthOf(k) { return k.slice(0, 7); }
+  function addMonth(m, n) { var y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7)) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + String(mo + 1).padStart(2, '0'); }
+  function hm(mins) { var h = Math.floor(mins / 60), m = mins % 60; return (h ? h + '시간' : '') + (m ? (h ? ' ' : '') + m + '분' : h ? '' : '0분'); }
+  async function loadWork() {
+    if (!CSTeam.ready()) return;
+    if (!work.month) work.month = monthOf(kstToday());
+    var me = myName(), m = work.month, last = WorkClock.addDays(addMonth(m, 1) + '-01', -1);
+    try {
+      var r = await Promise.all([me ? CSTeam.call('ot.list', { name: me, from: m + '-01', to: last }, 20000) : Promise.resolve({ items: [] }), work.cfg ? Promise.resolve(null) : CSTeam.call('cfg.get', {}, 20000)]);
+      work.items = r[0].items || []; if (r[1]) work.cfg = r[1].cfg || {}; work.err = '';
+    } catch (e) { work.err = e.message || '불러오지 못했어요'; }
+    if (curView === 'work') renderWork();
+  }
+  function renderWork() {
+    var L = $('wlist'); if (!L) return; L.replaceChildren();
+    var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근(OT)을 여기서 신청해요. 팀장이 승인하면 ‘승인’으로 바뀌어요.')); L.append(head);
+    // 신청
+    var w = el('div', 'bwrite wform'), who = nameBox(function () { work.items = null; loadWork(); renderWork(); });
+    var d = el('input', 'win'); d.type = 'date'; d.value = kstToday(); d.setAttribute('aria-label', '날짜');
+    var f = el('input', 'win'); f.type = 'time'; f.value = '19:00'; f.step = 600; f.setAttribute('aria-label', '시작');
+    var t = el('input', 'win'); t.type = 'time'; t.value = '20:00'; t.step = 600; t.setAttribute('aria-label', '끝');
+    var nt = el('input', 'win wnote'); nt.type = 'text'; nt.maxLength = 200; nt.placeholder = '메모(선택) · 예) 교환 접수 몰림'; nt.setAttribute('aria-label', '메모');
+    var go = btn('야근 신청', 'primary', 'plus', async function () {
+      if (who._input) CSWho.setManual(who._input.value);
+      var name = needName(who); if (!name) return;
+      if (!d.value || !f.value || !t.value || t.value <= f.value) { toast('날짜와 시작·끝 시각을 확인해 주세요', { warn: true }); return; }
+      go.disabled = true;
+      try { await CSTeam.call('ot.add', { name: name, date: d.value, from: f.value, to: t.value, note: nt.value.trim() }, 20000); nt.value = ''; toast('신청했어요'); work.month = monthOf(d.value); await loadWork(); }
+      catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
+    });
+    var r1 = el('div', 'wrow'); r1.append(lab2('날짜', d), lab2('시작', f), lab2('끝', t));
+    var r2 = el('div', 'brow'); r2.append(who, nt, go);
+    w.append(r1, r2); L.append(w);
+    // 달 넘기기
+    if (!work.month) work.month = monthOf(kstToday());
+    var nav = el('div', 'filters wnav'), m = work.month;
+    nav.append(btn('◀', 'sm', null, function () { work.month = addMonth(m, -1); work.items = null; renderWork(); loadWork(); }), el('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5, 7)) + '월'), btn('▶', 'sm', null, function () { work.month = addMonth(m, 1); work.items = null; renderWork(); loadWork(); }));
+    L.append(nav);
+    if (work.err && !work.items) { L.append(el('div', 'empty', '불러오지 못했어요.\n' + work.err)); return; }
+    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {});
+    // 달력: 공휴일은 빨갛게 · 내 야근은 칸 안에
+    var cal = el('div', 'wcal'); ['월', '화', '수', '목', '금', '토', '일'].forEach(function (x) { cal.append(el('div', 'wd', x)); });
+    var first = m + '-01', lead = (WorkClock.weekday(first) + 6) % 7, days = Number(WorkClock.addDays(addMonth(m, 1) + '-01', -1).slice(8, 10)), today = kstToday();
+    for (var i = 0; i < lead; i++) cal.append(el('div', 'wc blank'));
+    for (var dd = 1; dd <= days; dd++) {
+      var k = m + '-' + String(dd).padStart(2, '0'), wd = WorkClock.weekday(k), cell = el('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === today ? ' today' : ''));
+      cell.append(el('span', 'n', String(dd)));
+      if (hol[k]) cell.append(el('span', 'h', hol[k]));
+      items.filter(function (x) { return x.date === k; }).forEach(function (x) { cell.append(el('span', 'ot ' + (x.status === '승인' ? 'ok' : x.status === '반려' ? 'no' : 'wait'), x.from + '–' + x.to)); });
+      cal.append(cell);
+    }
+    L.append(cal);
+    // 내 신청 목록
+    var ok = items.filter(function (x) { return x.status === '승인'; }).reduce(function (s2, x) { return s2 + (x.mins || 0); }, 0), wait = items.filter(function (x) { return x.status === '신청'; }).length;
+    L.append(el('div', 'scope', '이달 승인된 야근 ' + hm(ok) + (wait ? ' · 승인 기다리는 신청 ' + wait + '건' : '')));
+    if (!items.length) L.append(el('div', 'empty', work.items ? '이달 야근 신청이 없어요.' : '불러오는 중…'));
+    items.slice().reverse().forEach(function (x) {
+      var c = el('div', 'wit'), st = el('span', 'bst ' + (x.status === '승인' ? 'st-done' : x.status === '반려' ? 'st-hold' : 'st-new'), x.status);
+      c.append(st, el('b', null, Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', null, x.from + ' – ' + x.to + ' · ' + hm(x.mins || 0)));
+      if (x.note) c.append(el('span', 'muted', x.note));
+      if (x.reply) c.append(el('span', 'muted', '팀장: ' + x.reply));
+      if (x.status === '신청') c.append(btn('취소', 'ghost sm', null, async function () { try { await CSTeam.call('ot.cancel', { id: x.id, name: myName() }); toast('취소했어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }));
+      L.append(c);
+    });
+  }
+  function lab2(t, input) { var l = el('label', 'wl'); l.append(el('span', null, t), input); return l; }
+
   function when(t) { if (!t) return ''; var d = new Date(t), now = new Date(); var same = d.toDateString() === now.toDateString(); return same ? '오늘 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : (d.getMonth() + 1) + '/' + d.getDate(); }
 
   /* 멘트 사용 통계: 담기·교체한 멘트 번호만 하루치로 모아 10분마다 팀 서버에 보냄(고객 내용은 안 보냄) */
@@ -1022,12 +1123,16 @@
   document.addEventListener('csbridge-event', function (e) { var d = e.detail || {}; if (d.what === 'data') refreshBridge(false); else if (d.what === 'view' && d.view) setView(d.view); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshBridge(false); } });
 
+  // 기록기 Alt+S: 주소 끝 #find-… → 스크립트 화면 검색창에 커서
+  function findFromHash() { if (!/^#find-/.test(location.hash || '')) return false; setView('scripts', false); var i = $('q'); setTimeout(function () { window.focus(); i.focus(); i.select(); }, 0); return true; }
+  window.addEventListener('hashchange', findFromHash);
+
   /* ───── 시작 ───── */
   (async function boot() {
     applyTheme(); loadPersonal();
     note.value = S.get(K.note) || ''; blanks();
     var first = (location.hash || '').slice(1);
-    setView(VIEWS.indexOf(first) >= 0 ? first : 'scripts', true);
+    if (!findFromHash()) setView(VIEWS.indexOf(first) >= 0 ? first : 'scripts', true);
     await CSBridge.wait(1500);
     var n = await S.restoreIfEmpty(); if (n) { loadPersonal(); note.value = S.get(K.note) || ''; blanks(); toast('저장해 둔 개인 설정을 되살렸어요'); }
     await loadContent();

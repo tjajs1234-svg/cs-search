@@ -353,3 +353,33 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .bpost .acts{gap:6px}
 .bpost .acts .btn.sm.on{border-color:var(--accent);color:var(--accent)}
 .bpost .bci{flex:1 1 200px;min-width:0;height:34px;border:1px solid var(--line2);border-radius:9px;padding:0 10px;font:inherit;font-size:13.5px;background:var(--surface);color:var(--ink)}
+
+/* 2026.10 요청·건의(커뮤니티) · 근무 */
+.bwrite .who{display:inline-flex;align-items:center;gap:6px;font-size:13.5px}
+.bwrite .who .muted{color:var(--ink3);font-size:12.5px}
+.bph .av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700}
+.bph .ccount{margin-left:auto}
+.bcm .lk{margin-left:auto;font-size:12px;color:var(--ink3);background:none;border:0;cursor:pointer;padding:0}
+.bcm .lk:hover{color:var(--danger,#d92d20)}
+.wform .wrow{display:flex;gap:10px;flex-wrap:wrap}
+.wl{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink2)}
+.win{height:38px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink)}
+.wnote{flex:1 1 220px;min-width:0}
+.wnav{align-items:center;gap:10px}
+.wcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wcal .wd{font-size:12px;color:var(--ink3);text-align:center;padding:2px 0}
+.wcal .wc{min-height:64px;border:1px solid var(--line);border-radius:9px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--surface);font-size:12px}
+.wcal .wc.blank{border:0;background:none}
+.wcal .wc .n{font-weight:700;color:var(--ink2)}
+.wcal .wc.off .n,.wcal .wc .h{color:var(--danger,#d92d20)}
+.wcal .wc.sat .n{color:var(--accent)}
+.wcal .wc.today{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-soft)}
+.wcal .wc .h{font-size:11px;line-height:1.3}
+.wcal .ot{font-size:11px;border-radius:5px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcal .ot.ok{background:var(--good-soft);color:var(--good)}
+.wcal .ot.wait{background:var(--warn-soft);color:var(--warn)}
+.wcal .ot.no{background:var(--surface2);color:var(--ink3);text-decoration:line-through}
+.wit{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
+.wit .muted{color:var(--ink3);font-size:13px}
+.wit .btn{margin-left:auto}
+@media (max-width:640px){.wcal .wc{min-height:48px}.wcal .ot{font-size:10px}}

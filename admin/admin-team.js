@@ -16,41 +16,38 @@
     return CSTeam.ready();
   }
   async function adminToken() { var c = await KBAdmin.getConn(); return c && c.token || ''; }
-  async function adminName() { var c = await KBAdmin.getConn(); return c && c.name || '팀장'; }
+  async function adminName() { return '팀장'; }
   function needServer(w, title) {
     w.replaceChildren(mk('h2', null, title), mk('div', 'empty', '팀 서버가 아직 연결되지 않았어요.\n왼쪽 아래 [팀 서버 연결]에서 한 번만 연결해 주세요.'));
     var b = btn('팀 서버 연결로 가기', 'primary', function () { A().setView('teamsetup'); }); b.style.margin = '0 auto'; b.style.display = 'flex'; w.append(b);
   }
 
-  /* ───── 요청·건의 ───── */
-  var bFilter = 'open';
+  /* ───── 요청·건의: 커뮤니티처럼(상태 없음 · 댓글로 주고받기) ───── */
   async function board(w) {
     var T = '요청·건의';
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사가 검색기 [요청·건의] 탭에 올린 글이에요. 상태를 바꾸고 답글을 달면 쓴 사람 화면에 ‘새 답’으로 보여요.'), mk('div', 'empty', '불러오는 중…'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사들이 검색기 [요청·건의]에 올린 글과 댓글이에요. 여기서 단 댓글은 상담사 화면에 ‘팀장’으로 강조돼요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     var r; try { r = await CSTeam.call('board.list', {}); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
-    var posts = r.posts || [], sts = r.statuses || ['접수', '진행 중', '완료', '보류'];
+    var posts = r.posts || [];
     w.lastChild.remove();
     var p = mk('div', 'panel');
-    var fs = mk('div', 'ins'), F = [['open', '처리할 것'], ['done', '완료'], ['hold', '보류'], ['all', '전체']];
-    var n = { open: posts.filter(function (x) { return x.status === '접수' || x.status === '진행 중'; }).length, done: posts.filter(function (x) { return x.status === '완료'; }).length, hold: posts.filter(function (x) { return x.status === '보류'; }).length, all: posts.length };
-    F.forEach(function (f) { var b = mk('button', null, f[1] + ' ' + n[f[0]]); b.type = 'button'; if (bFilter === f[0]) b.className = 'on'; b.addEventListener('click', function () { bFilter = f[0]; board(w); }); fs.append(b); });
-    p.append(fs);
-    var list = posts.filter(function (x) { return bFilter === 'all' || (bFilter === 'open' ? (x.status === '접수' || x.status === '진행 중') : bFilter === 'done' ? x.status === '완료' : x.status === '보류'); });
-    if (!list.length) p.append(mk('div', 'empty', bFilter === 'open' ? '처리할 요청이 없어요.' : '없어요.'));
-    list.forEach(function (x) {
+    p.append(mk('div', 'ins', '글 ' + posts.length + '개 · 최근에 댓글이 달린 글이 위로'));
+    if (!posts.length) p.append(mk('div', 'empty', '아직 글이 없어요.'));
+    posts.forEach(function (x) {
       var c = mk('div', 'bpost'), h = mk('div', 'bph');
-      var sel = mk('select', 'sel'); sel.setAttribute('aria-label', '상태'); sts.forEach(function (s) { sel.append(new Option(s, s)); }); sel.value = x.status;
-      sel.addEventListener('change', async function () { sel.disabled = true; try { await CSTeam.call('board.status', { id: x.id, status: sel.value, adminToken: await adminToken() }); say('‘' + sel.value + '’(으)로 바꿨어요', 'ok'); board(w); } catch (e) { say(e.message, 'err'); sel.value = x.status; sel.disabled = false; } });
-      h.append(sel, mk('b', null, x.author), mk('span', 'muted', when(x.at)));
-      if ((x.likes || []).length) { var lk = mk('span', 'chip cat', '나도 필요 ' + x.likes.length); lk.title = x.likes.join(', '); h.append(lk); }
+      h.append(mk('b', null, x.author), mk('span', 'muted', when(x.at)));
+      if ((x.comments || []).length) h.append(mk('span', 'chip cat', '댓글 ' + x.comments.length));
       c.append(h, mk('p', 'bbody-t', x.body));
-      (x.comments || []).forEach(function (m) { var r2 = mk('div', 'bcm' + (m.admin ? ' admin' : '')); r2.append(mk('b', null, (m.admin ? '팀장 · ' : '') + m.author), mk('span', 'muted', when(m.at)), mk('p', null, m.body)); c.append(r2); });
-      var a = mk('div', 'facts'), ci = mk('input', 'in'); ci.type = 'text'; ci.placeholder = '답글 (상담사 화면에 ‘팀장’으로 보여요)'; ci.style.flex = '1 1 260px';
+      (x.comments || []).forEach(function (m) {
+        var r2 = mk('div', 'bcm' + (m.admin || m.author === '팀장' ? ' admin' : ''));
+        var del = btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('board.uncomment', { id: x.id, cid: m.id, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); } });
+        r2.append(mk('b', null, (m.admin && m.author !== '팀장' ? '팀장 · ' : '') + m.author), mk('span', 'muted', when(m.at)), del, mk('p', null, m.body)); c.append(r2);
+      });
+      var a = mk('div', 'facts'), ci = mk('input', 'in'); ci.type = 'text'; ci.placeholder = '댓글 (상담사 화면에 ‘팀장’으로 보여요)'; ci.style.flex = '1 1 260px';
       var send = async function () { var body = ci.value.trim(); if (!body) return; try { await CSTeam.call('board.comment', { id: x.id, author: await adminName(), body: body, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); } };
       ci.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
-      a.append(ci, btn('답글 달기', 'primary sm', send), btn('지우기', 'danger-ghost sm', async function () {
-        if (!(await A().confirmDlg('이 글을 지울까요?', '‘' + x.body.slice(0, 40) + '…’ 글과 답글이 모두 사라져요.', '지우기', true))) return;
+      a.append(ci, btn('댓글 달기', 'primary sm', send), btn('글 지우기', 'danger-ghost sm', async function () {
+        if (!(await A().confirmDlg('이 글을 지울까요?', '‘' + x.body.slice(0, 40) + '…’ 글과 댓글이 모두 사라져요.', '지우기', true))) return;
         try { await CSTeam.call('board.delete', { id: x.id, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); }
       }));
       c.append(a); p.append(c);
@@ -126,11 +123,11 @@
   async function team(w) {
     clearTimeout(tTimer);
     var T = '팀 현황';
-    if (!w.querySelector('.tgrid')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 이 화면은 30초마다 새로 읽어요.'), mk('div', 'empty', '불러오는 중…'));
+    if (!w.querySelector('.tgrid')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     var r; try { r = await CSTeam.call('team.get', { days: needDays(tWeek) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
     var keepScroll = w.scrollTop;
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 이 화면은 30초마다 새로 읽어요.'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'));
     var ub = await updateBox(); if (ub) w.append(ub);
     var live = (r.live || []).slice().sort(function (a, b) { return (b.oldestMin || 0) - (a.oldestMin || 0); });
     var g = mk('div', 'tgrid');
@@ -142,6 +139,8 @@
       var big = mk('div', 'tbig'); big.append(mk('span', 'n', off ? '–' : String(x.pending || 0)), mk('span', 'u', '명 대기'));
       var old = mk('div', 'told', off ? '기록기가 꺼져 있거나 목록 탭을 닫았어요' : x.pending ? '가장 오래 ' + (x.oldestMin || 0) + '분' : '기다리는 고객 없음'); c.append(big, old);
       var m = mk('div', 'tmeta'); m.append(mk('span', null, '20분 넘음 ' + (x.over20 || 0)), mk('span', null, '보류 ' + (x.held || 0)), mk('span', null, '오늘 기록 ' + (x.records || 0)));
+      if (x.miss) { var ms = mk('a', 'tlink', '기록 안 함 ' + x.miss); ms.href = '#'; ms.addEventListener('click', function (e) { e.preventDefault(); A().setView('qa'); }); m.append(ms); }
+      if (x.lh) { var lh = mk('a', 'tlink', '오래된 상담 ' + x.lh); lh.href = '#'; lh.addEventListener('click', function (e) { e.preventDefault(); A().setView('qa'); }); m.append(lh); }
       if (x.channels) m.append(mk('span', null, x.channels));
       c.append(m); g.append(c);
     });
@@ -164,7 +163,7 @@
       var bd = mk('tbody');
       names.forEach(function (n) { var s = sum[n], r2 = mk('tr'); r2.append(mk('td', null, n), mk('td', null, String(s.answered)), mk('td', null, s.answered ? Math.round(s.waitSum / s.answered) + '분' : '–'), mk('td', s.over20 ? 'bad' : null, String(s.over20)), mk('td', s.maxWait >= 20 ? 'bad' : null, s.maxWait ? s.maxWait + '분' : '–'), mk('td', null, String(s.holds)), mk('td', null, String(s.records))); bd.append(r2); });
       tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); p.append(wrap);
-      p.append(mk('p', 'muted', '평균 대기 = 고객이 기다리기 시작해서 답할 때까지 걸린 시간의 평균 · 20분 넘김 = 한 번이라도 20분 넘게 기다리게 한 상담 수'));
+      p.append(mk('p', 'muted', '평균 대기 = 고객이 기다리기 시작해서 답할 때까지 걸린 시간의 평균 · 20분 넘김 = 한 번이라도 20분 넘게 기다리게 한 상담 수 · 기록기 2.4.0부터 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고)'));
     }
     w.append(p);
     w.scrollTop = keepScroll;
@@ -240,7 +239,7 @@
     w.append(p);
   }
 
-  window.KBTeam = { usage: usage, loadUsage: loadUsage };
+  window.KBTeam = { usage: usage, loadUsage: loadUsage, ensureUrl: ensureUrl, adminToken: adminToken, needServer: needServer, person: person, when: when };
   var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { board: board, team: team, teamsetup: setup }); };
   add();
   setTimeout(loadUsage, 1500);

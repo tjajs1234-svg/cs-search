@@ -173,6 +173,8 @@
   }else if(catId)rows=rows.filter(r=>r.c.id===catId);
   if(expiredOnly)rows=rows.filter(r=>isExpired(r.k));
   if(unusedOnly&&window.KBTeam&&KBTeam.usage.map){const U=KBTeam.usage.map;rows=rows.filter(r=>!U[r.k.id]);}
+  // 많이 쓴 순: 최근 30일 담기·교체 횟수가 많은 멘트부터(모든 분류에서)
+  if(usageSort&&!unusedOnly&&window.KBTeam&&KBTeam.usage.map){const U=KBTeam.usage.map;rows=rows.slice().sort((a,b)=>(U[b.k.id]||0)-(U[a.k.id]||0));}
   return {rows,toks};
  }
  function hl(el,text,toks){text=String(text||'');const low=text.toLowerCase();let i=0;const t=toks.filter(Boolean);if(!t.length){el.append(text);return el;}
@@ -180,12 +182,12 @@
    if(best<0){el.append(text.slice(i));break;}if(best>i)el.append(text.slice(i,best));el.append(mk('mark',null,text.slice(best,best+bl)));i=best+bl;}return el;}
  function renderRows(){
   const box=$('rows');const keep=box.scrollTop;box.replaceChildren();if(view!=='cards')return;
-  const {rows,toks}=listRows();const searching=toks.length>0;
+  const {rows,toks}=listRows();const searching=toks.length>0||usageSort&&!unusedOnly&&!!(window.KBTeam&&KBTeam.usage.map);
   const c0=catOf(catId);
-  $('midinfo').replaceChildren(mk('span',null,searching?('모든 분류에서 '+rows.length+'개 찾음'):((c0?c0.name:'전체')+' · 멘트 '+rows.length+'개')),mk('span',null,searching||!rows.length||expiredOnly?'':'· 끌어서 순서 바꾸기'));
+  $('midinfo').replaceChildren(mk('span',null,searching&&!toks.length?((c0?c0.name+' · ':'')+'많이 쓴 순 · 멘트 '+rows.length+'개'):searching?('모든 분류에서 '+rows.length+'개 찾음'):((c0?c0.name:'전체')+' · 멘트 '+rows.length+'개')),mk('span',null,searching||!rows.length||expiredOnly?'':'· 끌어서 순서 바꾸기'));
   {let ex=0;for(const c of cats())for(const k of c.cards)if(isExpired(k))ex++;
    const U=window.KBTeam&&KBTeam.usage.map;if(U){let un=0;for(const c of cats())for(const k of c.cards)if(!U[k.id])un++;
-    const b2=mk('button','exbtn use'+(unusedOnly?' on':''),unusedOnly?'30일 안 쓴 것만 보는 중 · 모두 보기':'30일 안 쓴 멘트 '+un+'개');b2.type='button';b2.title='최근 30일 동안 아무도 담거나 교체하지 않은 멘트예요. 지울지 살펴보세요';b2.addEventListener('click',()=>{unusedOnly=!unusedOnly;renderRows();});$('midinfo').append(mk('span','sp'),b2);}
+    const b2=mk('button','exbtn use'+(unusedOnly?' on':''),unusedOnly?'30일 안 쓴 것만 보는 중 · 모두 보기':'30일 안 쓴 멘트 '+un+'개');b2.type='button';b2.title='최근 30일 동안 아무도 담거나 교체하지 않은 멘트예요. 지울지 살펴보세요';b2.addEventListener('click',()=>{unusedOnly=!unusedOnly;if(unusedOnly)usageSort=false;renderRows();});const b3=mk('button','exbtn use'+(usageSort?' on':''),usageSort?'많이 쓴 순으로 보는 중 · 원래대로':'많이 쓴 순');b3.type='button';b3.title='최근 30일 동안 상담사가 작성공간에 담거나 교체한 횟수가 많은 멘트부터 보여요(사람별이 아니라 멘트별 합계)';b3.addEventListener('click',()=>{usageSort=!usageSort;if(usageSort)unusedOnly=false;renderRows();});$('midinfo').append(mk('span','sp'),b3,b2);}
    if(ex||expiredOnly){const b=mk('button','exbtn'+(expiredOnly?' on':''),expiredOnly?'기간 끝난 것만 보는 중 · 모두 보기':'기간 끝난 멘트 '+ex+'개');b.type='button';b.title='끝나는 날이 지나 상담사 화면에서 숨겨진 멘트예요. 지우거나 날짜를 바꿔 주세요';b.addEventListener('click',()=>{expiredOnly=!expiredOnly;renderRows();});if(!$('midinfo').querySelector('.sp'))$('midinfo').append(mk('span','sp'));$('midinfo').append(b);}}
   if(!rows.length){box.append(mk('div','empty',searching?'찾는 멘트가 없어요.\n다른 말로 찾아보세요.':c0?'이 분류에는 아직 멘트가 없어요.\n위쪽 [+ 새 멘트]로 만들어 보세요.':'멘트가 없어요.\n[+ 새 멘트]로 만들어 보세요.'));return;}
   let lastCat='';
@@ -251,7 +253,7 @@
   return out.sort((p,q)=>q.score-p.score).slice(0,3);}
  const today=()=>KBData.todayKey();
  const isExpired=k=>/^\d{4}-\d{2}-\d{2}$/.test(String(k.until||''))&&String(k.until)<today();
- let expiredOnly=false,unusedOnly=false;
+ let expiredOnly=false,unusedOnly=false,usageSort=false;
  function previewInto(el,raw){
   el.replaceChildren();const text=String(raw||'').replace(/\r\n?/g,'\n');
   const parts=text.split(/(\[접수 후 처리 안내\]|\[인입 채널별 접수 경로\]|\{[^{}\n]{1,20}\})/);
