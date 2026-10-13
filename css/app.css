@@ -378,7 +378,26 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .wcal .ot{font-size:11px;border-radius:5px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wcal .ot{background:var(--surface2);color:var(--ink2)}
 .wcal .ot.me{background:var(--accent-soft);color:var(--accent);font-weight:700}
-.wgrid{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:12px;align-items:start}
+.wgrid{display:grid;grid-template-columns:minmax(480px,760px) minmax(0,1fr);gap:14px;align-items:start}
+#wlist{max-width:none}
+#wlist>.bhead,#wlist>.bwrite{max-width:1040px}
+.wside{display:flex;flex-direction:column;gap:12px;min-width:0}
+.wside .wsum{max-width:340px}
+.wcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.wcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.wcard.me{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-soft)}
+.wch{display:flex;align-items:center;gap:6px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--line);font-size:14px}
+.wch .av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:11.5px;font-weight:700}
+.wch .muted{color:var(--ink3);font-size:12px}
+.wch .wct{font-size:13.5px}
+.wcard.me .wct{color:var(--accent)}
+.wcr{display:flex;align-items:center;gap:8px;font-size:13px;padding:2px 0;font-variant-numeric:tabular-nums}
+.wcr .d{color:var(--ink2);min-width:64px}
+.wcr .t{font-weight:700}
+.wcr .m{color:var(--ink3);font-size:12px}
+.wch .grow,.wcr .grow{flex:1}
+.wdel{border:0;background:none;color:var(--ink3);font-size:15px;line-height:1;cursor:pointer;padding:0 2px}
+.wdel:hover{color:var(--danger)}
 .wsum{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .wsum h3{margin:0 0 4px;font-size:14px}
 .wsum .muted{margin:0;color:var(--ink3);font-size:13px}
@@ -404,5 +423,5 @@ button.wsr:hover{background:var(--surface2)}
 .wit{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
 .wit .muted{color:var(--ink3);font-size:13px}
 .wit .btn{margin-left:auto}
-@media (max-width:820px){.wgrid{grid-template-columns:1fr}}
+@media (max-width:1100px){.wgrid{grid-template-columns:1fr}.wside .wsum{max-width:none}}
 @media (max-width:640px){.wcal .wc{min-height:48px}.wcal .ot{font-size:10px}}
