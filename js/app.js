@@ -861,35 +861,35 @@
     var m = work.month, last = WorkClock.addDays(addMonth(m, 1) + '-01', -1);
     try {
       var r = await Promise.all([CSTeam.call('ot.list', { from: m + '-01', to: last }, 20000), work.cfg ? Promise.resolve(null) : CSTeam.call('cfg.get', {}, 20000)]);
-      work.items = (r[0].items || []).filter(function (x) { return x.status !== '반려'; }); if (r[1]) work.cfg = r[1].cfg || {}; work.err = '';
+      work.items = (r[0].items || []).filter(function (x) { return x.status !== '반려'; }); if (r[1]) { work.cfg = r[1].cfg || {}; work.roster = r[1].roster || []; } work.err = '';
     } catch (e) { work.err = e.message || '불러오지 못했어요'; }
     if (curView === 'work') renderWork();
   }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
     var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
-    // 퇴근 시각 적기: 숫자 4자리(1935 → 19:35) · 5분 단위로 맞춤 · 17:00부터
+    // 퇴근 시각 적기: 숫자 4자리(1940 → 19:40) · 10분 단위 · 17:00부터
     var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
     var dk = kstToday(), yk = WorkClock.addDays(dk, -1), pick = work.pick || dk;
     var days2 = el('div', 'wdays'), d = el('input', 'win wdate'); d.type = 'date'; d.value = pick; d.max = dk; d.setAttribute('aria-label', '날짜');
     var dayBtn = function (k, label) { var b = el('button', 'fchip', label); b.type = 'button'; b.setAttribute('aria-pressed', String(pick === k)); b.addEventListener('click', function () { work.pick = k; renderWork(); setTimeout(function () { var i = $('wtime'); if (i) i.focus(); }, 0); }); return b; };
     d.addEventListener('change', function () { if (d.value) { work.pick = d.value; renderWork(); } });
     days2.append(dayBtn(dk, '오늘'), dayBtn(yk, '어제'), d);
-    var t = el('input', 'win wtime'); t.id = 'wtime'; t.type = 'text'; t.inputMode = 'numeric'; t.maxLength = 5; t.placeholder = '예: 1935'; t.autocomplete = 'off'; t.setAttribute('aria-label', '퇴근 시각(숫자 4자리)');
+    var t = el('input', 'win wtime'); t.id = 'wtime'; t.type = 'text'; t.inputMode = 'numeric'; t.maxLength = 5; t.placeholder = '예: 1940'; t.autocomplete = 'off'; t.setAttribute('aria-label', '퇴근 시각(숫자 4자리)');
     var pv = el('span', 'wprev');
     var parse = function () { var v = parseClock(t.value); pv.className = 'wprev' + (v.err ? ' bad' : v.hm ? ' ok' : ''); pv.textContent = v.err || (v.hm ? v.hm + ' 퇴근 · 야근 ' + hm(Math.max(0, v.min - 19 * 60)) : ''); return v; };
     t.addEventListener('input', parse);
     var go = btn('적기', 'primary', 'plus', async function () {
       if (who._input) CSWho.setManual(who._input.value);
       var name = needName(who); if (!name) return;
-      var v = parse(); if (!v.hm) { toast(v.err || '퇴근 시각을 숫자 4자리로 써 주세요(예: 1935)', { warn: true }); t.focus(); return; }
+      var v = parse(); if (!v.hm) { toast(v.err || '퇴근 시각을 숫자 4자리로 적어 주세요(예: 1940)', { warn: true }); t.focus(); return; }
       go.disabled = true;
       try { await CSTeam.call('ot.add', { name: name, date: d.value || pick, from: OT_FROM, to: v.hm }, 20000); toast(Number(pick.slice(5, 7)) + '/' + Number(pick.slice(8, 10)) + ' ' + v.hm + ' 퇴근으로 적었어요'); t.value = ''; parse(); work.month = monthOf(d.value || pick); await loadWork(); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
     t.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go.click(); } });
     var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', days2), lab2('퇴근 시각', t), pv, el('span', 'grow'), who, go);
-    w.append(el('p', 'whint', '퇴근 시각을 숫자 4자리로 써 주세요. 예: 1935 → 19시 35분 (5분 단위로 맞춰져요)'), r1); L.append(w);
+    w.append(el('p', 'whint', '퇴근 시각을 숫자 4자리로 적어 주세요. 예: 19시 40분 퇴근 → 1940'), r1); L.append(w);
     // 달 넘기기
     if (!work.month) work.month = monthOf(kstToday());
     var nav = el('div', 'filters wnav'), m = work.month;
@@ -897,31 +897,37 @@
     L.append(nav);
     if (work.err && !work.items) { L.append(el('div', 'empty', '불러오지 못했어요.\n' + work.err)); return; }
     var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName();
+    // 순서: 명단에 적힌 성 포함 이름(강유미 · 김수빈 · 김영원 · 박범수 · 신호정) 가나다순 — 명단에 없으면 그 이름으로
+    var fullOf = {}; (work.roster || []).forEach(function (x) { if (x && x.name) fullOf[x.name] = x.full || x.name; });
+    items.forEach(function (x) { if (x.full && !fullOf[x.name]) fullOf[x.name] = x.full; });
+    var ord = function (a, b) { return (fullOf[a] || a).localeCompare(fullOf[b] || b, 'ko'); }, nm = function (n) { return fullOf[n] || n; };
+    items = items.slice().sort(function (a, b) { return ord(a.name, b.name); });
     var grid = el('div', 'wgrid');
     // 달력: 공휴일은 빨갛게 · 칸마다 그날 야근한 사람과 퇴근 시각
-    var cal = el('div', 'wcal'); ['월', '화', '수', '목', '금', '토', '일'].forEach(function (x) { cal.append(el('div', 'wd', x)); });
-    var first = m + '-01', lead = (WorkClock.weekday(first) + 6) % 7, days = Number(WorkClock.addDays(addMonth(m, 1) + '-01', -1).slice(8, 10)), today = kstToday();
+    // 평일만(토·일 칸은 뺌)
+    var cal = el('div', 'wcal'); ['월', '화', '수', '목', '금'].forEach(function (x) { cal.append(el('div', 'wd', x)); });
+    var first = m + '-01', fw = WorkClock.weekday(first), lead = fw === 0 || fw === 6 ? 0 : fw - 1, days = Number(WorkClock.addDays(addMonth(m, 1) + '-01', -1).slice(8, 10)), today = kstToday();
     for (var i = 0; i < lead; i++) cal.append(el('div', 'wc blank'));
     for (var dd = 1; dd <= days; dd++) {
-      var k = m + '-' + String(dd).padStart(2, '0'), wd = WorkClock.weekday(k), cell = el('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === today ? ' today' : ''));
+      var k = m + '-' + String(dd).padStart(2, '0'), wd = WorkClock.weekday(k); if (wd === 0 || wd === 6) continue;
+      var cell = el('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === today ? ' today' : ''));
       cell.append(el('span', 'n', String(dd)));
       if (hol[k]) cell.append(el('span', 'h', hol[k]));
-      items.filter(function (x) { return x.date === k; }).forEach(function (x) { cell.append(el('span', 'ot' + (x.name === me ? ' me' : ''), x.name + ' ' + x.to)); });
+      items.filter(function (x) { return x.date === k; }).forEach(function (x) { cell.append(el('span', 'ot' + (x.name === me ? ' me' : ''), nm(x.name) + ' ' + x.to)); });
       cal.append(cell);
     }
     // 이달 야근 합계(누구나 봄)
     // 이달 야근 합계 + 사람마다 한 칸(날짜 · 퇴근 · 야근) — 달력 옆 빈 자리에 좌르륵
     var sum = {}, by = {}; items.forEach(function (x) { sum[x.name] = (sum[x.name] || 0) + (x.mins || 0); (by[x.name] || (by[x.name] = [])).push(x); });
-    var names = Object.keys(sum).sort(function (a, b) { return sum[b] - sum[a] || a.localeCompare(b, 'ko'); }), all = 0;
+    var names = Object.keys(sum).sort(ord), all = 0;
     var side = el('div', 'wside'), tot = el('div', 'wsum');
     tot.append(el('h3', null, Number(m.slice(5, 7)) + '월 야근 합계'));
     if (!names.length) tot.append(el('p', 'muted', work.items ? '아직 없어요' : '불러오는 중…'));
-    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n), el('small', null, by[n].length + '일'), el('b', null, hm(sum[n]))); tot.append(r); });
-    if (names.length) { var tr = el('div', 'wsr tot'); tr.append(el('span', null, '합계'), el('small', null, ''), el('b', null, hm(all))); tot.append(tr); }
+    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, nm(n)), el('small', null, by[n].length + '일'), el('b', null, hm(sum[n]))); tot.append(r); });
     var cards = el('div', 'wcards');
     names.forEach(function (n) {
       var c = el('div', 'wcard' + (n === me ? ' me' : '')), h = el('div', 'wch');
-      h.append(el('span', 'av', n.slice(0, 1)), el('b', null, n), el('span', 'grow'), el('span', 'muted', by[n].length + '일 · '), el('b', 'wct', hm(sum[n])));
+      h.append(el('span', 'av', nm(n).slice(0, 1)), el('b', null, nm(n)), el('span', 'grow'), el('span', 'muted', by[n].length + '일 · '), el('b', 'wct', hm(sum[n])));
       c.append(h);
       by[n].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (x) {
         var r = el('div', 'wcr');
@@ -935,14 +941,14 @@
     grid.append(cal, side); L.append(grid);
     if (names.length) L.append(el('div', 'scope', '잘못 적었으면 같은 날로 다시 적으면 고쳐져요'));
   }
-  // 퇴근 시각: 1935 · 19:35 · 935(→ 21:35가 아니라 오후 9:35 = 21:35) · 730(→ 19:30) — 17:00부터 다음 날 05:55까지(자정 넘으면 2430처럼)
+  // 퇴근 시각: 1940 · 19:40 · 940(→ 21:40) · 730(→ 19:30) · 10분 단위로 내림 — 17:00부터(자정 넘으면 2430처럼)
   function parseClock(raw) {
     var v = String(raw || '').replace(/[^0-9]/g, ''); if (!v) return {};
-    if (v.length < 3) return { err: '숫자 4자리로 써 주세요(예: 1935)' };
+    if (v.length < 3) return { err: '숫자 4자리로 적어 주세요(예: 1940)' };
     var h = Number(v.slice(0, v.length - 2)), mi = Number(v.slice(-2));
     if (mi > 59 || h > 29) return { err: '시각을 확인해 주세요' };
     if (h < 12) h += 12; // 730 → 19:30 · 0930 → 21:30
-    mi = Math.round(mi / 5) * 5; if (mi === 60) { h += 1; mi = 0; }
+    mi = Math.floor(mi / 10) * 10; // 10분 단위(1937 → 19:30)
     var min = h * 60 + mi;
     if (min < 17 * 60) return { err: '17:00 뒤 시각만 적을 수 있어요' };
     return { hm: String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'), min: min };

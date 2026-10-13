@@ -366,7 +366,7 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .win{height:38px;border:1px solid var(--line2);border-radius:10px;padding:0 10px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink)}
 .wnote{flex:1 1 220px;min-width:0}
 .wnav{align-items:center;gap:10px}
-.wcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wcal{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
 .wcal .wd{font-size:12px;color:var(--ink3);text-align:center;padding:2px 0}
 .wcal .wc{min-height:64px;border:1px solid var(--line);border-radius:9px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--surface);font-size:12px}
 .wcal .wc.blank{border:0;background:none}

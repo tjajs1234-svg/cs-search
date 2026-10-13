@@ -9,10 +9,11 @@
    · 1.3.0: 업무시간 기준 대기(공휴일·비수기 설정을 기록기에 내려 줌) · 근무 달력(명단 · 야근 신청/승인) · 확인할 상담(기록 빠짐 · 20분 넘김 · 오래된 상담)
             · 기록 시각(시간대별 건수·텀)·게시판 사이트별 건수 · 공지 확인 · 요청·건의는 댓글로만(나도 필요해요·상태 없음)
    · 1.3.1: 야근은 퇴근 시각만(17:00부터 · 정시 19:00 뒤가 야근) · 같은 날 다시 적으면 고침 · 팀장 [확인함]
+   · 1.3.2: 상담사 명단에 성까지(김수빈) 적으면 달력·목록이 성 포함 이름 가나다순
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.1';
+var TEAM_VERSION = '1.3.2';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -256,7 +257,8 @@ function cfgSet_(req) {
   if (typeof req.offseason === 'boolean') s.offseason = req.offseason;
   if (req.holidays && typeof req.holidays === 'object') { var h = {}; Object.keys(req.holidays).slice(0, 200).forEach(function (k) { if (dateOk_(k)) h[k] = text_(req.holidays[k], 20) || '휴일'; }); s.holidays = h; }
   if (Array.isArray(req.removed)) s.removed = req.removed.filter(dateOk_).slice(0, 200);
-  if (Array.isArray(req.roster)) s.roster = req.roster.slice(0, 60).map(function (r) { return { name: person_(r && r.name), start: dateOk_(r && r.start) ? r.start : '', end: dateOk_(r && r.end) ? r.end : '' }; }).filter(function (r) { return r.name; });
+  // 명단: 성까지 적으면(김수빈) 이름은 성 뺀 이름(수빈) · 순서는 성까지 넣은 이름 가나다순
+  if (Array.isArray(req.roster)) s.roster = req.roster.slice(0, 60).map(function (r) { var raw = name_(r && r.name).replace(/\s+/g, ''), full = /^[가-힣]{3}$/.test(raw) ? raw : name_(r && r.full).replace(/\s+/g, ''); return { name: person_(raw), full: /^[가-힣]{3}$/.test(full) ? full : '', start: dateOk_(r && r.start) ? r.start : '', end: dateOk_(r && r.end) ? r.end : '' }; }).filter(function (r) { return r.name; }).sort(function (a, b) { return (a.full || a.name).localeCompare(b.full || b.name, 'ko'); });
   writeJson_('settings.json', s);
   return { ok: true, cfg: cfgOut_(s), roster: s.roster || [] };
 }
@@ -272,7 +274,9 @@ function otList_(req) {
 }
 // 상담사는 그날 퇴근 시각만 적음(정시 19:00 뒤 넘은 시간이 야근) · 같은 날 다시 적으면 고쳐짐
 function otAdd_(req) {
-  var name = person_(req.name), date = String(req.date || ''), from = req.from || '19:00', f = hm_(from), t = hm_(req.to);
+  var raw = name_(req.name).replace(/\s+/g, ''), name = person_(raw), date = String(req.date || ''), from = req.from || '19:00', f = hm_(from), t = hm_(req.to);
+  // 보여 줄 이름: 성까지 적었으면 그대로(김수빈) · 아니면 명단의 성 포함 이름
+  var full = /^[가-힣]{3}$/.test(raw) ? raw : ''; if (!full) (settings_().roster || []).forEach(function (r) { if (r.name === name && r.full) full = r.full; });
   if (!name) return { ok: false, error: '이름이 없어요' };
   if (!dateOk_(date)) return { ok: false, error: '날짜를 골라 주세요' };
   if (f < 0 || t < 17 * 60) return { ok: false, error: '퇴근 시각을 확인해 주세요(17:00부터)' };
@@ -280,8 +284,8 @@ function otAdd_(req) {
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
   var list = ots_(), now = Date.now(), x = null;
   list.forEach(function (o) { if (o.name === name && o.date === date && o.status !== '반려') x = o; });
-  if (x) { if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = Math.max(0, t - f); x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
-  else { x = { id: id_(), name: name, date: date, from: from, to: req.to, mins: Math.max(0, t - f), note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
+  if (x) { if (full) x.full = full; if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = Math.max(0, t - f); x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
+  else { x = { id: id_(), name: name, full: full, date: date, from: from, to: req.to, mins: Math.max(0, t - f), note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
   if (admin) x.decidedAt = now;
   var cut = dayKey_(now - TEAM_KEEP_DAYS * 864e5); list = list.filter(function (o) { return o.date >= cut; });
   writeJson_('ot.json', list);

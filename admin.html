@@ -254,7 +254,7 @@ dialog.dlg .in{margin-top:4px}
 .qhol .lk,.chip .lk{border:0;background:none;color:var(--faint);cursor:pointer;padding:0 0 0 2px}
 .qroster{display:flex;flex-direction:column;gap:4px}
 .qdet summary{cursor:pointer;font-size:12.5px;color:var(--muted);margin-top:6px}
-.wcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wcal{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
 .wcal .wd{font-size:11.5px;color:var(--faint);text-align:center}
 .wcal .wc{min-height:74px;border:1px solid var(--line);border-radius:9px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--card);font-size:11.5px;overflow:hidden}
 .wcal .wc.blank{border:0;background:none}
@@ -340,6 +340,48 @@ dialog.dlg .in{margin-top:4px}
 .qst{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:2px}
 .qcard .qrow .sp{flex:1}
 @media (max-width:900px){.wrow2{grid-template-columns:1fr}}
+/* 상담사마다 한 칸(팀 현황 · 업무 흐름) */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;max-width:1400px;margin-bottom:18px}
+.pcard{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--success);border-radius:14px;padding:12px 14px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.pcard.warm{border-top-color:var(--warning)}
+.pcard.hot{border-top-color:var(--danger);background:linear-gradient(var(--danger-soft),var(--card) 90px)}
+.pcard.off{border-top-color:var(--line-2)}
+.pch{display:flex;align-items:center;gap:8px}
+.pch .pn{font-size:15px}
+.pch .sp,.psub .sp{flex:1}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--success-soft);color:var(--success);white-space:nowrap}
+.pill.warm{background:var(--warning-soft);color:var(--warning)}
+.pill.hot{background:var(--danger);color:#fff}
+.pill.off{background:var(--raised);color:var(--faint)}
+.pst{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.st{display:flex;flex-direction:column;gap:1px;padding:8px 9px;border-radius:10px;background:var(--raised);min-width:0}
+.st b{font-size:18px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.st span{font-size:11px;color:var(--muted);white-space:nowrap}
+.st.bad b{color:var(--danger)}
+.st.warn b{color:var(--warning)}
+.psub{display:flex;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);margin-top:2px}
+.pnone{padding:18px 0;text-align:center;color:var(--faint);font-size:12.5px}
+.vb{display:flex;gap:4px;align-items:stretch;height:96px}
+.vb.sm{height:72px}
+.vc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.vc .vv{font-size:11.5px;height:14px;line-height:14px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.vc .vw{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line-2)}
+.vc .vbar{width:70%;max-width:26px;background:var(--accent);border-radius:4px 4px 0 0}
+.vc .vl{font-size:10.5px;color:var(--faint)}
+.vc.now .vl{color:var(--accent);font-weight:800}
+.vc.lunch .vw{background:repeating-linear-gradient(45deg,transparent 0 5px,var(--raised) 5px 10px)}
+.vc:hover .vbar{filter:brightness(1.15)}
+.pfoot{display:flex;flex-wrap:wrap;gap:5px;padding-top:8px;border-top:1px solid var(--line)}
+.ptag{height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line-2);background:var(--card);font-size:11.5px;font-weight:700;color:var(--ink-2);cursor:pointer}
+.ptag:hover{border-color:var(--accent);color:var(--accent)}
+.ptag.ok{color:var(--faint)}
+.ptag.bad{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
+.ptag.warn{background:var(--warning-soft);border-color:transparent;color:var(--warning)}
+.pgap{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:12px}
+.pgap .gt{font-weight:700;color:var(--ink-2);margin-right:2px}
+.pgap .gchip{background:var(--warning-soft);color:var(--warning);font-weight:700;border-radius:999px;padding:2px 9px}
+.pgap .okc{color:var(--success);font-weight:700}
+.qcard .qch .pn{font-size:14px}
 </style>
 </head>
 <body>
