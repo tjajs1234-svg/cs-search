@@ -868,30 +868,37 @@
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
     var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
-    // 퇴근 시각 적기
+    // 퇴근 시각 적기: 숫자 4자리(1935 → 19:35) · 5분 단위로 맞춤 · 17:00부터
     var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
-    var d = el('input', 'win'); d.type = 'date'; d.value = kstToday(); d.setAttribute('aria-label', '날짜');
-    var t = el('input', 'win'); t.type = 'time'; t.value = '20:00'; t.step = 300; t.setAttribute('aria-label', '퇴근 시각');
+    var dk = kstToday(), yk = WorkClock.addDays(dk, -1), pick = work.pick || dk;
+    var days2 = el('div', 'wdays'), d = el('input', 'win wdate'); d.type = 'date'; d.value = pick; d.max = dk; d.setAttribute('aria-label', '날짜');
+    var dayBtn = function (k, label) { var b = el('button', 'fchip', label); b.type = 'button'; b.setAttribute('aria-pressed', String(pick === k)); b.addEventListener('click', function () { work.pick = k; renderWork(); setTimeout(function () { var i = $('wtime'); if (i) i.focus(); }, 0); }); return b; };
+    d.addEventListener('change', function () { if (d.value) { work.pick = d.value; renderWork(); } });
+    days2.append(dayBtn(dk, '오늘'), dayBtn(yk, '어제'), d);
+    var t = el('input', 'win wtime'); t.id = 'wtime'; t.type = 'text'; t.inputMode = 'numeric'; t.maxLength = 5; t.placeholder = '예: 1935'; t.autocomplete = 'off'; t.setAttribute('aria-label', '퇴근 시각(숫자 4자리)');
+    var pv = el('span', 'wprev');
+    var parse = function () { var v = parseClock(t.value); pv.className = 'wprev' + (v.err ? ' bad' : v.hm ? ' ok' : ''); pv.textContent = v.err || (v.hm ? v.hm + ' 퇴근 · 야근 ' + hm(Math.max(0, v.min - 19 * 60)) : ''); return v; };
+    t.addEventListener('input', parse);
     var go = btn('적기', 'primary', 'plus', async function () {
       if (who._input) CSWho.setManual(who._input.value);
       var name = needName(who); if (!name) return;
-      var v = String(t.value || '').slice(0, 5), mm = /^(\d{2}):(\d{2})$/.exec(v);
-      if (!d.value || !mm) { toast('날짜와 퇴근 시각을 골라 주세요', { warn: true }); return; }
-      if (Number(mm[2]) % 5) { v = mm[1] + ':' + String(Math.round(Number(mm[2]) / 5) * 5 % 60).padStart(2, '0'); }
-      if (v <= OT_FROM) { toast('정시(19:00)보다 늦은 시각만 적을 수 있어요', { warn: true }); return; }
+      var v = parse(); if (!v.hm) { toast(v.err || '퇴근 시각을 숫자 4자리로 써 주세요(예: 1935)', { warn: true }); t.focus(); return; }
       go.disabled = true;
-      try { await CSTeam.call('ot.add', { name: name, date: d.value, from: OT_FROM, to: v }, 20000); toast('적었어요'); work.month = monthOf(d.value); await loadWork(); }
+      try { await CSTeam.call('ot.add', { name: name, date: d.value || pick, from: OT_FROM, to: v.hm }, 20000); toast(Number(pick.slice(5, 7)) + '/' + Number(pick.slice(8, 10)) + ' ' + v.hm + ' 퇴근으로 적었어요'); t.value = ''; parse(); work.month = monthOf(d.value || pick); await loadWork(); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
-    var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', d), lab2('퇴근 시각', t), el('span', 'grow'), who, go);
-    w.append(r1); L.append(w);
+    t.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go.click(); } });
+    var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', days2), lab2('퇴근 시각', t), pv, el('span', 'grow'), who, go);
+    w.append(el('p', 'whint', '퇴근 시각을 숫자 4자리로 써 주세요. 예: 1935 → 19시 35분 (5분 단위로 맞춰져요)'), r1); L.append(w);
     // 달 넘기기
     if (!work.month) work.month = monthOf(kstToday());
     var nav = el('div', 'filters wnav'), m = work.month;
     nav.append(btn('◀', 'sm', null, function () { work.month = addMonth(m, -1); work.items = null; renderWork(); loadWork(); }), el('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5, 7)) + '월'), btn('▶', 'sm', null, function () { work.month = addMonth(m, 1); work.items = null; renderWork(); loadWork(); }));
     L.append(nav);
     if (work.err && !work.items) { L.append(el('div', 'empty', '불러오지 못했어요.\n' + work.err)); return; }
-    var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName();
+    var all0 = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName(), who2 = work.who || '';
+    if (who2 && !all0.some(function (x) { return x.name === who2; })) who2 = work.who = '';
+    var items = who2 ? all0.filter(function (x) { return x.name === who2; }) : all0;
     var grid = el('div', 'wgrid');
     // 달력: 공휴일은 빨갛게 · 칸마다 그날 야근한 사람과 퇴근 시각
     var cal = el('div', 'wcal'); ['월', '화', '수', '목', '금', '토', '일'].forEach(function (x) { cal.append(el('div', 'wd', x)); });
@@ -905,24 +912,37 @@
       cal.append(cell);
     }
     // 이달 야근 합계(누구나 봄)
-    var sum = {}; items.forEach(function (x) { sum[x.name] = (sum[x.name] || 0) + (x.mins || 0); });
+    // 사람을 누르면 그 사람 것만(달력 · 날짜별 목록) · 다시 누르면 모두
+    var sum = {}, cnt = {}; all0.forEach(function (x) { sum[x.name] = (sum[x.name] || 0) + (x.mins || 0); cnt[x.name] = (cnt[x.name] || 0) + 1; });
     var side = el('div', 'wsum'), all = 0; side.append(el('h3', null, Number(m.slice(5, 7)) + '월 야근 합계'));
     var names = Object.keys(sum).sort(function (a, b) { return sum[b] - sum[a]; });
     if (!names.length) side.append(el('p', 'muted', work.items ? '아직 없어요' : '불러오는 중…'));
-    names.forEach(function (n) { all += sum[n]; var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n), el('b', null, hm(sum[n]))); side.append(r); });
-    if (names.length) { var tr = el('div', 'wsr tot'); tr.append(el('span', null, '합계'), el('b', null, hm(all))); side.append(tr); }
+    names.forEach(function (n) { all += sum[n]; var r = el('button', 'wsr' + (n === me ? ' me' : '') + (who2 === n ? ' on' : '')); r.type = 'button'; r.title = who2 === n ? '모두 보기' : n + ' 것만 보기'; r.append(el('span', null, n), el('small', null, cnt[n] + '일'), el('b', null, hm(sum[n]))); r.addEventListener('click', function () { work.who = who2 === n ? '' : n; renderWork(); }); side.append(r); });
+    if (names.length) { var tr = el('div', 'wsr tot'); tr.append(el('span', null, '합계'), el('small', null, ''), el('b', null, hm(all))); side.append(tr); side.append(el('p', 'muted', who2 ? who2 + ' 것만 보는 중 · 다시 누르면 모두' : '이름을 누르면 그 사람 것만 봐요')); }
     grid.append(cal, side); L.append(grid);
     // 내가 적은 날(고치려면 같은 날 다시 적기)
-    var mine = items.filter(function (x) { return x.name === me; });
+    var mine = all0.filter(function (x) { return x.name === (who2 || me); });
     if (mine.length) {
-      L.append(el('div', 'scope', '내가 적은 날 · 잘못 적었으면 같은 날로 다시 적으면 고쳐져요'));
+      L.append(el('div', 'scope', who2 && who2 !== me ? who2 + '이(가) 적은 날' : '내가 적은 날 · 잘못 적었으면 같은 날로 다시 적으면 고쳐져요'));
       mine.slice().reverse().forEach(function (x) {
         var c = el('div', 'wit');
         c.append(el('b', null, Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', null, '퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)));
-        if (x.status === '신청') c.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 날 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }));
+        if (x.status === '신청' && x.name === me) c.append(btn('지우기', 'ghost sm', null, async function () { if (!confirm('이 날 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }));
         L.append(c);
       });
     }
+  }
+  // 퇴근 시각: 1935 · 19:35 · 935(→ 21:35가 아니라 오후 9:35 = 21:35) · 730(→ 19:30) — 17:00부터 다음 날 05:55까지(자정 넘으면 2430처럼)
+  function parseClock(raw) {
+    var v = String(raw || '').replace(/[^0-9]/g, ''); if (!v) return {};
+    if (v.length < 3) return { err: '숫자 4자리로 써 주세요(예: 1935)' };
+    var h = Number(v.slice(0, v.length - 2)), mi = Number(v.slice(-2));
+    if (mi > 59 || h > 29) return { err: '시각을 확인해 주세요' };
+    if (h < 12) h += 12; // 730 → 19:30 · 0930 → 21:30
+    mi = Math.round(mi / 5) * 5; if (mi === 60) { h += 1; mi = 0; }
+    var min = h * 60 + mi;
+    if (min < 17 * 60) return { err: '17:00 뒤 시각만 적을 수 있어요' };
+    return { hm: String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'), min: min };
   }
   function lab2(t, input) { var l = el('label', 'wl'); l.append(el('span', null, t), input); return l; }
 
@@ -1045,7 +1065,7 @@
       d.append(ba);
       d.append(el('h3', null, '관리자'));
       var aa = el('div', 'acts'); aa.style.justifyContent = 'flex-start';
-      var am = el('a', 'btn'); am.href = 'admin.html'; am.target = '_blank'; am.rel = 'noopener'; am.append(ic('edit'), '멘트 관리 열기'); aa.append(am); d.append(aa);
+      var am = el('a', 'btn'); am.href = 'admin.html'; am.target = '_blank'; am.rel = 'noopener'; am.append(ic('edit'), '관리 열기'); aa.append(am); d.append(aa);
       var fa = el('div', 'acts'); fa.append(el('span', null, '화면 ' + VERSION)); fa.firstChild.style.cssText = 'margin-right:auto;color:var(--ink3);font-size:12.5px';
       fa.append(btn('닫기', 'primary', null, function () { d.close(); })); d.append(fa);
     });

@@ -266,6 +266,80 @@ dialog.dlg .in{margin-top:4px}
 .wcal .ot.ok{background:var(--success-soft);color:var(--success)}
 .wcal .ot.wait{background:var(--warning-soft);color:var(--warning)}
 .wcal .ot.no{background:var(--raised);color:var(--faint);text-decoration:line-through}
+/* 상담사별 보기(팀 현황 · 업무 흐름 · 확인할 상담) */
+.panel.wide{max-width:1100px}
+.pbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;width:max-content;max-width:100%}
+.pchip{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px 0 8px;border-radius:10px;font-size:13px;font-weight:700;color:var(--ink-2);background:none;transition:background .12s}
+.pchip:first-child{padding-left:13px}
+.pchip:hover{background:var(--raised)}
+.pchip.on{background:var(--accent);color:var(--on-accent)}
+.pchip.on .av{background:rgba(255,255,255,.22);color:var(--on-accent)}
+.pchip .pc{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.av{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:11.5px;font-weight:800;flex:none}
+.av.big{width:44px;height:44px;font-size:19px}
+.plink{display:inline-flex;align-items:center;gap:7px;background:none;border:0;padding:0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer}
+.plink:hover{color:var(--accent)}
+.tcard.go{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.tcard.go:hover{transform:translateY(-1px);box-shadow:var(--shadow-1)}
+.phead{max-width:1100px;display:flex;align-items:center;gap:18px;padding:16px 18px;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--success);border-radius:14px}
+.phead.hot{border-left-color:var(--danger);background:linear-gradient(90deg,var(--danger-soft),var(--card) 45%)}
+.phead.off{border-left-color:var(--line-2)}
+.pwho{display:flex;align-items:center;gap:10px;font-size:20px}
+.pnow{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--ink-2)}
+.pnow .big{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.phead.hot .pnow span:nth-child(2){color:var(--danger);font-weight:800}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.tiles.col{grid-template-columns:1fr;align-content:start}
+.tile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.tile .tl{font-size:11.5px;color:var(--muted);font-weight:600}
+.tile .tv{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .ts{font-size:11px;color:var(--faint)}
+.tile.bad .tv{color:var(--danger)}
+.tile.warn .tv{color:var(--warning)}
+.tile.small .tv{font-size:17px;padding-top:4px}
+.tile.go{cursor:pointer}
+.tile.go:hover{border-color:var(--accent);box-shadow:var(--shadow-1)}
+.tile.go:hover .ts{color:var(--accent)}
+.wrow2{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px;align-items:stretch}
+.wbars{display:flex;gap:10px;align-items:stretch;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;min-height:190px}
+.wbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.wbar .bv{font-size:13px;font-variant-numeric:tabular-nums}
+.wbar .bb{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px;border-bottom:1px solid var(--line-2)}
+.wbar .ba,.wbar .br{width:34%;max-width:22px;border-radius:5px 5px 0 0;min-height:2px}
+.wbar .ba{background:var(--accent)}
+.wbar .br{background:var(--accent-soft)}
+.wbar .bl{font-size:11.5px;color:var(--muted)}
+.wbar.now .bl{color:var(--accent);font-weight:800}
+.wbar.fut{opacity:.35}
+.stripw{position:relative;padding-bottom:18px;margin:4px 0 6px}
+.strip{position:relative;height:34px;border-radius:9px;background:var(--sunken,var(--raised));overflow:hidden;border:1px solid var(--line)}
+.strip .lunch{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,var(--line) 0 4px,transparent 4px 8px)}
+.strip .gap{position:absolute;top:0;bottom:0;background:var(--danger-soft);border-left:2px solid var(--danger);border-right:2px solid var(--danger)}
+.strip .tick{position:absolute;top:6px;bottom:6px;width:3px;margin-left:-1px;border-radius:2px;background:var(--accent)}
+.stripw .axis{position:absolute;left:0;right:0;bottom:0;height:16px}
+.stripw .axis span{position:absolute;transform:translateX(-50%);font-size:10.5px;color:var(--faint)}
+.hbars{display:flex;gap:6px;align-items:stretch;height:150px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.hcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.hcol b{font-size:12px;height:15px}
+.hcol .hbw{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line-2)}
+.hcol .hbar{width:60%;max-width:28px;background:var(--accent);border-radius:5px 5px 0 0;min-height:0}
+.hcol .hl{font-size:11px;color:var(--muted)}
+.ttable tr.cur td{background:var(--accent-soft)}
+.qnav .nl{font-weight:700;color:var(--ink-2);margin-right:4px}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;max-width:1100px;margin-bottom:18px}
+.qgrid.one{grid-template-columns:1fr}
+.qcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.qcard.done{opacity:.7}
+.qch{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.qch .sp{flex:1}
+.qbadge{font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px}
+.qbadge.red{background:var(--danger-soft);color:var(--danger)}
+.qbadge.amber{background:var(--warning-soft);color:var(--warning)}
+.qbadge.ok{background:var(--success-soft);color:var(--success)}
+.qsec{border-top:1px solid var(--line);padding-top:6px}
+.qst{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:2px}
+.qcard .qrow .sp{flex:1}
+@media (max-width:900px){.wrow2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>

@@ -274,13 +274,13 @@ function otAdd_(req) {
   var name = person_(req.name), date = String(req.date || ''), from = req.from || '19:00', f = hm_(from), t = hm_(req.to);
   if (!name) return { ok: false, error: '이름이 없어요' };
   if (!dateOk_(date)) return { ok: false, error: '날짜를 골라 주세요' };
-  if (f < 0 || t < 0 || t <= f) return { ok: false, error: '퇴근 시각을 확인해 주세요(정시 ' + from + ' 뒤)' };
+  if (f < 0 || t < 17 * 60) return { ok: false, error: '퇴근 시각을 확인해 주세요(17:00부터)' };
   var admin = !!req.adminToken && isAdmin_(req.adminToken);
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
   var list = ots_(), now = Date.now(), x = null;
   list.forEach(function (o) { if (o.name === name && o.date === date && o.status !== '반려') x = o; });
-  if (x) { if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = t - f; x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
-  else { x = { id: id_(), name: name, date: date, from: from, to: req.to, mins: t - f, note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
+  if (x) { if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = Math.max(0, t - f); x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
+  else { x = { id: id_(), name: name, date: date, from: from, to: req.to, mins: Math.max(0, t - f), note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
   if (admin) x.decidedAt = now;
   var cut = dayKey_(now - TEAM_KEEP_DAYS * 864e5); list = list.filter(function (o) { return o.date >= cut; });
   writeJson_('ot.json', list);

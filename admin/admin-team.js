@@ -129,12 +129,30 @@
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'));
     var ub = await updateBox(); if (ub) w.append(ub);
+    // 상담사 고르기: 전체 · 사람별 한 장
+    var K2 = window.KBTeam2, dn = []; Object.keys(r.days || {}).forEach(function (d) { Object.keys(r.days[d] || {}).forEach(function (n) { dn.push(person(n)); }); });
+    var names = K2 ? (await K2.teamNames((r.live || []).map(function (x) { return person(x.name); }).concat(dn))).filter(function (n) { return n !== '팀장'; }) : [];
+    if (K2) {
+      w.append(K2.personBar(names, null, function () { team(w); }));
+      var who = K2.picked();
+      if (who && who !== '팀장') {
+        var R0 = weekRange(tWeek), wn = mk('div', 'ins qnav'), md0 = function (k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)); };
+        var pv = btn('◀ 지난주', null, function () { tWeek--; team(w); }), cu = btn('이번 주', null, function () { tWeek = 0; team(w); }), nx = btn('다음 주 ▶', null, function () { tWeek++; team(w); });
+        [pv, cu, nx].forEach(function (b) { b.className = ''; }); if (tWeek === 0) { cu.className = 'on'; nx.disabled = true; }
+        wn.append(pv, cu, nx, mk('span', null, md0(R0.mon) + '(월) ~ ' + md0(R0.sun) + '(일)'));
+        await K2.personTeam(w, who, r, R0); w.insertBefore(wn, w.querySelector('.panel.wide:last-of-type'));
+        w.scrollTop = keepScroll;
+        tTimer = setTimeout(function () { if (A() && w.isConnected && document.querySelector('.phead')) team(w); }, 30000);
+        return;
+      }
+    }
     var live = (r.live || []).slice().sort(function (a, b) { return (b.oldestMin || 0) - (a.oldestMin || 0); });
     var g = mk('div', 'tgrid');
     if (!live.length) g.append(mk('div', 'empty', '아직 신호를 보낸 상담사가 없어요.\n상담사 PC 기록기가 2.3.11 이상이어야 해요(팀 서버 주소가 들어 있는 판).'));
     live.forEach(function (x) {
       var off = Date.now() - x.at > 3 * 60000, hot = !off && (x.oldestMin || 0) >= 20, warm = !off && !hot && (x.oldestMin || 0) >= 10;
-      var c = mk('div', 'tcard' + (off ? ' off' : hot ? ' hot' : warm ? ' warm' : ''));
+      var c = mk('div', 'tcard go' + (off ? ' off' : hot ? ' hot' : warm ? ' warm' : '')); c.title = '눌러서 ' + person(x.name) + ' 한 장 보기';
+      c.addEventListener('click', function (e) { if (e.target.closest('a')) return; if (window.KBTeam2) { KBTeam2.pick(person(x.name)); team(w); } });
       var h = mk('div', 'th'); h.append(mk('b', null, x.name), mk('span', 'muted', off ? '신호 없음 · ' + ago(x.at) : ago(x.at))); c.append(h);
       var big = mk('div', 'tbig'); big.append(mk('span', 'n', off ? '–' : String(x.pending || 0)), mk('span', 'u', '명 대기'));
       var old = mk('div', 'told', off ? '기록기가 꺼져 있거나 목록 탭을 닫았어요' : x.pending ? '가장 오래 ' + (x.oldestMin || 0) + '분' : '기다리는 고객 없음'); c.append(big, old);

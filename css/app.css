@@ -382,8 +382,22 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .wsum{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .wsum h3{margin:0 0 4px;font-size:14px}
 .wsum .muted{margin:0;color:var(--ink3);font-size:13px}
-.wsr{display:flex;justify-content:space-between;font-size:13.5px}
+.wsr{display:flex;align-items:center;gap:8px;width:100%;font:inherit;font-size:13.5px;color:var(--ink);background:none;border:0;border-radius:8px;padding:5px 6px;margin:0 -6px;text-align:left;cursor:pointer;box-sizing:content-box}
+button.wsr:hover{background:var(--surface2)}
+.wsr span{flex:1}
+.wsr small{color:var(--ink3);font-size:12px}
 .wsr.me b{color:var(--accent)}
+.wsr.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)}
+.wsr.tot{cursor:default}
+.wsum .muted{margin-top:4px}
+.whint{margin:0;font-size:13px;color:var(--ink2)}
+.wdays{display:flex;gap:6px;align-items:center}
+.wdays .fchip{height:38px}
+.wdate{width:150px}
+.wtime{width:120px;font-size:17px;font-weight:700;letter-spacing:.04em;text-align:center}
+.wprev{align-self:flex-end;padding-bottom:10px;font-size:13.5px;color:var(--ink3)}
+.wprev.ok{color:var(--good);font-weight:700}
+.wprev.bad{color:var(--danger)}
 .wsr.tot{border-top:1px solid var(--line);padding-top:6px;margin-top:2px}
 .wrow .wl{flex:none}
 .wform .wrow{align-items:flex-end}
