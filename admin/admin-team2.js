@@ -26,12 +26,13 @@
     tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); return wrap;
   }
   async function ready(w, title, desc) {
+    if (CSTeam.ready()) CSTeam.get('cfg.get', {}).catch(function () {}); // 명단은 미리(다른 요청과 함께)
     w.replaceChildren(mk('h2', null, title), mk('p', 'desc', desc), mk('div', 'empty', '불러오는 중…'));
     if (!(await T().ensureUrl())) { T().needServer(w, title); return false; }
     return true;
   }
   var cfgCache = null;
-  async function getCfg(force) { if (!cfgCache || force) cfgCache = await CSTeam.call('cfg.get', {}); return cfgCache; }
+  async function getCfg(force) { if (!cfgCache || force) cfgCache = await CSTeam.get('cfg.get', {}); return cfgCache; }
   // 명단(입사~퇴사 사이) — 비어 있으면 팀 현황에 신호를 보낸 이름
   function activeNames(roster, day, fallback) {
     var r = (roster || []).filter(function (x) { return (!x.start || x.start <= day) && (!x.end || x.end >= day); }).map(function (x) { return x.name; });
@@ -64,7 +65,7 @@
   /* ───── 팀 현황 카드: 지금 · 오늘 · 이번 주 · 확인할 것(상담사마다 한 칸) ───── */
   async function teamCards(r, R) {
     var P = T().person, td = today(), now = Date.now(), days = r.days || {};
-    var q = await CSTeam.call('qa.get', { days: 1 }).catch(function () { return { days: {}, live: {} }; });
+    var q = await CSTeam.get('qa.get', { days: 1 }).catch(function () { return { days: {}, live: {} }; });
     var live = {}; (r.live || []).forEach(function (x) { live[P(x.name)] = x; });
     var ql = {}; Object.keys(q.live || {}).forEach(function (n) { ql[P(n)] = q.live[n]; });
     var qd = (q.days || {})[td] || {}, rt = {}, late = {}; Object.keys(qd).forEach(function (n) { var k = P(n); rt[k] = (rt[k] || []).concat(qd[n].rt || []); late[k] = (late[k] || []).concat(qd[n].late || []); });
@@ -128,7 +129,7 @@
     if (!(await ready(w, title, '기록한 시각으로 본 하루예요. 시간마다 몇 건 기록했는지 · 시간당 건수 · 기록과 기록 사이 간격 · 30분 넘게 기록이 없던 때(점심 빼고). 긴 통화나 어려운 상담도 빈 시간으로 보이니 참고용으로만 봐 주세요.'))) return;
     var td = today(); if (!fDay || fDay > td) fDay = td;
     var back = diffDays(fDay, td) + 1, q;
-    try { q = await CSTeam.call('qa.get', { days: Math.min(62, back + 6) }); }
+    try { q = await CSTeam.get('qa.get', { days: Math.min(62, back + 6) }); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var P = T().person, rtOf = function (d) { var o = {}, x = (q.days || {})[d] || {}; Object.keys(x).forEach(function (n) { var k = P(n); (o[k] || (o[k] = [])).push.apply(o[k], x[n].rt || []); }); return o; };
@@ -170,7 +171,7 @@
     if (!(await ready(w, title, '게시판에서 기록할 때 고른 구매처로 저절로 세요. 상담사 PC는 1분마다 · 팀장 PC(태그 여러 개)는 5분마다 ‘팀장’ 줄로 들어와요.'))) return;
     var td = today(); if (!sDay || sDay > td) sDay = td;
     var mon = sDay.slice(0, 7), back = Math.max(diffDays(sDay, td), diffDays(mon + '-01', td)) + 1, g;
-    try { g = await CSTeam.call('team.get', { days: Math.min(400, back) }); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
+    try { g = await CSTeam.get('team.get', { days: Math.min(400, back) }); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var nav = mk('div', 'ins qnav');
     var di = mk('input', 'in'); di.type = 'date'; di.value = sDay; di.max = td; di.style.width = '160px'; di.addEventListener('change', function () { if (di.value) { sDay = di.value; sites(w); } });
@@ -199,7 +200,7 @@
     if (!(await ready(w, title, '팀장만 보는 화면이에요(상담사 화면에는 안 나와요). 상담 번호와 링크만 있고 고객 이름·대화 내용은 없어요. [열기]를 누르면 그 상담이 새 탭에서 열려요(카카오·톡톡에 로그인돼 있어야 해요).'))) return;
     var td = today(); if (!qDay || qDay > td) qDay = td;
     var r, reads = {}, cfg = null;
-    try { var got = await Promise.all([CSTeam.call('qa.get', { days: Math.min(62, diffDays(qDay, td) + 1) }), CSTeam.call('notice.reads', {}).catch(function () { return { reads: {} }; }), getCfg().catch(function () { return null; })]); r = got[0]; reads = got[1].reads || {}; cfg = got[2]; }
+    try { var got = await Promise.all([CSTeam.get('qa.get', { days: Math.min(62, diffDays(qDay, td) + 1) }), CSTeam.get('notice.reads', {}).catch(function () { return { reads: {} }; }), getCfg().catch(function () { return null; })]); r = got[0]; reads = got[1].reads || {}; cfg = got[2]; }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var P = T().person, live = r.live || {}, tok = await T().adminToken();
@@ -252,7 +253,7 @@
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got;
-    try { got = await Promise.all([getCfg(true), CSTeam.call('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.call('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.call('team.get', { days: 1 }).catch(function () { return { live: [] }; })]); }
+    try { got = await Promise.all([getCfg(true), CSTeam.get('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.get('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; })]); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var cfgAll = got[0], cfg = cfgAll.cfg || {}, roster = (cfgAll.roster || []).slice(), items = got[1].items || [], qd = got[2].days || {}, P = T().person;

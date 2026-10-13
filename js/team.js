@@ -18,5 +18,16 @@
     } catch (e) { if (e && e.name === 'AbortError') throw new Error('팀 서버가 대답하지 않아요. 잠시 뒤 다시 해 주세요'); throw e; }
     finally { if (t) clearTimeout(t); }
   }
-  root.CSTeam = { valid: valid, set: set, call: call, ready: function () { return !!url; }, get url() { return url; } };
+  // 읽기는 잠깐(기본 15초) 기억해 두고 같은 걸 또 부르면 바로 줌 · 쓰기(글·댓글·승인 등)를 하면 기억을 비움
+  var memo = {}, READ = /(\.get|\.list|\.reads)$|^(ping|admin\.check)$/;
+  function get(action, params, maxAge) {
+    var k = action + JSON.stringify(params || {}), m = memo[k];
+    if (m && Date.now() - m.at < (maxAge == null ? 15000 : maxAge)) return m.p;
+    var p = call(action, params); memo[k] = { at: Date.now(), p: p };
+    p.catch(function () { if (memo[k] && memo[k].p === p) delete memo[k]; });
+    return p;
+  }
+  var rawCall = call;
+  call = function (action, params, ms, keepalive) { if (!READ.test(action)) memo = {}; return rawCall(action, params, ms, keepalive); };
+  root.CSTeam = { valid: valid, set: set, call: function (a, p, m, k) { return call(a, p, m, k); }, get: get, ready: function () { return !!url; }, get url() { return url; } };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

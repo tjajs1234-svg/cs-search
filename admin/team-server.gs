@@ -10,10 +10,11 @@
             · 기록 시각(시간대별 건수·텀)·게시판 사이트별 건수 · 공지 확인 · 요청·건의는 댓글로만(나도 필요해요·상태 없음)
    · 1.3.1: 야근은 퇴근 시각만(17:00부터 · 정시 19:00 뒤가 야근) · 같은 날 다시 적으면 고침 · 팀장 [확인함]
    · 1.3.2: 상담사 명단에 성까지(김수빈) 적으면 달력·목록이 성 포함 이름 가나다순
+   · 1.3.3: 빠르게(드라이브 파일 번호·내용 캐시) · 근무 탭은 한 번에 받음(work.get)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.2';
+var TEAM_VERSION = '1.3.3';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -47,6 +48,7 @@ function handle_(req) {
   if (a === 'board.uncomment') return withLock_(function () { return boardUncomment_(req); });
   if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
   if (a === 'qa.get') return { ok: true, days: qaDays_(Number(req.days) || 7), live: qaLive_(), now: Date.now() };
+  if (a === 'work.get') { var st = settings_(); return { ok: true, items: otList_(req), cfg: cfgOut_(st), roster: st.roster || [] }; }
   if (a === 'cfg.get') return { ok: true, cfg: cfgOut_(settings_()), roster: settings_().roster || [] };
   if (a === 'cfg.set') return withLock_(function () { return cfgSet_(req); });
   if (a === 'ot.list') return { ok: true, items: otList_(req) };
@@ -59,18 +61,33 @@ function handle_(req) {
 }
 
 /* ── 저장: 드라이브 폴더 안 JSON 파일 ── */
+// 1.3.3 빠르게: 폴더·파일 번호를 기억(드라이브에서 이름으로 찾지 않음) · 작은 파일은 내용도 6시간 캐시(쓰면 바로 바꿈)
+function prop_() { return PropertiesService.getScriptProperties(); }
 function folder_() {
-  var it = DriveApp.getFoldersByName(FOLDER_NAME);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+  var p = prop_(), id = p.getProperty('folderId');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { p.deleteProperty('folderId'); } }
+  var it = DriveApp.getFoldersByName(FOLDER_NAME), f = it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+  p.setProperty('folderId', f.getId()); return f;
 }
+function file_(name) {
+  var p = prop_(), k = 'fid:' + name, id = p.getProperty(k);
+  if (id) { try { return DriveApp.getFileById(id); } catch (e) { p.deleteProperty(k); } }
+  var it = folder_().getFilesByName(name); if (!it.hasNext()) return null;
+  var f = it.next(); p.setProperty(k, f.getId()); return f;
+}
+var CACHE_MAX = 90000;
 function readJson_(name, fallback) {
-  var it = folder_().getFilesByName(name);
-  if (!it.hasNext()) return fallback;
-  try { return JSON.parse(it.next().getBlob().getDataAsString('UTF-8')); } catch (e) { return fallback; }
+  var c = CacheService.getScriptCache(), hit = c.get('j:' + name);
+  if (hit !== null) { try { return JSON.parse(hit); } catch (e) {} }
+  var f = file_(name); if (!f) return fallback;
+  var t = f.getBlob().getDataAsString('UTF-8');
+  if (t.length < CACHE_MAX) c.put('j:' + name, t, 21600);
+  try { return JSON.parse(t); } catch (e) { return fallback; }
 }
 function writeJson_(name, obj) {
-  var f = folder_(), it = f.getFilesByName(name), text = JSON.stringify(obj);
-  if (it.hasNext()) it.next().setContent(text); else f.createFile(name, text, 'application/json');
+  var text = JSON.stringify(obj), f = file_(name), c = CacheService.getScriptCache();
+  if (f) f.setContent(text); else { f = folder_().createFile(name, text, 'application/json'); prop_().setProperty('fid:' + name, f.getId()); }
+  if (text.length < CACHE_MAX) c.put('j:' + name, text, 21600); else c.remove('j:' + name);
 }
 function withLock_(fn) {
   var lock = LockService.getScriptLock();

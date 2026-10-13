@@ -118,7 +118,7 @@
     showOnboard(false);
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
-    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads();
+    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork();
     rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
@@ -855,19 +855,28 @@
   function monthOf(k) { return k.slice(0, 7); }
   function addMonth(m, n) { var y = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7)) - 1 + n; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + String(mo + 1).padStart(2, '0'); }
   function hm(mins) { var h = Math.floor(mins / 60), m = mins % 60; return (h ? h + '시간' : '') + (m ? (h ? ' ' : '') + m + '분' : h ? '' : '0분'); }
+  // 1.3.3: 한 번에 받기(work.get) · 지난번 받은 것을 먼저 바로 보여 주고 뒤에서 새로 받음
+  var WK = 'csx:work:';
+  function workCache(m) { var c = S.json(WK + m, null); return c && Array.isArray(c.items) ? c : null; }
   async function loadWork() {
-    if (!CSTeam.ready()) return;
     if (!work.month) work.month = monthOf(kstToday());
     var m = work.month, last = WorkClock.addDays(addMonth(m, 1) + '-01', -1);
+    if (!work.items) { var c = workCache(m); if (c) { work.items = c.items; work.cfg = work.cfg || c.cfg; work.roster = work.roster || c.roster; if (curView === 'work') renderWork(); } }
+    if (!CSTeam.ready()) return; // 연결 코드를 읽은 뒤 다시 부름(loadContent)
+    var asked = m;
     try {
-      var r = await Promise.all([CSTeam.call('ot.list', { from: m + '-01', to: last }, 20000), work.cfg ? Promise.resolve(null) : CSTeam.call('cfg.get', {}, 20000)]);
-      work.items = (r[0].items || []).filter(function (x) { return x.status !== '반려'; }); if (r[1]) { work.cfg = r[1].cfg || {}; work.roster = r[1].roster || []; } work.err = '';
-    } catch (e) { work.err = e.message || '불러오지 못했어요'; }
+      var r;
+      try { r = await CSTeam.call('work.get', { from: m + '-01', to: last }, 25000); }
+      catch (e) { if (!/모르는 요청/.test(e.message || '')) throw e; var two = await Promise.all([CSTeam.call('ot.list', { from: m + '-01', to: last }, 25000), CSTeam.call('cfg.get', {}, 25000)]); r = { items: two[0].items, cfg: two[1].cfg, roster: two[1].roster }; }
+      if (work.month !== asked) return;
+      work.items = (r.items || []).filter(function (x) { return x.status !== '반려'; }); work.cfg = r.cfg || work.cfg || {}; work.roster = r.roster || work.roster || []; work.err = '';
+      S.put(WK + m, { items: work.items, cfg: work.cfg, roster: work.roster, at: Date.now() });
+    } catch (e) { if (work.month === asked) work.err = e.message || '불러오지 못했어요'; }
     if (curView === 'work') renderWork();
   }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
-    var head = el('div', 'bhead'); head.append(el('h2', null, '근무'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
+    var head = el('div', 'bhead'); head.append(el('h2', null, 'OT'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
     // 퇴근 시각 적기: 숫자 4자리(1940 → 19:40) · 10분 단위 · 17:00부터
     var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
     var dk = kstToday(), yk = WorkClock.addDays(dk, -1), pick = work.pick || dk;
@@ -895,7 +904,8 @@
     var nav = el('div', 'filters wnav'), m = work.month;
     nav.append(btn('◀', 'sm', null, function () { work.month = addMonth(m, -1); work.items = null; renderWork(); loadWork(); }), el('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5, 7)) + '월'), btn('▶', 'sm', null, function () { work.month = addMonth(m, 1); work.items = null; renderWork(); loadWork(); }));
     L.append(nav);
-    if (work.err && !work.items) { L.append(el('div', 'empty', '불러오지 못했어요.\n' + work.err)); return; }
+    if (work.err && !work.items) { var eb = el('div', 'empty', '불러오지 못했어요.\n' + work.err); var rb = btn('다시 불러오기', 'sm', null, function () { work.err = ''; renderWork(); loadWork(); }); eb.append(el('br'), rb); L.append(eb); return; }
+    if (work.err) L.append(el('div', 'scope', '새로 불러오지 못해 지난번 내용을 보여 줘요 · ' + work.err));
     var items = work.items || [], hol = WorkClock.holidays(work.cfg || {}), me = myName();
     // 순서: 명단에 적힌 성 포함 이름(강유미 · 김수빈 · 김영원 · 박범수 · 신호정) 가나다순 — 명단에 없으면 그 이름으로
     var fullOf = {}; (work.roster || []).forEach(function (x) { if (x && x.name) fullOf[x.name] = x.full || x.name; });

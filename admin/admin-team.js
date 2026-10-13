@@ -125,7 +125,9 @@
     var T = '팀 현황';
     if (!w.querySelector('.tgrid2')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
-    var r; try { r = await CSTeam.call('team.get', { days: needDays(tWeek) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
+    // 한꺼번에 부름(차례로 기다리지 않게): 팀 숫자 · 오늘 확인할 상담 · 명단
+    CSTeam.get('qa.get', { days: 1 }).catch(function () {}); CSTeam.get('cfg.get', {}).catch(function () {});
+    var r; try { r = await CSTeam.get('team.get', { days: needDays(tWeek) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
     // 상담사마다 한 칸: 지금 · 오늘 · 이번 주 · 확인할 것(누를 필요 없이 모두 한 화면에) — 다 만든 뒤 한 번에 바꿔 깜빡이지 않게
     var g = window.KBTeam2 ? await KBTeam2.teamCards(r, weekRange(tWeek)) : mk('div', 'empty', '불러오는 중…');
     g.classList.add('tgrid2');
