@@ -17,7 +17,7 @@
   }
   async function adminToken() { var c = await KBAdmin.getConn(); return c && c.token || ''; }
   // 댓글에 직함 대신 이름(관리 화면에 연결할 때 적은 이름 · 성 뺀 이름)
-  async function adminName() { var c = null; try { c = await KBAdmin.getConn(); } catch (e) {} var n = person(c && c.name || ''); return n && n !== '관리자' && n !== '팀장' ? n : 'CS팀'; }
+  async function adminName() { var c = null; try { c = await KBAdmin.getConn(); } catch (e) {} var raw = String(c && c.name || '').replace(/\s+/g, ''); if (!raw || /^(관리자|팀장|admin)$/i.test(raw)) return 'CS팀'; var n = person(raw); return n && n !== '팀장' ? n : 'CS팀'; }
   function needServer(w, title) {
     w.replaceChildren(mk('h2', null, title), mk('div', 'empty', '팀 서버가 아직 연결되지 않았어요.\n왼쪽 아래 [팀 서버 연결]에서 한 번만 연결해 주세요.'));
     var b = btn('팀 서버 연결로 가기', 'primary', function () { A().setView('teamsetup'); }); b.style.margin = '0 auto'; b.style.display = 'flex'; w.append(b);
@@ -60,7 +60,9 @@
   var tDay = 'today', tTimer = 0, tWeek = 0;
   // 상담사 이름: 카톡 태그 영원3 → 영원 · 톡톡 태그 김영원 → 영원(기록기 match.js person · 팀 서버 person_과 같은 규칙)
   // 예전 판이 '김영원'으로 쌓아 둔 날도 '영원'으로 합쳐 보여 줌
-  function person(n) { var s = String(n || '').replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; }
+  // 팀장 PC가 보낸 숫자(이름 ‘팀장’)는 관리 화면에 연결할 때 적은 이름(예: 수빈) 칸으로 합쳐 보여 줌
+  var leadAs = '';
+  function person(n) { var s = String(n || '').replace(/\s+/g, '').replace(/\d+$/, ''); s = /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; return s === '팀장' && leadAs ? leadAs : s; }
   function dayMs(key) { return Date.parse(key + 'T00:00:00Z'); }
   function keyOf(ms) { return new Date(ms).toISOString().slice(0, 10); }
   function addDays(key, n) { return keyOf(dayMs(key) + n * 864e5); }
@@ -231,7 +233,8 @@
     w.append(p);
   }
 
-  window.KBTeam = { usage: usage, loadUsage: loadUsage, ensureUrl: ensureUrl, adminToken: adminToken, needServer: needServer, person: person, when: when };
+  function syncLead() { return adminName().then(function (n) { if (n && n !== 'CS팀') leadAs = n; }).catch(function () {}); }
+  window.KBTeam = { syncLead: syncLead, usage: usage, loadUsage: loadUsage, ensureUrl: ensureUrl, adminToken: adminToken, needServer: needServer, person: person, when: when };
   var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { board: board, team: team, teamsetup: setup }); };
   add();
   setTimeout(loadUsage, 1500);

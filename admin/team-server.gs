@@ -15,7 +15,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.4';
+var TEAM_VERSION = '1.3.5';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -226,6 +226,15 @@ function teamBeat_(req) {
   var row = { name: who, at: now, pending: num_(live.pending), oldestMin: num_(live.oldestMin), over10: num_(live.over10), over20: num_(live.over20), held: num_(live.held), records: num_(live.records), channels: text_(live.channels, 60) };
   // 사람마다 따로 담아 둠(여러 PC가 동시에 보내도 서로 덮어쓰지 않게) · 이름 목록은 새 사람이 생길 때만 고침
   var cache = CacheService.getScriptCache();
+  // 1.3.5 기록기 판 · PC 이름표: 같은 이름으로 다른 PC가 10분 안에 또 보내면 ‘PC 두 대’(태그를 잘못 넣었을 때 숫자가 섞임)
+  var pc = /^[a-z0-9]{8}$/.test(String(req.pc || '')) ? String(req.pc) : '';
+  if (req.v) row.v = text_(req.v, 12);
+  if (pc) {
+    row.pc = pc;
+    var prev = null; try { prev = JSON.parse(cache.get('live:' + who) || 'null'); } catch (e) {}
+    if (prev && prev.pc && prev.pc !== pc && now - (prev.at || 0) < 10 * 60e3) cache.put('dup:' + who, String(now), 1800);
+    if (cache.get('dup:' + who)) row.dup = 1;
+  }
   cache.put('live:' + who, JSON.stringify(row), 21600);
   if (req.cases && typeof req.cases === 'object') cache.put('cases:' + who, JSON.stringify(cases_(req.cases, now, who)), 21600);
   var qa = req.qa && typeof req.qa === 'object' ? qaClean_(req.qa) : null;

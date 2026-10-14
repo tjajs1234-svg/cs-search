@@ -62,10 +62,30 @@
     return box;
   }
 
+  /* ───── 숫자 점검(2.4.2) ─────
+     하루 숫자가 상식 밖이면 카드에 이유를 적어 줌. 기준은 일부러 넉넉하게(진짜 이상할 때만 뜨게) */
+  function verLt(a, b) { var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; }
+  function sanity(n, s, x, off, cs, cfg, now) {
+    var out = [], WC = window.WorkClock;
+    if (x && x.dup) out.push('같은 이름(' + n + ')으로 PC 두 대가 숫자를 보내고 있어요. 한쪽 기록기 태그가 잘못 들어갔을 수 있어요(두 사람 숫자가 섞여요)');
+    if (x && x.v && verLt(x.v, '2.4.2')) out.push('기록기 ' + x.v + ' — 2.4.2 전 판은 같은 상담을 여러 번 셀 수 있어요(곧 저절로 업데이트돼요)');
+    if (s.answered >= 15 && s.answered > Math.max(3, s.records) * 3) out.push('답한 상담 ' + s.answered + '건에 기록은 ' + s.records + '건이에요. 기록을 빠뜨렸거나, 기록기 2.4.2 전이라 같은 상담을 여러 번 셌을 수 있어요');
+    if (s.answered >= 10 && s.over20 / s.answered >= 0.6) out.push('답한 상담의 ' + Math.round(s.over20 / s.answered * 100) + '%가 20분 넘김이에요. 오래 남은 상담이 숫자를 끌어올렸는지 아래 대기를 봐 주세요');
+    if (s.answered && s.waitSum / s.answered >= 120) out.push('평균 대기가 ' + Math.round(s.waitSum / s.answered) + '분이에요. 하루 넘게 남아 있던 상담이 섞였을 가능성이 커요');
+    var pend = (cs && cs.pend) || [], longOnes = WC ? pend.filter(function (p) { return p.s && WC.bizMs(p.s, now, cfg, true) >= 4 * 3600e3; }) : [];
+    if (longOnes.length) out.push('업무시간으로 4시간 넘게 대기로 남은 상담 ' + longOnes.length + '건. 답할 필요가 없는 상담(인사·감사)이면 패널에서 [보류]를 눌러야 숫자에서 빠져요');
+    if (x && !off && cs && cs.st) Object.keys(cs.st).forEach(function (ch) { var v = cs.st[ch]; if (!v.ok && v.tag) out.push((ch === 'naver' ? '톡톡' : '카톡') + (v.at ? ' 목록 읽기가 정상이 아니에요(' + ago(v.at) + ' 마지막 확인)' : ' 목록을 한 번도 못 읽었어요(이 채널을 안 쓰면 기록기 설정에서 끄기)')); });
+    return out;
+  }
+
   /* ───── 팀 현황 카드: 지금 · 오늘 · 이번 주 · 확인할 것(상담사마다 한 칸) ───── */
   async function teamCards(r, R) {
+    await (T().syncLead ? T().syncLead() : null);
     var P = T().person, td = today(), now = Date.now(), days = r.days || {};
     var q = await CSTeam.get('qa.get', { days: 1 }).catch(function () { return { days: {}, live: {} }; });
+    // 숫자 점검용: 지금 대기 중인 상담(대기 시작 시각만) · 근무 설정(공휴일)
+    var cl = await CSTeam.get('cases.get', {}).catch(function () { return { list: [] }; }), wcfg = ((await getCfg().catch(function () { return null; })) || {}).cfg || {};
+    var cbn = {}; (cl.list || []).forEach(function (x) { cbn[P(x.name)] = x; });
     var live = {}; (r.live || []).forEach(function (x) { live[P(x.name)] = x; });
     var ql = {}; Object.keys(q.live || {}).forEach(function (n) { ql[P(n)] = q.live[n]; });
     var qd = (q.days || {})[td] || {}, rt = {}, late = {}; Object.keys(qd).forEach(function (n) { var k = P(n); rt[k] = (rt[k] || []).concat(qd[n].rt || []); late[k] = (late[k] || []).concat(qd[n].late || []); });
@@ -92,6 +112,9 @@
       var wk = sum(n, R.days.filter(function (d) { return d <= td; })), mo = sum(n, Object.keys(days).filter(function (d) { return d.slice(0, 7) === R.month && d <= td; }));
       var wh = mk('div', 'psub'); wh.append(mk('span', null, '이번 주 답한 상담'), mk('span', 'sp'), mk('span', null, '주 ' + wk.answered + ' · ' + Number(R.month.slice(5)) + '월 ' + mo.answered));
       c.append(wh, bars(list, { cls: 'sm' }));
+      // 숫자 점검: 말이 안 되는 숫자는 이유와 함께 바로 알려 줌(팀장이 일일이 보지 않아도 잡히게)
+      var wl = sanity(n, s, x, off, cbn[n], wcfg, now);
+      if (wl.length) { var wb = mk('div', 'pwarn'); wl.forEach(function (t) { wb.append(mk('div', null, '⚠ ' + t)); }); c.append(wb); }
       // 확인할 것 · 오늘 흐름(누르면 그 화면)
       var f = flowOf(rt[n] || []), qn = ql[n] || {}, miss = (qn.miss || []).length, lh = (qn.lh || []).length, lt = (late[n] || []).length;
       var ft = mk('div', 'pfoot');
@@ -129,6 +152,7 @@
     return nav;
   }
   async function flow(w) {
+    await (T().syncLead ? T().syncLead() : null);
     var title = '업무 흐름';
     if (!(await ready(w, title, '기록한 시각으로 본 하루예요. 시간마다 몇 건 기록했는지 · 시간당 건수 · 기록과 기록 사이 간격 · 30분 넘게 기록이 없던 때(점심 빼고). 긴 통화나 어려운 상담도 빈 시간으로 보이니 참고용으로만 봐 주세요.'))) return;
     var td = today(); if (!fDay || fDay > td) fDay = td;
@@ -171,6 +195,7 @@
   /* ───── 게시판 건수: 그날 게시판 사이트별 기록 수(사람별) · 이달 합계 ───── */
   var sDay = '';
   async function sites(w) {
+    await (T().syncLead ? T().syncLead() : null);
     var title = '게시판 건수';
     if (!(await ready(w, title, '게시판에서 기록할 때 고른 구매처로 저절로 세요. 상담사 PC는 1분마다 · 팀장 PC(태그 여러 개)는 5분마다 ‘팀장’ 줄로 들어와요.'))) return;
     var td = today(); if (!sDay || sDay > td) sDay = td;
@@ -200,6 +225,7 @@
   /* ───── 확인할 상담: 사람마다 한 칸(기록 안 함 · 20분 넘김 · 오래된 상담) · 공지 확인 ───── */
   var qDay = '';
   async function qa(w) {
+    await (T().syncLead ? T().syncLead() : null);
     var title = '확인할 상담';
     if (!(await ready(w, title, '팀장만 보는 화면이에요(상담사 화면에는 안 나와요). 상담 번호와 링크만 있고 고객 이름·대화 내용은 없어요. [열기]를 누르면 그 상담이 새 탭에서 열려요(카카오·톡톡에 로그인돼 있어야 해요).'))) return;
     var td = today(); if (!qDay || qDay > td) qDay = td;
@@ -252,6 +278,7 @@
   /* ───── 근무 달력: 야근 신청 승인 · 공휴일 · 명단 · 비수기 ───── */
   var cMonth = '';
   async function cal(w) {
+    await (T().syncLead ? T().syncLead() : null);
     var title = '근무 달력';
     if (!(await ready(w, title, '상담사가 검색기 [근무] 탭에 그날 퇴근 시각을 적으면 여기 쌓여요(정시 19:00 뒤 넘은 시간이 야근). 승인은 이 화면에서만 해요 · 상담사 화면에는 승인 여부가 안 보여요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
@@ -367,5 +394,5 @@
 
   var add = function () { if (!window.KBAdminExtra || !window.KBTeam) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { flow: flow, sites: sites, qa: qa, cal: cal }); };
   add();
-  window.KBTeam2 = { flowOf: flowOf, teamNames: teamNames, teamCards: teamCards };
+  window.KBTeam2 = { flowOf: flowOf, teamNames: teamNames, teamCards: teamCards, sanity: sanity };
 })();
