@@ -57,7 +57,7 @@
     var s = await sync(true);
     return { ok: true, sync: s };
   }
-  function clearConn() { S.del(K.conn); S.del(K.content); setSync({ state: 'none', message: '' }); emit('content'); }
+  function clearConn() { S.del(K.conn); S.del(K.content); S.mirrorSoon(); setSync({ state: 'none', message: '' }); emit('content'); }
 
   // 다른 탭(멘트 관리 등)에서 바꾸면 따라감
   window.addEventListener('storage', function (e) { if (e.key === K.content) emit('content'); else if (e.key === K.sync) emit('sync'); else if (e.key === K.conn || e.key === K.admin) sync(true); });

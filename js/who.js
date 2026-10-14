@@ -38,7 +38,7 @@
     // 기록기가 알려 준 이름(없으면 예전에 손으로 적은 이름)
     name: function () { return auto || manual(); },
     auto: function () { return auto; },
-    setManual: function (v) { try { localStorage.setItem(MANUAL, String(v || '').trim().slice(0, 20)); } catch (e) {} },
+    setManual: function (v) { try { localStorage.setItem(MANUAL, String(v || '').trim().slice(0, 20)); } catch (e) {} if (root.CSStore) root.CSStore.mirrorSoon(); },
     on: function (fn) { listeners.push(fn); },
     get askedAt() { return asked; }
   };

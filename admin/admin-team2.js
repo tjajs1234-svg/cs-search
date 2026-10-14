@@ -96,8 +96,12 @@
       var f = flowOf(rt[n] || []), qn = ql[n] || {}, miss = (qn.miss || []).length, lh = (qn.lh || []).length, lt = (late[n] || []).length;
       var ft = mk('div', 'pfoot');
       var tag = function (t, v, cls, view) { var b = mk('button', 'ptag' + (cls ? ' ' + cls : ''), t + ' ' + v); b.type = 'button'; b.addEventListener('click', function () { A().setView(view); }); ft.append(b); };
-      tag('기록 안 함', miss, miss ? 'bad' : 'ok', 'qa'); tag('20분 넘김', lt, lt ? 'bad' : 'ok', 'qa'); tag('오래된', lh, lh ? 'warn' : 'ok', 'qa');
-      tag('시간당', f.n ? f.perHour.toFixed(1) : '–', '', 'flow'); tag('빈 구간', f.n ? f.long.length : '–', f.long.length ? 'warn' : '', 'flow');
+      // 2.4.0 전 기록기는 확인할 것·기록 시각을 안 보냄(신호는 오는데 qa가 없음) → 고장처럼 안 보이게 알려 줌
+      if (x && !off && !ql[n]) ft.append(mk('div', 'pold', '기록기 업데이트 전이에요 · 확인할 것·업무 흐름·게시판 건수는 2.4.0으로 바뀐 뒤부터 쌓여요'));
+      else {
+        tag('기록 안 함', miss, miss ? 'bad' : 'ok', 'qa'); tag('20분 넘김', lt, lt ? 'bad' : 'ok', 'qa'); tag('오래된', lh, lh ? 'warn' : 'ok', 'qa');
+        tag('시간당', f.n ? f.perHour.toFixed(1) : '–', '', 'flow'); tag('빈 구간', f.n ? f.long.length : '–', f.long.length ? 'warn' : '', 'flow');
+      }
       c.append(ft);
       grid.append(c);
     });

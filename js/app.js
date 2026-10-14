@@ -1170,6 +1170,27 @@
   document.addEventListener('csbridge-event', function (e) { var d = e.detail || {}; if (d.what === 'data') refreshBridge(false); else if (d.what === 'view' && d.view) setView(d.view); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshBridge(false); } });
 
+  /* 새 판 알아채기: 화면을 새로 올리면(배포) 5분 안에 알아챔
+     · 다른 창을 보고 있을 때(이 탭이 가려져 있을 때) 조용히 새로고침 · 보고 있으면 [새로고침] 알림만
+     · 작성공간 글은 새로고침 전에 저장해 둬서 그대로 남음 */
+  var appVer = '', newVer = false;
+  async function checkVer() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    try {
+      var r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+      var v = String((await r.json()).v || ''); if (!v) return;
+      if (!appVer) { appVer = v; return; }
+      if (v !== appVer) { newVer = true; applyVer(); }
+    } catch (e) {}
+  }
+  function applyVer() {
+    if (!newVer) return;
+    if (document.hidden) { try { S.set(K.note, note.value); } catch (e) {} location.reload(); return; }
+    toast('검색기 새 판이 나왔어요', { action: { label: '새로고침', fn: function () { try { S.set(K.note, note.value); } catch (e) {} location.reload(); } } });
+  }
+  checkVer(); setInterval(function () { checkVer(); }, 5 * 60000);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) applyVer(); });
+
   // 기록기 Alt+S: 주소 끝 #find-… → 스크립트 화면 검색창에 커서
   function findFromHash() { if (!/^#find-/.test(location.hash || '')) return false; setView('scripts', false); var i = $('q'); setTimeout(function () { window.focus(); i.focus(); i.select(); }, 0); return true; }
   window.addEventListener('hashchange', findFromHash);
@@ -1182,6 +1203,9 @@
     if (!findFromHash()) setView(VIEWS.indexOf(first) >= 0 ? first : 'scripts', true);
     await CSBridge.wait(1500);
     var n = await S.restoreIfEmpty(); if (n) { loadPersonal(); note.value = S.get(K.note) || ''; blanks(); toast('저장해 둔 개인 설정을 되살렸어요'); }
+    var back = await S.restoreExtra(); // 연결 코드가 지워졌으면 확장 보관본으로(다시 안 넣어도 됨)
+    if (back) await CSContent.sync(true);
+    else if (S.get(K.conn)) S.mirrorSoon(); // 예전부터 쓰던 PC도 이번에 한 벌 보관해 둠
     await loadContent();
     CSContent.sync(false).then(function () { renderBanner(); });
     refreshBridge(false);

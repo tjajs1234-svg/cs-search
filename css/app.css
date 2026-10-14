@@ -307,6 +307,8 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .onboard .res.bad{color:var(--danger);font-weight:600}
 
 @media (max-width:1100px){.composer{width:330px}.side{width:196px}}
+/* 창을 반만 띄운 PC(960px 안팎)에서도 맨 오른쪽 탭(OT)까지 다 보이게: 탭 그림을 빼고 글자만 */
+@media (max-width:1180px) and (min-width:861px){.tab svg{display:none}.tab{padding:0 11px;gap:6px}}
 @media (max-width:860px){
   body{overflow:auto}
   .app{height:auto;min-height:100%}
