@@ -12,10 +12,13 @@
    · 1.3.2: 상담사 명단에 성까지(김수빈) 적으면 달력·목록이 성 포함 이름 가나다순
    · 1.3.3: 빠르게(드라이브 파일 번호·내용 캐시) · 근무 탭은 한 번에 받음(work.get)
    · 1.3.4: 큰 파일도 캐시(나눠 담기) · 요청·건의에 ‘팀장’ 대신 이름
+   · 1.3.5: 기록기 판 · PC 이름표(같은 이름으로 PC 두 대 감지)
+   · 1.3.6: (기록기 2.4.3과 함께) 오늘 기록 = 시트 저장 확인 건 · 보내는 중 · 문의→기록(채팅) · 한 채널 끊김 표시
+            [확인함]을 기록 빠짐(그날만)과 오래된 상담(그 방에 새 메시지가 오면 다시 보임)으로 나눔 · 2.4.2 기록기가 보내도 예전처럼 동작
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.5';
+var TEAM_VERSION = '1.3.6';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -229,6 +232,10 @@ function teamBeat_(req) {
   // 1.3.5 기록기 판 · PC 이름표: 같은 이름으로 다른 PC가 10분 안에 또 보내면 ‘PC 두 대’(태그를 잘못 넣었을 때 숫자가 섞임)
   var pc = /^[a-z0-9]{8}$/.test(String(req.pc || '')) ? String(req.pc) : '';
   if (req.v) row.v = text_(req.v, 12);
+  // 1.3.6 보내는 중(접수했지만 시트 저장 확인 전) · 한 채널이라도 끊김(part) · 문의→기록 요약
+  if (live.sending) row.sending = num_(live.sending);
+  if (live.part) row.part = 1;
+  var irv = ir_(live.ir); if (irv) row.ir = irv;
   if (pc) {
     row.pc = pc;
     var prev = null; try { prev = JSON.parse(cache.get('live:' + who) || 'null'); } catch (e) {}
@@ -248,9 +255,10 @@ function teamBeat_(req) {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
       var d = t[day] || (t[day] = {});
       d[who] = { answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sites: sites_(st.sites), at: now };
+      var dir = ir_(st.ir); if (dir) d[who].ir = dir; if (st.sending) d[who].sending = num_(st.sending);
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
       // 기록 시각 · 20분 넘긴 상담 · 기록 빠짐(그날 마지막 모습) — 62일 보관
-      if (qa) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: qa.rt, late: qa.late, miss: qa.miss, at: now }; pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
+      if (qa) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: qa.rt, late: qa.late, miss: qa.miss, at: now }; var irl = irList_(st.ir); if (irl.length) qd[who].irv = irl; pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300);
@@ -272,7 +280,7 @@ function leadBeat_(req) {
 }
 /* ── 1.3.0 확인할 상담 · 기록 시각 ── */
 function sites_(o) { var out = {}; if (o && typeof o === 'object') Object.keys(o).slice(0, 40).forEach(function (k) { var n = num_(o[k]); if (n) out[text_(k, 30) || '게시판'] = n; }); return out; }
-function qaItem_(x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), u: /^https:\/\/(business\.kakao\.com|center-pf\.kakao\.com|partner\.talk\.naver\.com)\//.test(String(x.u || '')) ? String(x.u).slice(0, 300) : '', at: ms_(x.at) }; if (x.w) o.w = num_(x.w); if (x.d) o.d = num_(x.d); if (x.h) o.h = 1; return o; }
+function qaItem_(x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), u: /^https:\/\/(business\.kakao\.com|center-pf\.kakao\.com|partner\.talk\.naver\.com)\//.test(String(x.u || '')) ? String(x.u).slice(0, 300) : '', at: ms_(x.at) }; if (x.w) o.w = num_(x.w); if (x.d) o.d = num_(x.d); if (x.h) o.h = 1; var last = ms_(x.last); if (last) o.last = last; return o; }
 function qaClean_(q) {
   var list = function (v, n) { return Array.isArray(v) ? v.slice(0, n).filter(function (x) { return x && x.id; }).map(qaItem_) : []; };
   var rt = Array.isArray(q.rt) ? q.rt.slice(0, 400).map(function (v) { return Math.max(0, Math.min(1439, Math.floor(Number(v) || 0))); }) : [];
@@ -282,14 +290,23 @@ function qaDays_(days) { var q = readJson_('qa.json', {}), out = {}, from = dayK
 function qaLive_() {
   var names = liveNames_(), out = {}; if (!names.length) return out;
   var got = CacheService.getScriptCache().getAll(names.map(function (n) { return 'qa:' + n; })), now = Date.now(), ok = readJson_('qaok.json', {}) || {};
-  var keep = function (x) { return !ok[x.ch + ':' + x.id]; };
-  names.forEach(function (n) { try { var v = JSON.parse(got['qa:' + n] || 'null'); if (v && now - (v.at || 0) < 12 * 3600e3) { v.miss = (v.miss || []).filter(keep); v.lh = (v.lh || []).filter(keep); out[n] = v; } } catch (e) {} });
+  var keepMiss = function (x) { return qaMissKeep_(x, ok); }, keepLong = function (x) { return qaLongKeep_(x, ok); };
+  names.forEach(function (n) { try { var v = JSON.parse(got['qa:' + n] || 'null'); if (v && now - (v.at || 0) < 12 * 3600e3) { v.miss = (v.miss || []).filter(keepMiss); v.lh = (v.lh || []).filter(keepLong); out[n] = v; } } catch (e) {} });
   return out;
 }
-// 팀장이 [확인함]을 누른 상담은 ‘기록 안 한 상담’ · ‘오래된 상담’에서 뺌(7일)
+// 팀장이 [확인함]을 누른 상담은 ‘기록 안 한 상담’ · ‘오래된 상담’에서 뺌(7일 보관)
+// 1.3.6 기록 빠짐은 'miss:채널:방:날짜'(그날만) · 오래된 상담은 '채널:방'이되 누른 뒤 그 방에 새 메시지가 오면 다시 보임
+//       예전 관리 화면이 보낸 '채널:방'은 기록 빠짐에선 그날 누른 것만 인정
+function qaMissKeep_(x, ok) {
+  var day = dayKey_(x.at || Date.now()), old = ok[x.ch + ':' + x.id];
+  return !ok['miss:' + x.ch + ':' + x.id + ':' + day] && !(old && dayKey_(old) === day);
+}
+function qaLongKeep_(x, ok) { var at = ok[x.ch + ':' + x.id]; return !(at && (!x.last || x.last <= at)); }
+function ir_(v) { if (!v || typeof v !== 'object') return null; var o = { n: num_(v.n), m: num_(v.m), o30: num_(v.o30) }; var med = Number(v.med); if (isFinite(med) && med >= 0 && v.med !== null) o.med = Math.min(Math.round(med), 1e5); return o; }
+function irList_(v) { return v && Array.isArray(v.v) ? v.v.slice(0, 150).map(function (x) { return Math.max(0, Math.min(1e5, Math.round(Number(x) || 0))); }) : []; }
 function qaOk_(req) {
   if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 할 수 있어요' };
-  var k = String(req.key || ''); if (!/^(kakao|naver):.{1,80}$/.test(k)) return { ok: false, error: '상담 확인 필요' };
+  var k = String(req.key || ''); if (!/^(miss:)?(kakao|naver):.{1,100}$/.test(k)) return { ok: false, error: '상담 확인 필요' };
   var ok = readJson_('qaok.json', {}) || {}, now = Date.now(); ok[k] = now;
   Object.keys(ok).forEach(function (x) { if (now - ok[x] > 7 * 864e5) delete ok[x]; });
   writeJson_('qaok.json', ok); return { ok: true };

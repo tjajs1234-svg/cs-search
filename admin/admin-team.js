@@ -101,7 +101,7 @@
       var td = mk('td', 'tc' + (cls ? ' ' + cls : ''));
       if (future) { td.textContent = ''; return td; }
       if (!o.answered && !o.records) { td.append(mk('span', 'z', '–')); return td; }
-      td.append(mk('b', null, String(o.answered)), mk('small', null, '기록 ' + o.records)); return td;
+      td.append(mk('b', null, String(o.records))); td.title = '기록 ' + o.records + ' · 답한 상담(대기 목록에서 빠진 수) ' + o.answered; return td;
     };
     var tb = mk('table', 'ttable tcount'), tr = mk('tr');
     tr.append(mk('th', null, '상담사'));
@@ -120,46 +120,29 @@
     cols.forEach(function (i) { var d = R.days[i]; tr2.append(cellOf(tot.days[d] || { answered: 0, records: 0 }, d > R.today)); });
     tr2.append(cellOf(tot.week, false, 'sum'), cellOf(tot.month, false, 'sum')); bd.append(tr2);
     tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); p.append(wrap);
-    p.append(mk('p', 'muted', '큰 숫자 = 답한 상담(카톡·톡톡 대기 목록에서 빠진 수) · 작은 숫자 = 기록(게시판 포함) · 상담사 PC 기록기가 켜져 있던 동안만 세요 · 이름은 성 뺀 이름(카톡 영원3 · 톡톡 김영원 → 영원)'));
+    p.append(mk('p', 'muted', '숫자 = 기록(게시판 포함 · 기록기 2.4.3부터 시트 저장 확인 건, 같은 날 같은 방 1건) · 칸에 마우스를 올리면 답한 상담 수도 보여요 · 이름은 성 뺀 이름(카톡 영원3 · 톡톡 김영원 → 영원)'));
     w.append(p);
   }
+  // 2.4.3 팀 현황 한 장: 위 네 칸(지금 대기 · 기록 · 문의→기록 · 챙길 것) + 상담사마다 한 줄 + 상담사별 건수(주간)
+  var tPeriod = 'today';
   async function team(w) {
     clearTimeout(tTimer);
-    var T = '팀 현황';
-    if (!w.querySelector('.tgrid2')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'), mk('div', 'empty', '불러오는 중…'));
+    var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
+    if (!w.querySelector('.tgrid2')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
-    // 한꺼번에 부름(차례로 기다리지 않게): 팀 숫자 · 오늘 확인할 상담 · 명단
-    CSTeam.get('qa.get', { days: 1 }).catch(function () {}); CSTeam.get('cfg.get', {}).catch(function () {});
-    var r; try { r = await CSTeam.get('team.get', { days: needDays(tWeek) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
-    // 상담사마다 한 칸: 지금 · 오늘 · 이번 주 · 확인할 것(누를 필요 없이 모두 한 화면에) — 다 만든 뒤 한 번에 바꿔 깜빡이지 않게
-    var g = window.KBTeam2 ? await KBTeam2.teamCards(r, weekRange(tWeek)) : mk('div', 'empty', '불러오는 중…');
+    CSTeam.get('cfg.get', {}).catch(function () {});
+    var r; try { r = await CSTeam.get('team.get', { days: Math.max(needDays(tWeek), 32) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
+    var g = window.KBTeam2 ? await KBTeam2.board(r, tPeriod) : mk('div', 'empty', '불러오는 중…');
     g.classList.add('tgrid2');
+    var nav = mk('div', 'ins bper'); nav.append(mk('span', null, '기간'));
+    [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
+    nav.append(mk('span', 'muted', '지금 대기·챙길 것은 늘 지금 숫자'));
     var ub = await updateBox();
     var keepScroll = w.scrollTop;
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고 · 18시 뒤 새 문의는 다음 날 10시부터). 20분 넘게 기다리는 고객이 있으면 빨갛게 보여요. 30초마다 새로 읽어요.'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC));
     if (ub) w.append(ub);
-    w.append(g);
+    w.append(nav, g);
     countPanel(w, r.days || {});
-    // 하루 합계
-    var days = r.days || {}, keys = Object.keys(days).sort().reverse(), today = KBData.todayKey();
-    var p = mk('div', 'panel'); p.style.maxWidth = '980px';
-    var hd = mk('div', 'ins'); hd.append(mk('span', null, '하루 합계'));
-    [['today', '오늘'], ['yday', '어제'], ['d7', '최근 7일'], ['d14', '최근 14일']].forEach(function (f) { var b = mk('button', null, f[1]); b.type = 'button'; if (tDay === f[0]) b.className = 'on'; b.addEventListener('click', function () { tDay = f[0]; team(w); }); hd.append(b); });
-    p.append(hd);
-    var pick = tDay === 'today' ? [today] : tDay === 'yday' ? [KBData.todayKey(Date.now() - 864e5)] : keys.slice(0, tDay === 'd7' ? 7 : 14);
-    var sum = {};
-    pick.forEach(function (d) { var x = days[d] || {}; Object.keys(x).forEach(function (n) { var s = sum[person(n)] || (sum[person(n)] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: 0 }), v = x[n]; ['answered', 'waitSum', 'over20', 'holds', 'records'].forEach(function (k) { s[k] += v[k] || 0; }); s.maxWait = Math.max(s.maxWait, v.maxWait || 0); }); });
-    var names = Object.keys(sum).sort(function (a, b) { return sum[b].over20 - sum[a].over20 || a.localeCompare(b); });
-    if (!names.length) p.append(mk('div', 'empty', '이 기간 합계가 아직 없어요.'));
-    else {
-      var tb = mk('table', 'ttable'), tr = mk('tr');
-      ['상담사', '답한 상담', '평균 대기', '20분 넘김', '가장 오래', '보류', '기록'].forEach(function (t) { tr.append(mk('th', null, t)); }); var th = mk('thead'); th.append(tr); tb.append(th);
-      var bd = mk('tbody');
-      names.forEach(function (n) { var s = sum[n], r2 = mk('tr'); r2.append(mk('td', null, n), mk('td', null, String(s.answered)), mk('td', null, s.answered ? Math.round(s.waitSum / s.answered) + '분' : '–'), mk('td', s.over20 ? 'bad' : null, String(s.over20)), mk('td', s.maxWait >= 20 ? 'bad' : null, s.maxWait ? s.maxWait + '분' : '–'), mk('td', null, String(s.holds)), mk('td', null, String(s.records))); bd.append(r2); });
-      tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); p.append(wrap);
-      p.append(mk('p', 'muted', '평균 대기 = 고객이 기다리기 시작해서 답할 때까지 걸린 시간의 평균 · 20분 넘김 = 한 번이라도 20분 넘게 기다리게 한 상담 수 · 기록기 2.4.0부터 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고)'));
-    }
-    w.append(p);
     w.scrollTop = keepScroll;
     tTimer = setTimeout(function () { if (A() && document.querySelector('.tgrid2') && w.isConnected) team(w); }, 30000);
   }
