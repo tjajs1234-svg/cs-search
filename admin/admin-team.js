@@ -147,6 +147,23 @@
     tTimer = setTimeout(function () { if (A() && document.querySelector('.tgrid2') && w.isConnected) team(w); }, 30000);
   }
 
+  /* ───── 못 찾은 검색어(최근 30일): 상담사가 스크립트에서 찾다가 꼭 맞는 멘트가 없던 짧은 검색어 ───── */
+  async function misses(w) {
+    var T = '못 찾은 검색어', D = '상담사가 검색기 [스크립트]에서 찾았는데 꼭 맞는 멘트가 없던 검색어예요(최근 30일 · 많이 나온 순). 짧은 검색어만 이름 없이 모아요 — 고객 문장을 붙여 넣은 긴 글, 숫자 4자리 이상, 메일 주소는 안 모아요.';
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', D), mk('div', 'empty', '불러오는 중…'));
+    if (!(await ensureUrl())) { needServer(w, T); return; }
+    var r; try { r = await CSTeam.call('miss.get', { days: 30 }); } catch (e) { w.lastChild.textContent = /모르는 요청/.test(e.message || '') ? '팀 서버를 1.3.7로 배포하면 모이기 시작해요([팀 현황]의 노란 상자).' : '불러오지 못했어요. ' + e.message; return; }
+    var sum = {}, last = {}; Object.keys(r.days || {}).sort().forEach(function (d) { var x = r.days[d] || {}; Object.keys(x).forEach(function (k) { sum[k] = (sum[k] || 0) + x[k]; last[k] = d; }); });
+    var keys = Object.keys(sum).sort(function (a, b) { return sum[b] - sum[a] || (last[b] > last[a] ? 1 : -1); });
+    w.lastChild.remove();
+    var p = mk('div', 'panel'); p.style.maxWidth = '720px';
+    p.append(mk('div', 'ins', '검색어 ' + keys.length + '개'));
+    if (!keys.length) p.append(mk('div', 'empty', '아직 모인 검색어가 없어요.'));
+    keys.slice(0, 200).forEach(function (k) { var row = mk('div', 'hrow'); row.style.gridTemplateColumns = 'minmax(0,1fr) 70px 90px'; row.append(mk('b', null, k), mk('span', null, sum[k] + '번'), mk('span', 'muted', '마지막 ' + Number(last[k].slice(5, 7)) + '/' + Number(last[k].slice(8, 10)))); p.append(row); });
+    p.append(mk('p', 'muted', '자주 나오는 말은 멘트 제목이나 내용에 그 말을 넣으면 다음부터 찾혀요.'));
+    w.append(p);
+  }
+
   /* ───── 멘트 사용 통계(최근 30일): 멘트 목록에 ‘30일 N회’로 보여 줌 ───── */
   var usage = { map: null, at: 0 };
   async function loadUsage() {
@@ -173,7 +190,7 @@
     var v = await serverVersion(); if (!v || v.now === v.latest) return null;
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
-      mk('p', null, '이번 판(1.3.7): 팀 현황에 기다리는 고객 이름·마지막 말 · 답했는데 기록 없음 상세 · 카톡/톡톡 연결 상태 · 기록 창의 ‘이미 오늘 기록된 상담’ 알림 · 같은 이름 PC 두 대 합쳐 보기. 주소는 그대로예요.'),
+      mk('p', null, '이번 판(1.3.7): 팀 현황에 기다리는 고객 이름·마지막 말 · 답했는데 기록 없음 상세 · 카톡/톡톡 연결 상태 · 기록 창의 ‘이미 오늘 기록된 상담’ 알림 · 같은 이름 PC 두 대 합쳐 보기 · 못 찾은 검색어 · OT 주말·공휴일 막기. 주소는 그대로예요.'),
       mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
     var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
     var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });
@@ -218,7 +235,7 @@
 
   function syncLead() { return adminName().then(function (n) { if (n && n !== 'CS팀') leadAs = n; }).catch(function () {}); }
   window.KBTeam = { syncLead: syncLead, usage: usage, loadUsage: loadUsage, ensureUrl: ensureUrl, adminToken: adminToken, needServer: needServer, person: person, when: when };
-  var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { board: board, team: team, teamsetup: setup }); };
+  var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { board: board, team: team, teamsetup: setup, misses: misses }); };
   add();
   setTimeout(loadUsage, 1500);
 })();

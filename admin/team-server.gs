@@ -19,6 +19,7 @@
             — 이름·말은 ‘지금 상태’(캐시 6시간)에만, 날짜별 파일에는 안 남김
             · 오늘 팀이 기록한 방을 모아 기록기에 돌려줌(누가 열든 “이미 오늘 기록된 상담” 알림) · 기록 빠짐은 팀 전체 기록 기준
             · 같은 이름으로 PC 두 대가 보내면 덮어쓰지 않고 합쳐 보여 줌
+            · 못 찾은 검색어(miss.add/miss.get) · OT는 주말·공휴일에 적을 수 없음
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
@@ -49,6 +50,8 @@ function handle_(req) {
   if (a === 'board.delete') return withLock_(function () { return boardDelete_(req); });
   if (a === 'usage.add') return withLock_(function () { return usageAdd_(req); });
   if (a === 'usage.get') return { ok: true, days: usageGet_(Number(req.days) || 30) };
+  if (a === 'miss.add') return withLock_(function () { return missAdd_(req); });
+  if (a === 'miss.get') return { ok: true, days: missGet_(Number(req.days) || 30) };
   if (a === 'team.beat') return teamBeat_(req);
   if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
   if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
@@ -221,6 +224,14 @@ function usageAdd_(req) {
   return { ok: true };
 }
 function usageGet_(days) { var u = readJson_('usage.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(u || {}).forEach(function (k) { if (k >= from) out[k] = u[k]; }); return out; }
+// 1.3.7 못 찾은 검색어: 검색기 스크립트 검색에서 꼭 맞는 멘트가 없던 짧은 검색어(20자 · 숫자 4자리 이상·@ 없는 것만) — 날마다 300개까지 · 62일
+function missAdd_(req) {
+  var day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.day)) ? String(req.day) : dayKey_(), c = req.counts && typeof req.counts === 'object' ? req.counts : {};
+  var m = readJson_('miss.json', {}); if (!m || typeof m !== 'object') m = {}; var d = m[day] || (m[day] = {});
+  Object.keys(c).slice(0, 100).forEach(function (k) { var q = text_(k, 200).replace(/\s+/g, ' '); if (q.length < 2 || q.length > 20 || /\d{4,}|@|https?:/i.test(q)) return; if (!(q in d) && Object.keys(d).length >= 300) return; d[q] = (d[q] || 0) + Math.min(50, num_(c[k]) || 1); });
+  pruneDays_(m, KEEP_DAYS); writeJson_('miss.json', m); return { ok: true };
+}
+function missGet_(days) { var m = readJson_('miss.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(m || {}).forEach(function (k) { if (k >= from) out[k] = m[k]; }); return out; }
 function pruneDays_(obj, keep) { var from = dayKey_(Date.now() - (keep || KEEP_DAYS) * 864e5); Object.keys(obj).forEach(function (k) { if (k < from) delete obj[k]; }); }
 // 상담사 이름: 카톡 태그 영원3 → 영원(끝 숫자 뗌) · 톡톡 태그 김영원 → 영원(세 글자 한글이면 성 뺌). 기록기 match.js person과 같은 규칙
 function person_(v) { var s = name_(v).replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; }
@@ -459,6 +470,9 @@ function otAdd_(req) {
   if (!name) return { ok: false, error: '이름이 없어요' };
   if (!dateOk_(date)) return { ok: false, error: '날짜를 골라 주세요' };
   if (f < 0 || t < 17 * 60) return { ok: false, error: '퇴근 시각을 확인해 주세요(17:00부터)' };
+  // 1.3.7 주말·공휴일은 근무일이 아님(출근하지 않음) — 근무 달력에 더한 공휴일 포함(기본 공휴일은 검색기·관리 화면이 막음)
+  var wd = new Date(date + 'T00:00:00Z').getUTCDay(), hol = cfgOut_(settings_()).holidays;
+  if (wd === 0 || wd === 6 || hol[date]) return { ok: false, error: '주말·공휴일은 근무일이 아니라 OT를 적을 수 없어요' };
   var admin = !!req.adminToken && isAdmin_(req.adminToken);
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
   var list = ots_(), now = Date.now(), x = null;

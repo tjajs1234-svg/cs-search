@@ -190,6 +190,9 @@ button.sku:hover{border-color:var(--accent);color:var(--accent)}
 .ptag.def{background:var(--danger-soft);color:var(--danger)}
 .ptag.ok{background:var(--good-soft);color:var(--good)}
 .ptag.new{background:var(--accent);color:var(--accent-ink)}
+.ptag.old{background:var(--warn-soft);color:var(--warn)}
+.ptag.chg{background:var(--accent-soft,#e8eefb);color:var(--accent)}
+.cat.chg .nm{color:var(--accent);font-weight:800}
 .rcard h3{margin:0;font-size:16px;font-weight:700}
 .qa{display:grid;grid-template-columns:72px minmax(0,1fr);gap:4px 12px;font-size:14.5px;line-height:1.7;margin:0}
 .qa dt{color:var(--ink3);font-size:13px;font-weight:600;padding-top:2px}

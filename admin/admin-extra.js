@@ -268,5 +268,43 @@
     document.body.replaceChildren(wrap);
   }
 
-  window.KBAdminExtra = { views: { notices: notices, sources: sources, github: github }, connectScreen: connectScreen };
+  /* ───── 계산기: 유상 AS 요율 · 왕복 배송비 · 반품·교환 기한(상담사 검색기 [계산기]) ───── */
+  var CALC0 = { asFee: 6000, returnDays: 7, rates: [{ label: '1~12개월', rate: 30 }, { label: '13~24개월', rate: 60 }, { label: '25~36개월', rate: 80 }, { label: '37~48개월', rate: 90 }, { label: '49개월 이상', rate: 100, blocked: true }] };
+  async function calc(w) {
+    var T = '계산기', D = '상담사 검색기 오른쪽 위 [계산기]의 숫자예요. 정책이 바뀌면 여기서 고치고 [올리기]를 누르면 2분 안에 모든 PC에 반영돼요(멘트 보내기와 따로).';
+    loading(w, T, D);
+    var cur; try { cur = await KBAdmin.latest(); } catch (e) { failed(w, T, e); return; }
+    var c = JSON.parse(JSON.stringify(cur.parsed && cur.parsed.sources && cur.parsed.sources.calc || CALC0));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', D));
+    var p = mk('div', 'panel'); p.style.maxWidth = '640px';
+    var fee = input(String(c.asFee), '6000', 'number'), days = input(String(c.returnDays), '7', 'number');
+    p.append(lab('왕복 배송비(원)', '유상 AS 금액에 더해 보여 줌'), fee, lab('반품·교환 기한(일)', '수령일 다음 날을 1일째로 셈'), days, lab('유상 AS 요율', '사용 기간 · 권장가의 몇 % · ‘일반 구매 안내’를 켜면 그 구간은 흐리게'));
+    var box = mk('div'); p.append(box);
+    var draw = function () {
+      box.replaceChildren();
+      c.rates.forEach(function (r, i) {
+        var row = mk('div', 'facts'), l = input(r.label, '예: 1~12개월'), v = input(String(r.rate), '30', 'number'), bl = mk('input'), bll = mk('label');
+        l.style.flex = '1 1 160px'; v.style.width = '90px'; bl.type = 'checkbox'; bl.checked = !!r.blocked; bll.append(bl, ' 일반 구매 안내');
+        l.addEventListener('input', function () { r.label = l.value; }); v.addEventListener('input', function () { r.rate = Number(v.value); }); bl.addEventListener('change', function () { r.blocked = bl.checked; });
+        row.append(l, v, mk('span', 'muted', '%'), bll, btn('빼기', 'danger-ghost sm', function () { c.rates.splice(i, 1); draw(); }));
+        box.append(row);
+      });
+      if (c.rates.length < 8) box.append(btn('구간 더하기', 'ghost sm', function () { c.rates.push({ label: '', rate: 0 }); draw(); }));
+    };
+    draw();
+    var acts = mk('div', 'facts'); acts.append(btn('처음 값으로', 'ghost', function () { c = JSON.parse(JSON.stringify(CALC0)); fee.value = c.asFee; days.value = c.returnDays; draw(); }), mk('span', 'sp'));
+    var go = btn('올리기', 'primary', async function () {
+      var rates = c.rates.map(function (r) { return { label: String(r.label || '').trim(), rate: Math.round(Number(r.rate)), blocked: !!r.blocked }; }).filter(function (r) { return r.label && isFinite(r.rate) && r.rate >= 0 && r.rate <= 300; });
+      var f = Math.round(Number(fee.value)), d = Math.round(Number(days.value));
+      if (!rates.length) { say('요율 구간을 하나 이상 적어 주세요', 'err'); return; }
+      if (!(f >= 0 && f <= 100000)) { say('배송비를 확인해 주세요', 'err'); fee.focus(); return; }
+      if (!(d >= 1 && d <= 60)) { say('반품 기한은 1~60일로 적어 주세요', 'err'); days.focus(); return; }
+      go.disabled = true;
+      try { await KBAdmin.saveSources({ calc: { asFee: f, returnDays: d, rates: rates } }, '계산기 설정'); say('올렸어요. 2분 안에 모든 PC 계산기에 반영돼요', 'ok'); }
+      catch (e) { say(e.message || '올리지 못했어요', 'err'); } finally { go.disabled = false; }
+    });
+    acts.append(go); p.append(acts); w.append(p);
+  }
+
+  window.KBAdminExtra = { views: { notices: notices, sources: sources, github: github, calc: calc }, connectScreen: connectScreen };
 })();

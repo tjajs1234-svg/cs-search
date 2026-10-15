@@ -96,6 +96,19 @@
     if (r.kind === 'official') queueUse(r.id);
   }
 
+  /* ───── 바뀐 멘트: 관리자가 고치거나 새로 넣은 멘트를 7일 동안 표시(이 PC가 지난번에 받은 문안과 비교) ───── */
+  var SIG = 'csx:scriptSig', CHG = 'csx:changed', CHG_DAYS = 7, changed = {};
+  function sigOf(r) { var t = [r.situation, r.script, r.note].join('\u0001'), h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); }
+  function trackChanges() {
+    if (!P || !C || C.source !== 'github') return;
+    var old = S.json(SIG, null), now = Date.now(), sigs = {}, ch = S.json(CHG, {}); if (!ch || typeof ch !== 'object') ch = {};
+    P.records.forEach(function (r) { sigs[r.id] = sigOf(r); });
+    if (old && old.sigs && typeof old.sigs === 'object') Object.keys(sigs).forEach(function (id) { if (!(id in old.sigs)) ch[id] = { at: now, k: 'new' }; else if (old.sigs[id] !== sigs[id]) ch[id] = { at: now, k: 'edit' }; });
+    Object.keys(ch).forEach(function (id) { if (!(id in sigs) || now - (ch[id].at || 0) > CHG_DAYS * 864e5) delete ch[id]; });
+    S.put(SIG, { sigs: sigs }); S.put(CHG, ch); changed = ch;
+  }
+  function changedOf(id) { var x = changed[id]; return x && Date.now() - (x.at || 0) <= CHG_DAYS * 864e5 ? x : null; }
+
   /* ───── 문안 자료 ───── */
   var C = null, P = null, recs = [], byId = new Map(), idx = KBSearch.createIndex([]), opening = '', lastSearch = null;
   var view = S.get(K.view) || 'all', cat = S.get(K.cat) || '', q = '', openId = '', limit = 60, curView = 'scripts';
@@ -119,7 +132,7 @@
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
     CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork();
-    rebuild();
+    trackChanges(); rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
     if (before && before !== P.revision) toast('관리자가 고친 최신 문안으로 바꿨어요');
@@ -158,7 +171,11 @@
   function renderCats() {
     var L = $('catList'); L.replaceChildren();
     var off = recs.filter(function (r) { return r.kind === 'official'; }).length;
-    L.append(catBtn('all', '전체', 'all', off), catBtn('fav', '즐겨찾기', 'star', M.favorites.size), catBtn('recent', '최근 쓴 문안', 'recent', M.recent.length),
+    var nChg = recs.filter(function (r) { return r.kind === 'official' && changedOf(r.id); }).length;
+    if (!nChg && view === 'changed') view = 'all';
+    L.append(catBtn('all', '전체', 'all', off));
+    if (nChg) { var cb = catBtn('changed', '최근 바뀐 멘트', 'edit', nChg); cb.classList.add('chg'); cb.title = '최근 ' + CHG_DAYS + '일 동안 관리자가 고치거나 새로 넣은 멘트'; L.append(cb); }
+    L.append(catBtn('fav', '즐겨찾기', 'star', M.favorites.size), catBtn('recent', '최근 쓴 문안', 'recent', M.recent.length),
       catBtn('mine', '내 멘트', 'mine', M.custom.length), catBtn('bye', '끝인사', 'bye', sharedClosings().length + M.pclosings.length), el('div', 'sep'));
     if (P) {
       var labels = new Map(); P.records.forEach(function (r) { if (!labels.has(r.sheet)) labels.set(r.sheet, { label: r.sheetLabel, n: 0 }); labels.get(r.sheet).n++; });
@@ -170,10 +187,11 @@
       b.setAttribute('aria-current', String(!searching && cur)); b.classList.toggle('was', searching && cur && k !== 'all');
     });
   }
-  function viewName() { if (view === 'cat') { var r = recs.find(function (x) { return x.sheet === cat; }); return r ? r.sheetLabel : '분류'; } return { all: '전체', fav: '즐겨찾기', recent: '최근 쓴 문안', mine: '내 멘트', bye: '끝인사' }[view] || '전체'; }
+  function viewName() { if (view === 'cat') { var r = recs.find(function (x) { return x.sheet === cat; }); return r ? r.sheetLabel : '분류'; } return { all: '전체', changed: '최근 바뀐 멘트', fav: '즐겨찾기', recent: '최근 쓴 문안', mine: '내 멘트', bye: '끝인사' }[view] || '전체'; }
   function browseList() {
     if (view === 'fav') { var o = new Map(M.favoriteOrder.map(function (id, i) { return [id, i]; })); return recs.filter(function (r) { return M.favorites.has(r.id); }).sort(function (a, b) { return (o.has(a.id) ? o.get(a.id) : 1e9) - (o.has(b.id) ? o.get(b.id) : 1e9); }); }
     if (view === 'recent') return M.recent.map(function (id) { return byId.get(id); }).filter(Boolean);
+    if (view === 'changed') return recs.filter(function (r) { return r.kind === 'official' && changedOf(r.id); }).sort(function (a, b) { return changedOf(b.id).at - changedOf(a.id).at; });
     if (view === 'mine') return recs.filter(function (r) { return r.kind === 'mine'; });
     if (view === 'bye') return recs.filter(function (r) { return r.kind === 'closing' || r.kind === 'pclosing'; });
     if (view === 'cat') return recs.filter(function (r) { return r.kind === 'official' && r.sheet === cat; });
@@ -210,6 +228,8 @@
     if (!open) peekOn(c, r, terms);
     var m = el('div', 'meta'), src = el('span', 'src', r.sheetLabel + (r.category && r.category !== r.situation && r.category !== r.sheetLabel ? ' · ' + r.category : ''));
     m.append(src);
+    var cg = r.kind === 'official' ? changedOf(r.id) : null;
+    if (cg) { var cgt = el('span', 'ptag chg', cg.k === 'new' ? '새 멘트' : '바뀜'); cgt.title = ago(cg.at) + ' 관리자가 ' + (cg.k === 'new' ? '새로 넣었어요' : '고쳤어요') + ' · ' + CHG_DAYS + '일 동안 표시'; m.append(cgt); }
     if (r.note && !open) { var n = el('span', 'ptag', '주의사항'); n.style.background = 'var(--warn-soft)'; n.style.color = 'var(--warn)'; m.append(n); }
     m.append(el('span', 'addedTag', '담김'), el('span', 'sp'));
     var fav = M.favorites.has(r.id), st = el('button', 'mini' + (fav ? ' on' : '')); st.type = 'button'; st.title = fav ? '즐겨찾기 빼기' : '즐겨찾기'; st.setAttribute('aria-label', st.title);
@@ -261,6 +281,7 @@
       rows = res.list;
       var chip = el('span', 'chip'); chip.append(ic('globe'), '전체 문안에서 찾는 중'); Sc.append(chip, el('b', null, rows.length + '개'));
       if (res.loose) Sc.append(el('span', null, '· 꼭 맞는 문안이 없어 낱말이 많이 맞는 순으로 보여 줘요'));
+      if (res.loose || !rows.length) noteMiss(q);
       if (view !== 'all') Sc.append(el('span', null, '· 검색을 지우면 보던 ‘' + viewName() + '’로 돌아가요'));
       R._terms = function (id) { return idx.termsFor(id, q, res.meta); };
     } else {
@@ -367,7 +388,13 @@
   document.addEventListener('scroll', function () { peekHide(true); }, true);
   window.addEventListener('blur', function () { peekHide(true); });
   function archive(text) { var d = S.json(K.drafts, []); if (!Array.isArray(d)) d = []; d.unshift({ text: text, savedAt: new Date().toISOString() }); S.put(K.drafts, d.slice(0, 5)); }
-  $('copyBtn').addEventListener('click', function () { if (!note.value.trim()) { toast('작성공간이 비어 있어요'); return; } copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요'); });
+  // 채울 곳([고객명] 같은 빈칸)이 남아 있으면 바로 복사하지 않고 한 번 알려 줌 — [그래도 복사]로 그대로 복사
+  $('copyBtn').addEventListener('click', function () {
+    if (!note.value.trim()) { toast('작성공간이 비어 있어요'); return; }
+    PLACEHOLDER.lastIndex = 0; var left = note.value.match(PLACEHOLDER);
+    if (left && left.length) { jumpBlank(); toast('채울 곳 ' + left.length + '개가 남았어요 · ' + Array.from(new Set(left)).slice(0, 2).join(' '), { warn: true, action: { label: '그래도 복사', fn: function () { copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요'); } } }); return; }
+    copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요');
+  });
   $('clearBtn').addEventListener('click', function () {
     var was = note.value; if (!was.trim()) { toast('이미 비어 있어요'); return; }
     archive(was); note.value = ''; S.set(K.note, ''); blanks();
@@ -502,14 +529,15 @@
   var BD = null, ARCH = null, archLoading = null, Rrows = [], Drows = [], rtype = '', dkind = '', rlimit = 40, dlimit = 40, reqOpen = new Set();
   function norm(s) { return String(s || '').toLowerCase(); }
   function dateKey(d) { var m = String(d || '').match(/(20\d\d)\D{0,3}(\d{1,2})\D{0,3}(\d{1,2})/); return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : 0; }
+  function yearAgoKey() { var d = new Date(Date.now() + 9 * 3600e3 - 365 * 864e5); return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate(); }
   function isSku(s) { s = String(s || '').trim(); return /^[A-Za-z][A-Za-z0-9-]{4,}$/.test(s) && /\d/.test(s); }
   function rebuildReq() {
     var seen = new Set(), rows = [];
-    var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); rows.push(Object.assign({}, r, { k: dateKey(r.d), hay: norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')) })); };
+    var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dateKey(r.d), hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) })); };
     if (BD && BD.req && Array.isArray(BD.req.rows)) BD.req.rows.forEach(addRow);
     if (ARCH) ARCH.forEach(addRow);
     rows.sort(function (a, b) { return b.k - a.k; }); Rrows = rows;
-    Drows = (BD && BD.def && Array.isArray(BD.def.rows) ? BD.def.rows : []).map(function (x) { return Object.assign({}, x, { hay: norm([x.sku, x.name, x.kind, x.sym, x.found, x.guide, x.note].join(' ')) }); });
+    Drows = (BD && BD.def && Array.isArray(BD.def.rows) ? BD.def.rows : []).map(function (x) { var hay = norm([x.sku, x.name, x.kind, x.sym, x.found, x.guide, x.note].join(' ')); return Object.assign({}, x, { hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([x.sku, x.name, x.kind, x.sym].join(' ')) }); });
   }
   // 2024·2025 요청시트 사본: 비공개 저장소(cs-content)의 archive-2425.json.gz를 연결 코드로 받음(이 PC에 보관 · 바뀌었을 때만 다시 받음)
   //  예전 ‘검색기 연결’ 1.0.0은 확장 안에 사본이 있어서, 저장소에서 못 받으면 그쪽에서 받음
@@ -578,6 +606,7 @@
     if (r.c) { var sk = el('span', 'sku'); rich(sk, r.c, toks); m.append(sk); }
     if (r.t) m.append(el('span', 'ptag' + (/불량/.test(r.t) ? ' def' : ''), r.t));
     if (r.ch) m.append(el('span', null, r.ch));
+    if (r.k && r.k < yearAgoKey()) { var od = el('span', 'ptag old', '1년 넘은 답변'); od.title = '지금 정책·재고·가격과 다를 수 있어요. 최신 공지·멘트와 맞춰 보고 안내해 주세요'; m.append(od); }
     var items = CSMedia.itemsOf(r), pics = items.filter(function (x) { return !x.link; });
     if (pics.length) m.append(el('span', null, '· 사진·영상 ' + pics.length));
     c.append(m);
@@ -596,13 +625,18 @@
     if (a.childNodes.length) c.append(a);
     return c;
   }
+  // 띄어쓰기 무시(s26울트라 = S26 울트라) · 초성(ㄱㄹㅅㅇㅌ) — 제품코드·제품명·유형·증상의 첫소리
+  function squash(v) { return String(v || '').replace(/[\s·\-_/()[\]{}.,!?~'"“”‘’:;]+/g, ''); }
   function searchRows(rows, qq, hayOf, skuOf) {
     var toks = norm(qq).split(/\s+/).filter(Boolean).slice(0, 8), sku = isSku(qq) ? qq.trim().toUpperCase() : '';
     if (!toks.length) return { rows: rows, toks: [], loose: false };
-    var strict = [], loose = [];
+    var strict = [], loose = [], sq = toks.map(squash);
     rows.forEach(function (r) {
-      var hay = hayOf(r), code = skuOf(r) || '', hits = 0, sc = 0;
-      toks.forEach(function (t) { if (hay.indexOf(t) >= 0) { hits++; sc += norm(code).indexOf(t) >= 0 ? 8 : 1; } });
+      var hay = hayOf(r), hc = r.hayC != null ? r.hayC : squash(hay), code = skuOf(r) || '', hits = 0, sc = 0;
+      toks.forEach(function (t, i) {
+        var hit = hay.indexOf(t) >= 0 || (sq[i].length >= 2 && hc.indexOf(sq[i]) >= 0) || (KBSearch.isCho(t) && String(r.hayCho || '').indexOf(t) >= 0);
+        if (hit) { hits++; sc += norm(code).indexOf(t) >= 0 ? 8 : 1; }
+      });
       if (sku && code === sku) sc += 100; else if (sku && code.indexOf(sku) === 0) sc += 60;
       var all = hits === toks.length || (sku && code.indexOf(sku) === 0);
       if (all) strict.push({ r: r, sc: sc + (r.k || 0) / 1e9 }); else if (hits) loose.push({ r: r, sc: hits * 10 + sc + (r.k || 0) / 1e9 });
@@ -640,6 +674,7 @@
     m.append(el('span', 'ptag def', '불량'), sk);
     if (x.kind) m.append(el('span', null, x.kind));
     if (x.fixed) m.append(el('span', 'ptag ok', '가이드 확정'));
+    else { var nf = el('span', 'ptag old', '확정 전 · 안내 전 확인'); nf.title = '아직 확정되지 않은 가이드예요. 고객에게 안내하기 전에 팀장에게 확인해 주세요'; m.append(nf); }
     if (isNewDef(x)) m.append(el('span', 'ptag new', '새로 올라옴'));
     c.append(m);
     if (x.name) c.append(rich(el('h3'), x.name, toks));
@@ -674,11 +709,14 @@
   /* 공지: 관리자 공지(멘트 관리) + 족보 ‘Daily 공지’ 탭 */
   function allNotices() {
     var out = [];
-    (C && C.notices || []).forEach(function (n) { out.push({ id: 'a:' + n.id, title: n.title, body: n.body, by: n.by, at: n.at, pin: n.pin, important: n.important, media: [], links: [], from: '관리자', fresh: (n.at || 0) >= Date.now() - 14 * 864e5 }); });
+    var since = firstUse() - 14 * 864e5;
+    (C && C.notices || []).forEach(function (n) { out.push({ id: 'a:' + n.id, title: n.title, body: n.body, by: n.by, at: n.at, pin: n.pin, important: n.important, media: [], links: [], from: '관리자', fresh: (n.at || 0) >= since }); });
     (BD && BD.notice && BD.notice.items || []).forEach(function (n) { out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
     out.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
     return out;
   }
+  // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
+  function firstUse() { var v = Number(S.get('csx:firstUse') || 0); if (!v) { v = Date.now(); S.set('csx:firstUse', String(v)); S.mirrorSoon(); } return v; }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
   function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices();  syncReads(); }
   function linkify(node, text, terms) {
@@ -706,7 +744,8 @@
     var qq = $('nq').value.trim(), f = filterNotices(all, qq);
     var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
     if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
-    if (un.length) { info.append(el('span', null, '· 새 공지 ' + un.length + '개'), el('span', 'grow')); var b = el('button', 'lk', '모두 확인했어요'); b.type = 'button'; b.addEventListener('click', function () { markSeen(un.map(function (n) { return n.id; })); }); info.append(b); }
+    // 공지마다 읽고 [확인했어요] — 한꺼번에 확인 처리는 없음(팀장 화면의 '누가 읽었나'가 정확하게)
+    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [확인했어요]'));
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
@@ -879,11 +918,12 @@
     var head = el('div', 'bhead'); head.append(el('h2', null, 'OT'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
     // 퇴근 시각 적기: 숫자 4자리(1940 → 19:40) · 10분 단위 · 17:00부터
     var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
-    var dk = kstToday(), yk = WorkClock.addDays(dk, -1), pick = work.pick || dk;
+    // 주말·공휴일은 출근하지 않음(근무 달력의 공휴일 포함) → 그런 날은 고를 수 없음 · [어제]는 직전 근무일
+    var dk = kstToday(), yk = prevWorkday(dk), pick = work.pick || (isWorkday(dk) ? dk : yk);
     var days2 = el('div', 'wdays'), d = el('input', 'win wdate'); d.type = 'date'; d.value = pick; d.max = dk; d.setAttribute('aria-label', '날짜');
-    var dayBtn = function (k, label) { var b = el('button', 'fchip', label); b.type = 'button'; b.setAttribute('aria-pressed', String(pick === k)); b.addEventListener('click', function () { work.pick = k; renderWork(); setTimeout(function () { var i = $('wtime'); if (i) i.focus(); }, 0); }); return b; };
-    d.addEventListener('change', function () { if (d.value) { work.pick = d.value; renderWork(); } });
-    days2.append(dayBtn(dk, '오늘'), dayBtn(yk, '어제'), d);
+    var dayBtn = function (k, label, off) { var b = el('button', 'fchip', label); b.type = 'button'; b.setAttribute('aria-pressed', String(pick === k)); if (off) { b.disabled = true; b.title = '오늘은 근무일이 아니에요(주말·공휴일)'; } b.addEventListener('click', function () { work.pick = k; renderWork(); setTimeout(function () { var i = $('wtime'); if (i) i.focus(); }, 0); }); return b; };
+    d.addEventListener('change', function () { if (!d.value) return; if (!isWorkday(d.value)) { toast(offName(d.value) + '은(는) 근무일이 아니라 OT를 적을 수 없어요', { warn: true }); d.value = pick; return; } work.pick = d.value; renderWork(); });
+    days2.append(dayBtn(dk, '오늘', !isWorkday(dk)), dayBtn(yk, yk === WorkClock.addDays(dk, -1) ? '어제' : Number(yk.slice(5, 7)) + '/' + Number(yk.slice(8, 10)) + '(' + '일월화수목금토'[WorkClock.weekday(yk)] + ')'), d);
     var t = el('input', 'win wtime'); t.id = 'wtime'; t.type = 'text'; t.inputMode = 'numeric'; t.maxLength = 5; t.placeholder = '예: 1940'; t.autocomplete = 'off'; t.setAttribute('aria-label', '퇴근 시각(숫자 4자리)');
     var pv = el('span', 'wprev');
     var parse = function () { var v = parseClock(t.value); pv.className = 'wprev' + (v.err ? ' bad' : v.hm ? ' ok' : ''); pv.textContent = v.err || (v.hm ? v.hm + ' 퇴근 · 야근 ' + hm(Math.max(0, v.min - 19 * 60)) : ''); return v; };
@@ -892,6 +932,7 @@
       if (who._input) CSWho.setManual(who._input.value);
       var name = needName(who); if (!name) return;
       var v = parse(); if (!v.hm) { toast(v.err || '퇴근 시각을 숫자 4자리로 적어 주세요(예: 1940)', { warn: true }); t.focus(); return; }
+      if (!isWorkday(d.value || pick)) { toast(offName(d.value || pick) + '은(는) 근무일이 아니라 OT를 적을 수 없어요', { warn: true }); return; }
       go.disabled = true;
       try { await CSTeam.call('ot.add', { name: name, date: d.value || pick, from: OT_FROM, to: v.hm }, 20000); toast(Number(pick.slice(5, 7)) + '/' + Number(pick.slice(8, 10)) + ' ' + v.hm + ' 퇴근으로 적었어요'); t.value = ''; parse(); work.month = monthOf(d.value || pick); await loadWork(); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
@@ -964,9 +1005,30 @@
     if (min < 17 * 60) return { err: '17:00 뒤 시각만 적을 수 있어요' };
     return { hm: String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'), min: min };
   }
+  function workCfg() { return work.cfg || (workCache(monthOf(kstToday())) || {}).cfg || {}; }
+  function isWorkday(k) { return !!WorkClock.day(k, workCfg()); }
+  function prevWorkday(k) { var x = WorkClock.addDays(k, -1); for (var i = 0; i < 20 && !isWorkday(x); i++) x = WorkClock.addDays(x, -1); return x; }
+  function offName(k) { var h = WorkClock.holidays(workCfg())[k]; return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)) + (h ? ' ' + h : '(' + '일월화수목금토'[WorkClock.weekday(k)] + ')'); }
   function lab2(t, input) { var l = el('label', 'wl'); l.append(el('span', null, t), input); return l; }
 
   function when(t) { if (!t) return ''; var d = new Date(t), now = new Date(); var same = d.toDateString() === now.toDateString(); return same ? '오늘 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : (d.getMonth() + 1) + '/' + d.getDate(); }
+
+  /* 못 찾은 검색어: 스크립트 검색에서 꼭 맞는 멘트가 없던 짧은 검색어만(2.5초 그대로 둔 것) 하루치로 모아 팀 서버에
+     고객 문장을 붙여 넣은 긴 글 · 숫자 4자리 이상(주문번호·전화) · @(메일)이 들어간 건 안 모음 · 이름 없이 */
+  var MISSQ = 'csx:missQ', missT = 0, missSent = new Set();
+  function missOk(v) { v = String(v || '').replace(/\s+/g, ' ').trim(); return v.length >= 2 && v.length <= 20 && v.split(' ').length <= 4 && !/\d{4,}|@|https?:/i.test(v) ? v : ''; }
+  function noteMiss(v) {
+    clearTimeout(missT); var t = missOk(v); if (!t || missSent.has(t)) return;
+    missT = setTimeout(function () { if (missOk(q) !== t) return; missSent.add(t); var m = S.json(MISSQ, {}), d = KBData.todayKey(); if (!m || m.day !== d) { if (m && m.day && m.counts) flushMiss(m); m = { day: d, counts: {} }; } m.counts[t] = (m.counts[t] || 0) + 1; S.put(MISSQ, m); }, 2500);
+  }
+  async function flushMiss(given, keep) {
+    if (!CSTeam.ready()) return;
+    var m = given || S.json(MISSQ, {}); if (!m || !m.counts || !Object.keys(m.counts).length) return;
+    if (!given) S.put(MISSQ, { day: m.day, counts: {} });
+    try { await CSTeam.call('miss.add', { day: m.day, counts: m.counts }, 20000, keep); } catch (e) { /* 예전 팀 서버면 버림 */ }
+  }
+  setInterval(function () { flushMiss(); }, 10 * 60000);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) flushMiss(null, true); });
 
   /* 멘트 사용 통계: 담기·교체한 멘트 번호만 하루치로 모아 10분마다 팀 서버에 보냄(고객 내용은 안 보냄) */
   var USE = 'csx:useQ';
@@ -982,29 +1044,33 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden) flushUse(null, true); });
 
   /* ───── 계산기 ───── */
-  var AS_FEE = 6000, AS_TIERS = [{ label: '1~12개월', rate: 0.30 }, { label: '13~24개월', rate: 0.60 }, { label: '25~36개월', rate: 0.80 }, { label: '37~48개월', rate: 0.90 }, { label: '49개월 이상', rate: 1.00, blocked: true }];
-  var HOLIDAYS = ['01-01', '03-01', '05-05', '06-06', '08-15', '10-03', '10-09', '12-25'], WD = ['일', '월', '화', '수', '목', '금', '토'];
+  var CALC_DEFAULT = { asFee: 6000, returnDays: 7, rates: [{ label: '1~12개월', rate: 30 }, { label: '13~24개월', rate: 60 }, { label: '25~36개월', rate: 80 }, { label: '37~48개월', rate: 90 }, { label: '49개월 이상', rate: 100, blocked: true }] };
+  function calcCfg() { var c = C && C.sources && C.sources.calc; return c && c.rates && c.rates.length ? c : CALC_DEFAULT; }
+  var WD = ['일', '월', '화', '수', '목', '금', '토'];
   function won(v) { return Number(v || 0).toLocaleString('ko-KR') + '원'; }
   function renderAs() {
     var out = $('asOut'); out.replaceChildren(); var raw = $('asIn').value.replace(/[^0-9]/g, ''); if (!raw) return;
     var price = parseInt(raw, 10); if (!price) { out.append(el('div', 'err', '올바른 금액을 넣어 주세요.')); return; }
-    AS_TIERS.forEach(function (t) {
-      var amt = Math.round(price * t.rate), r = el('div', 'rate' + (t.blocked ? ' off' : '')), a = el('div', 'a'), b = el('div', 'b');
-      a.append(el('b', null, t.label), el('span', null, Math.round(t.rate * 100) + '%')); b.append(el('span', null, won(amt) + ' + 배송비'), el('b', null, won(amt + AS_FEE))); r.append(a, b); out.append(r);
+    var cc = calcCfg(), fee = Number(cc.asFee) || 0;
+    cc.rates.forEach(function (t) {
+      var amt = Math.round(price * t.rate / 100), r = el('div', 'rate' + (t.blocked ? ' off' : '')), a = el('div', 'a'), b = el('div', 'b');
+      a.append(el('b', null, t.label), el('span', null, t.rate + '%')); b.append(el('span', null, won(amt) + ' + 배송비'), el('b', null, won(amt + fee))); r.append(a, b); out.append(r);
     });
-    out.append(el('div', 'memo', '49개월 이상은 유상교환이 아닌 일반 구매 안내 구간이에요. 계산값은 참고용이니 최신 정책을 함께 확인해 주세요.'));
+    var bl = cc.rates.filter(function (t) { return t.blocked; }).map(function (t) { return t.label; });
+    out.append(el('div', 'memo', (bl.length ? bl.join(' · ') + '은(는) 유상교환이 아닌 일반 구매 안내 구간이에요. ' : '') + '배송비 ' + won(fee) + ' 포함 · 계산값은 참고용이니 최신 정책을 함께 확인해 주세요.'));
   }
   function renderDue() {
     var out = $('dueOut'); out.replaceChildren(); var v = $('dueIn').value.trim(); if (!v) return;
     var dg = v.replace(/[^0-9]/g, ''), y = +dg.slice(0, 4), mo = +dg.slice(4, 6), d = +dg.slice(6, 8), dt = new Date(y, mo - 1, d);
     if (dg.length !== 8 || dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) { out.append(el('div', 'err', '날짜를 알아보지 못했어요. 20260701 또는 2026-07-01 모양으로 넣어 주세요.')); return; }
-    var now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()), dl = new Date(dt); dl.setDate(dl.getDate() + 7);
+    var days = Number(calcCfg().returnDays) || 7, now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()), dl = new Date(dt); dl.setDate(dl.getDate() + days);
     var left = Math.round((dl - today) / 864e5), exp = left < 0, box = el('div', 'due');
     box.append(el('div', 'dlb', exp ? '반품·교환이 가능했던 마지막 날' : '반품·교환이 가능한 마지막 날'), el('div', 'dt', dl.getFullYear() + '년 ' + (dl.getMonth() + 1) + '월 ' + dl.getDate() + '일 (' + WD[dl.getDay()] + ')'),
       el('span', 'pill ' + (exp ? 'no' : 'ok'), exp ? '기한 지남 · ' + Math.abs(left) + '일 지남' : left === 0 ? '기한 안 · 오늘 마감' : '기한 안 · ' + left + '일 남음'));
     out.append(box);
-    var md = String(dl.getMonth() + 1).padStart(2, '0') + '-' + String(dl.getDate()).padStart(2, '0'), we = dl.getDay() === 0 || dl.getDay() === 6;
-    if (we || HOLIDAYS.indexOf(md) >= 0) out.append(el('div', 'memo', '마감일이 ' + (we ? '주말' : '공휴일') + '과 겹쳐요. 실제 접수 기한은 판매처 기준을 함께 확인해 주세요(설·추석·대체공휴일은 자동으로 안 들어가요).'));
+    var key = dl.getFullYear() + '-' + String(dl.getMonth() + 1).padStart(2, '0') + '-' + String(dl.getDate()).padStart(2, '0'), we = dl.getDay() === 0 || dl.getDay() === 6, hol = WorkClock.holidays(workCfg())[key];
+    if (we || hol) out.append(el('div', 'memo', '마감일이 ' + (hol ? '공휴일(' + hol + ')' : '주말') + '과 겹쳐요. 실제 접수 기한은 판매처 기준을 함께 확인해 주세요.'));
+    out.append(el('div', 'memo', '수령일 다음 날부터 ' + days + '일째가 마지막 날이에요(관리자가 멘트 관리 [계산기]에서 바꿀 수 있어요).'));
     if (dt > today) out.append(el('div', 'memo', '수령일이 오늘보다 뒤예요. 날짜를 다시 확인해 주세요.'));
   }
   $('asIn').addEventListener('input', renderAs); $('dueIn').addEventListener('input', renderDue);
@@ -1086,7 +1152,7 @@
       d.append(el('h3', null, '관리자'));
       var aa = el('div', 'acts'); aa.style.justifyContent = 'flex-start';
       var am = el('a', 'btn'); am.href = 'admin.html'; am.target = '_blank'; am.rel = 'noopener'; am.append(ic('edit'), '관리 열기'); aa.append(am); d.append(aa);
-      var fa = el('div', 'acts'); fa.append(el('span', null, '화면 ' + VERSION)); fa.firstChild.style.cssText = 'margin-right:auto;color:var(--ink3);font-size:12.5px';
+      var fa = el('div', 'acts'); fa.append(el('span', null, '화면 ' + (appVer || VERSION))); fa.firstChild.style.cssText = 'margin-right:auto;color:var(--ink3);font-size:12.5px';
       fa.append(btn('닫기', 'primary', null, function () { d.close(); })); d.append(fa);
     });
   }

@@ -121,6 +121,12 @@
       out.sources.notice = s.notice && sheetRef(s.notice.url) ? { url: str(s.notice.url).trim(), label: clean(s.notice.label).slice(0, 40) } : null;
       // 팀 서버(요청·건의 · 사용 통계 · 팀 현황) 주소: 앱스크립트 웹 앱 주소만
       if (s.team && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]{20,}\/exec$/.test(str(s.team.url).trim())) out.sources.team = { url: str(s.team.url).trim() };
+      // 계산기(유상 AS 요율 · 왕복 배송비 · 반품 기한): 멘트 관리 [계산기]에서 고침
+      if (s.calc && typeof s.calc === 'object' && Array.isArray(s.calc.rates)) {
+        var rates = s.calc.rates.slice(0, 8).map(function (x) { var r = Number(x && x.rate); return x && clean(x.label) && isFinite(r) && r >= 0 && r <= 300 ? { label: clean(x.label).slice(0, 30), rate: Math.round(r), blocked: !!x.blocked } : null; }).filter(Boolean);
+        var fee = Number(s.calc.asFee), days = Number(s.calc.returnDays);
+        if (rates.length) out.sources.calc = { rates: rates, asFee: isFinite(fee) && fee >= 0 && fee <= 100000 ? Math.round(fee) : 6000, returnDays: isFinite(days) && days >= 1 && days <= 60 ? Math.round(days) : 7 };
+      }
       out.updatedAt = Number(obj.updatedAt) || 0;
     }
     return out;
