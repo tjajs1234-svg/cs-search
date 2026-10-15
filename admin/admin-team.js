@@ -127,7 +127,7 @@
   var tPeriod = 'today';
   async function team(w) {
     clearTimeout(tTimer);
-    var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내는 숫자예요(고객 이름·대화 내용은 안 보내요). 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
+    var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내요. 기다리는 고객의 이름·마지막 말은 이 화면(지금 상태)에만 보이고 날짜별 자료에는 안 남아요. 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
     if (!w.querySelector('.tgrid2')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     CSTeam.get('cfg.get', {}).catch(function () {});
@@ -136,7 +136,7 @@
     g.classList.add('tgrid2');
     var nav = mk('div', 'ins bper'); nav.append(mk('span', null, '기간'));
     [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
-    nav.append(mk('span', 'muted', '지금 대기·챙길 것은 늘 지금 숫자'));
+    nav.append(mk('span', 'muted', '기간은 기록 숫자에만 · 기다리는 고객·기록 없음은 늘 지금'));
     var ub = await updateBox();
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC));
@@ -173,7 +173,7 @@
     var v = await serverVersion(); if (!v || v.now === v.latest) return null;
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
-      mk('p', null, '팀장 화면에 상담사의 보류 · 답함 · 우선 응대가 상담사 화면과 똑같이 보이게 하는 판이에요. 주소는 그대로예요.'),
+      mk('p', null, '이번 판(1.3.7): 팀 현황에 기다리는 고객 이름·마지막 말 · 답했는데 기록 없음 상세 · 카톡/톡톡 연결 상태 · 기록 창의 ‘이미 오늘 기록된 상담’ 알림 · 같은 이름 PC 두 대 합쳐 보기. 주소는 그대로예요.'),
       mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
     var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
     var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });
