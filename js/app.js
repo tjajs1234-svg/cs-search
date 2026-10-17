@@ -271,6 +271,38 @@
     }
     return c;
   }
+  /* 10/17 한 번에 찾기: 스크립트 검색어로 문의 검색 · 불량가이드 · 공지에 몇 건 있는지 칩으로(누르면 그 탭에서 같은 검색어). 쉴 때 한 번만 셈 */
+  var ohT = 0, ohMemo = { k: '', v: null };
+  function otherHitCounts(qq) {
+    var k = qq + '|' + Rrows.length + '|' + Drows.length + '|' + bdVersion;
+    if (ohMemo.k === k) return ohMemo.v;
+    var out = [];
+    if (CSBridge.ready) {
+      var rs = searchRows(Rrows, qq, function (r) { return r.hay; }, function (r) { return r.c; });
+      if (!rs.loose && rs.rows.length) out.push({ v: 'req', id: 'rq', label: '문의 검색', n: rs.rows.length });
+      var ds = searchRows(Drows, qq, function (x) { return x.hay; }, function (x) { return x.sku; });
+      if (!ds.loose && ds.rows.length) out.push({ v: 'defect', id: 'dq', label: '불량가이드', n: ds.rows.length });
+    }
+    var ns = filterNotices(allNotices(), qq).rows.length;
+    if (ns) out.push({ v: 'notice', id: 'nq', label: '공지', n: ns });
+    ohMemo = { k: k, v: out };
+    return out;
+  }
+  function otherHits(Sc, qq) {
+    clearTimeout(ohT);
+    ohT = setTimeout(function () {
+      if (q !== qq || curView !== 'scripts') return;
+      var hits = otherHitCounts(qq.trim()); if (!hits.length) return;
+      var box = el('span', 'other'); box.append(el('span', null, '·'));
+      hits.forEach(function (h) {
+        var b = el('button', 'ochip'); b.type = 'button'; b.title = h.label + ' 탭에서 ‘' + qq.trim() + '’ 보기';
+        b.append(h.label + ' ', el('em', null, h.n > 999 ? '999+' : String(h.n)));
+        b.addEventListener('click', function () { var i = $(h.id); i.value = qq.trim(); i.dispatchEvent(new Event('input')); setView(h.v); });
+        box.append(b);
+      });
+      Sc.append(box);
+    }, 250);
+  }
   function renderScripts() {
     peekHide(true); renderCats();
     var R = $('results'), Sc = $('scope'); R.replaceChildren(); Sc.replaceChildren();
@@ -284,6 +316,7 @@
       if (res.loose || !rows.length) noteMiss(q);
       if (view !== 'all') Sc.append(el('span', null, '· 검색을 지우면 보던 ‘' + viewName() + '’로 돌아가요'));
       R._terms = function (id) { return idx.termsFor(id, q, res.meta); };
+      otherHits(Sc, q);
     } else {
       rows = browseList(); Sc.append(el('b', null, viewName()), el('span', null, rows.length + '개'));
       if (view === 'mine') { var sp = el('span', 'grow'); Sc.append(sp, btn('새 멘트', 'sm', 'plus', function () { editCustom(''); })); }

@@ -2,6 +2,7 @@
    1) 초성 검색: ㄱㅎㅊㅎ → ‘교환 철회’ (제목·대분류의 첫소리)
    2) 고객 문장을 그대로 붙여 넣어도 0건으로 끝나지 않게: 꼭 맞는 문안이 없으면 낱말이 많이 맞는 순(가까운 문안)
    3) 말끝 정리 확대: ‘신청했는데’ → ‘신청’, ‘와요’ 같은 말끝은 버림
+   4) (10/17) 반대 뜻 문안(철회·대신·유도·아님)은 검색어에 그 말이 있을 때만 위로 · 물음 말(언제·어떻게…)은 주제어보다 가볍게
    분류를 골라 둬도 검색은 늘 전체에서(가산점도 없음). 화면 코드와 시험이 같이 씀 */
 (function (root) {
   'use strict';
@@ -34,6 +35,10 @@
     { keys: ['환불', '돈', '입금', '계좌'], terms: ['환불', '계좌', '입금', '기간'] },
     { keys: ['깨짐', '깨져', '금감', '금이'], terms: ['파손', '깨짐', '균열', '스크래치'] }
   ];
+  // 문안 제목·분류에 이 말이 있으면 '반대 뜻'(반품 철회 · 교환 대신 반품 유도 · ~ 아님). 검색어에 같은 말이 없으면 아래로
+  var REVERSE = ['철회', '대신', '유도', '아님', '아닌'];
+  // 물음 말: 주제어(환불·배송…)보다 가볍게 셈(‘환불 언제’가 ‘배송 기간, 언제 받을 수 있나요’로 가지 않게)
+  var QWORDS = ['언제', '어떻게', '얼마나', '어디', '어디서', '왜', '방법', '가능', '가능한지', '뭐', '무엇'];
   var CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
 
   function str(v) { return v == null ? '' : String(v); }
@@ -136,6 +141,7 @@
     if (!c.some(function (x) { return x.kind === 'direct'; })) {
       ['situation', 'category'].forEach(function (fn) { if (fuzzyWordHit(doc[fn], token)) c.push({ token: token, term: token, kind: 'fuzzy', field: fn, evidence: compact(token), value: fn === 'situation' ? 42 : 30 }); });
     }
+    if (QWORDS.indexOf(token) >= 0) c.forEach(function (x) { x.value = Math.round(x.value * 0.4); });
     var ko = { direct: 3, synonym: 2, fuzzy: 1 };
     c.sort(function (a, b) { return b.value - a.value || ko[b.kind] - ko[a.kind]; });
     return c;
@@ -160,6 +166,10 @@
     var minimum = minimumOverride || (total <= 1 ? 1 : Math.max(2, Math.ceil(total * 0.6)));
     if (matched < minimum && phrase.bonus < 130) return null;
     var score = matches.reduce(function (s, m) { return s + m.value; }, 0) + Math.round(coverage * 220) + matched * matched * 9 + (matched === total ? 110 : 0) + phrase.bonus;
+    var q = compact(raw), head = doc.situation.compact + ' ' + doc.category.compact;
+    // 낱말이 모두 문안 제목에 있으면 조금 더 위로(본문에 붙어 있는 것보다)
+    if (total >= 2 && tokens.every(function (t) { return !isCho(t) && QWORDS.indexOf(t) < 0 ? termInField(doc.situation, t) : true; })) score += 90;
+    if (REVERSE.some(function (w) { return head.indexOf(w) >= 0 && q.indexOf(w) < 0; })) score -= 320;
     return { score: score, coverage: coverage, matched: matched, total: total, matches: matches };
   }
 
