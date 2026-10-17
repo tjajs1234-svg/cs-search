@@ -271,38 +271,6 @@
     }
     return c;
   }
-  /* 10/17 한 번에 찾기: 스크립트 검색어로 문의 검색 · 불량가이드 · 공지에 몇 건 있는지 칩으로(누르면 그 탭에서 같은 검색어). 쉴 때 한 번만 셈 */
-  var ohT = 0, ohMemo = { k: '', v: null };
-  function otherHitCounts(qq) {
-    var k = qq + '|' + Rrows.length + '|' + Drows.length + '|' + bdVersion;
-    if (ohMemo.k === k) return ohMemo.v;
-    var out = [];
-    if (CSBridge.ready) {
-      var rs = searchRows(Rrows, qq, function (r) { return r.hay; }, function (r) { return r.c; });
-      if (!rs.loose && rs.rows.length) out.push({ v: 'req', id: 'rq', label: '문의 검색', n: rs.rows.length });
-      var ds = searchRows(Drows, qq, function (x) { return x.hay; }, function (x) { return x.sku; });
-      if (!ds.loose && ds.rows.length) out.push({ v: 'defect', id: 'dq', label: '불량가이드', n: ds.rows.length });
-    }
-    var ns = filterNotices(allNotices(), qq).rows.length;
-    if (ns) out.push({ v: 'notice', id: 'nq', label: '공지', n: ns });
-    ohMemo = { k: k, v: out };
-    return out;
-  }
-  function otherHits(Sc, qq) {
-    clearTimeout(ohT);
-    ohT = setTimeout(function () {
-      if (q !== qq || curView !== 'scripts') return;
-      var hits = otherHitCounts(qq.trim()); if (!hits.length) return;
-      var box = el('span', 'other'); box.append(el('span', null, '·'));
-      hits.forEach(function (h) {
-        var b = el('button', 'ochip'); b.type = 'button'; b.title = h.label + ' 탭에서 ‘' + qq.trim() + '’ 보기';
-        b.append(h.label + ' ', el('em', null, h.n > 999 ? '999+' : String(h.n)));
-        b.addEventListener('click', function () { var i = $(h.id); i.value = qq.trim(); i.dispatchEvent(new Event('input')); setView(h.v); });
-        box.append(b);
-      });
-      Sc.append(box);
-    }, 250);
-  }
   function renderScripts() {
     peekHide(true); renderCats();
     var R = $('results'), Sc = $('scope'); R.replaceChildren(); Sc.replaceChildren();
@@ -316,7 +284,6 @@
       if (res.loose || !rows.length) noteMiss(q);
       if (view !== 'all') Sc.append(el('span', null, '· 검색을 지우면 보던 ‘' + viewName() + '’로 돌아가요'));
       R._terms = function (id) { return idx.termsFor(id, q, res.meta); };
-      otherHits(Sc, q);
     } else {
       rows = browseList(); Sc.append(el('b', null, viewName()), el('span', null, rows.length + '개'));
       if (view === 'mine') { var sp = el('span', 'grow'); Sc.append(sp, btn('새 멘트', 'sm', 'plus', function () { editCustom(''); })); }
@@ -563,6 +530,14 @@
   function norm(s) { return String(s || '').toLowerCase(); }
   function dateKey(d) { var m = String(d || '').match(/(20\d\d)\D{0,3}(\d{1,2})\D{0,3}(\d{1,2})/); return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : 0; }
   function yearAgoKey() { var d = new Date(Date.now() + 9 * 3600e3 - 365 * 864e5); return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate(); }
+  // 검색어 속 제품코드(영문 2~4자 + 숫자 4자리 이상, 예: ACS12345 · AGL09993)와 같은 코드가 붙은 불량가이드 줄
+  function defectsBySku(qq) {
+    var skus = (String(qq || '').toUpperCase().match(/\b[A-Z]{2,4}\d{4,}[A-Z0-9-]*\b/g) || []).filter(function (v, i, a) { return a.indexOf(v) === i; });
+    if (!skus.length || !Drows.length) return { skus: [], rows: [] };
+    var rows = Drows.filter(function (x) { var c = String(x.sku || '').toUpperCase(); return skus.some(function (k) { return c.split(/[^A-Z0-9-]+/).indexOf(k) >= 0; }); });
+    var hit = skus.filter(function (k) { return rows.some(function (x) { return String(x.sku || '').toUpperCase().split(/[^A-Z0-9-]+/).indexOf(k) >= 0; }); });
+    return { skus: hit, rows: rows.slice().reverse() };
+  }
   function isSku(s) { s = String(s || '').trim(); return /^[A-Za-z][A-Za-z0-9-]{4,}$/.test(s) && /\d/.test(s); }
   function rebuildReq() {
     var seen = new Set(), rows = [];
@@ -691,9 +666,14 @@
     var s = searchRows(base, qq, function (r) { return r.hay; }, function (r) { return r.c; });
     infoLine($('rinfo'), (qq ? '찾은 문의 ' : '요청시트 ') + s.rows.length.toLocaleString() + '건' + (ARCH ? '' : ' (2024·2025 불러오는 중)'), 'req');
     if (s.loose) $('rinfo').insertBefore(el('span', null, '· 모든 낱말이 맞는 문의가 없어 많이 맞는 순'), $('rinfo').childNodes[1] || null);
-    if (qq && Drows.length) {
-      var ds = searchRows(Drows, qq, function (x) { return x.hay; }, function (x) { return x.sku; });
-      if (!ds.loose && ds.rows.length) { list.append(el('div', 'sec', '불량가이드에 있어요')); ds.rows.slice(0, 3).forEach(function (x) { list.append(defCard(x, s.toks)); }); list.append(el('div', 'sec', '비슷한 문의')); }
+    // 10/17 검색어에 든 제품코드(ACS·AMP·AGL…)가 불량가이드에 있으면 맨 위에 크게(경각심) — 낱말 검색은 불량가이드를 섞지 않음
+    var defHit = defectsBySku(qq);
+    if (defHit.rows.length) {
+      var al = el('div', 'defalert'); al.setAttribute('role', 'alert');
+      al.append(el('b', null, '⚠ 불량가이드에 있는 제품이에요 · ' + defHit.skus.join(', ')), el('span', null, '안내하기 전에 아래 불량 내용을 꼭 확인해 주세요.'));
+      list.append(al); defHit.rows.slice(0, 5).forEach(function (x) { list.append(defCard(x, s.toks)); });
+      if (defHit.rows.length > 5) list.append(btn('불량가이드에서 ' + defHit.rows.length + '건 모두 보기', '', null, function () { $('dq').value = defHit.skus[0]; $('dq').dispatchEvent(new Event('input')); setView('defect'); }));
+      list.append(el('div', 'sec', '비슷한 문의'));
     }
     if (!s.rows.length) { list.append(el('div', 'empty', Rrows.length ? '비슷한 문의가 없어요. 제품코드나 다른 말로 찾아보세요.' : '아직 읽은 요청시트가 없어요.')); return; }
     s.rows.slice(0, rlimit).forEach(function (r) { list.append(reqCard(r, s.toks)); });

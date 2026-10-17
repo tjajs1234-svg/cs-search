@@ -248,13 +248,6 @@
       kv.append(big, mk('span', 'pph2', '시간당 ' + (hours >= 0.25 ? (recN / hours).toFixed(1) : '–') + '건')); c2.append(kv);
       if (isToday) c2.append(mk('div', 'pgap' + (gap >= 30 ? ' warn' : ''), lastMs ? '마지막 기록 ' + clock(lastMs) + ' · ' + (gap >= 30 ? gap + '분째 기록 없음' : ago(lastMs)) : '오늘 기록 아직 없음'));
       if (fresh && x.sending && isToday) c2.append(mk('div', 'pgap', '보내는 중 ' + x.sending + '건'));
-      // 10/17 상담사 패널의 '오늘 기록'은 [기록]을 누른 횟수(같은 상담 다시 기록 · 보내는 중 포함). 팀 현황 큰 숫자는 저장 확인 + 같은 상담 1건 → 둘을 나란히
-      if (isToday && keys.length === 1 && rtT.length > recN) {
-        var dupN = Math.max(0, rtT.length - recN - (fresh && x.sending || 0)), pn = mk('div', 'pgap');
-        pn.textContent = '패널 숫자 ' + rtT.length + '건' + (dupN ? ' · 같은 상담 다시 기록 ' + dupN + '건' : '');
-        pn.title = '상담사 패널 아래 ‘오늘 기록’은 [기록]을 누른 횟수예요.\n팀 현황 큰 숫자는 시트 저장이 확인된 기록이고, 같은 날 같은 상담은 1건으로 셉니다.';
-        c2.append(pn);
-      }
       var hb = [];
       if (isToday && wd) { for (var hh = 10; hh < wd.workEnd / 60; hh++) { var cnt = rtT.filter(function (m) { return Math.floor(m / 60) === hh; }).length; hb.push({ v: cnt, label: hh === 13 ? '점심' : String(hh), cls: hh === 13 ? 'lunch' : hh * 60 > W.minuteOf(now) ? 'later' : '', blank: true, title: hh + '시 기록 ' + cnt + '건' }); } }
       else if (!isToday) keys.forEach(function (d) { if (!W.day(d, wcfg)) return; var o = recOf(n, d, x, fresh && !isLead && d === td); hb.push({ v: o.n, label: String(Number(d.slice(8))), blank: true, title: md(d) + ' 기록 ' + o.n + '건' }); });
