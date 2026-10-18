@@ -63,7 +63,7 @@
   const r=await send({type:'KNOW_DATA',since:knowVer}).catch(()=>null);
   if(r&&r.ok&&r.unchanged){status=r.status||status;if(base)renderTop();return;} // 멘트·문의 자료는 그대로(상태만 바뀜) — 큰 자료를 매번 다시 받지 않음
   if(r&&r.ok)knowVer=r.version||'';
-  if(!r||!r.ok){if(first)$('edit').replaceChildren(mk('div','hello','멘트를 불러오지 못했어요. '+((r&&r.error)||'인터넷 연결을 확인하고')+' 창을 닫고 다시 열어 주세요.\n(왼쪽 아래 ‘깃허브 연결’에서 연결 상태를 볼 수 있어요)'));KBAdminExtra.offline&&KBAdminExtra.offline(r&&r.error);return;}
+  if(!r||!r.ok){if(first)$('edit').replaceChildren(mk('div','hello','멘트를 불러오지 못했어요. '+((r&&r.error)||'인터넷 연결을 확인하고')+' 창을 닫고 다시 열어 주세요.\n(왼쪽 아래 ‘연결 설정 → 깃허브’에서 연결 상태를 볼 수 있어요)'));KBAdminExtra.offline&&KBAdminExtra.offline(r&&r.error);return;}
   status=r.status||{};const sc=r.scripts||{};const ver=Number(sc.version)||0;
   if(sc.config&&sc.config.serviceUrl)svcUrl=String(sc.config.serviceUrl);
   if(!status.admin){KBAdminExtra.connectScreen();return;}
@@ -137,7 +137,7 @@
     if(g.kind==='card')moveCard(g.id,c.id,0,true);else moveCat(g.id,c.id,top);});
    box.append(row);
   }
-  for(const b of document.querySelectorAll('.navx'))b.setAttribute('aria-current',String(view===b.dataset.view));
+  for(const b of document.querySelectorAll('.navx'))b.setAttribute('aria-current',String(view===b.dataset.view||(b.dataset.view==='conn'&&/^(sources|github|teamsetup)$/.test(view))||(b.dataset.view==='team'&&/^(flow|sites|qa)$/.test(view))));
  }
  let drag=null;
  const half=(e,el)=>{const r=el.getBoundingClientRect();return e.clientY<r.top+r.height/2;};

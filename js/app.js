@@ -713,7 +713,7 @@
     var fresh = Drows.filter(isNewDef);
     infoLine($('dinfo'), (qq ? '찾은 불량 ' : '제품 불량 모음 ') + s.rows.length + '건' + (fresh.length && !qq ? ' · 최근 7일 새로 올라온 것 ' + fresh.length + '건' : ''), 'defect');
     var src = C && C.sources || {};
-    if (!src.defects) { list.append(el('div', 'empty', '관리자가 ‘제품 불량 모음’ 탭 주소를 넣으면 여기에 보여요.\n(멘트 관리 → 요청시트 연결)')); return; }
+    if (!src.defects) { list.append(el('div', 'empty', '관리자가 ‘제품 불량 모음’ 탭 주소를 넣으면 여기에 보여요.\n(멘트 관리 → 연결 설정 → 요청시트)')); return; }
     if (!s.rows.length) { list.append(el('div', 'empty', Drows.length ? '찾는 불량이 없어요. 제품코드나 다른 말로 찾아보세요.' : '아직 읽은 불량 모음이 없어요.')); return; }
     if (!qq && !dkind && fresh.length) { s.rows = fresh.slice().reverse().concat(s.rows.filter(function (x) { return !isNewDef(x); })); }
     s.rows.slice(0, dlimit).forEach(function (x) { list.append(defCard(x, s.toks)); });

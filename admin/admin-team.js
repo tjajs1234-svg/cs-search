@@ -1,4 +1,4 @@
-/* 멘트 관리에 더한 화면 2: 요청·건의 처리 · 팀 현황(상담사별 기다림 · 하루 합계) · 멘트 사용 통계 · 팀 서버 연결
+/* 멘트 관리에 더한 화면 2: 요청·건의 처리 · 팀 현황(그리기는 admin-team3.js) · 못 찾은 검색어 · 멘트 사용 통계 · 연결 설정(요청시트 · 깃허브 · 팀 서버)
    자료는 팀 서버(앱스크립트 · team-server.gs)에. 주소는 cs-content.json의 sources.team으로 모든 상담사에게 전해짐 */
 (function () {
   'use strict';
@@ -19,8 +19,8 @@
   // 댓글에 직함 대신 이름(관리 화면에 연결할 때 적은 이름 · 성 뺀 이름)
   async function adminName() { var c = null; try { c = await KBAdmin.getConn(); } catch (e) {} var raw = String(c && c.name || '').replace(/\s+/g, ''); if (!raw || /^(관리자|팀장|admin)$/i.test(raw)) return 'CS팀'; var n = person(raw); return n && n !== '팀장' ? n : 'CS팀'; }
   function needServer(w, title) {
-    w.replaceChildren(mk('h2', null, title), mk('div', 'empty', '팀 서버가 아직 연결되지 않았어요.\n왼쪽 아래 [팀 서버 연결]에서 한 번만 연결해 주세요.'));
-    var b = btn('팀 서버 연결로 가기', 'primary', function () { A().setView('teamsetup'); }); b.style.margin = '0 auto'; b.style.display = 'flex'; w.append(b);
+    w.replaceChildren(mk('h2', null, title), mk('div', 'empty', '팀 서버가 아직 연결되지 않았어요.\n왼쪽 아래 [연결 설정] → [팀 서버]에서 한 번만 연결해 주세요.'));
+    var b = btn('팀 서버 연결로 가기', 'primary', function () { cTab = 'teamsetup'; A().setView('conn'); }); b.style.margin = '0 auto'; b.style.display = 'flex'; w.append(b);
   }
 
   /* ───── 요청·건의: 커뮤니티처럼(상태 없음 · 댓글로 주고받기) ───── */
@@ -56,95 +56,42 @@
     w.append(p);
   }
 
-  /* ───── 팀 현황: 지금(1분마다) + 상담사별 일·주·월 + 하루 합계 ───── */
-  var tDay = 'today', tTimer = 0, tWeek = 0;
+  /* ───── 팀 현황(2026-10-18 한 화면): 챙길 것 먼저 · 줄 세우기 비교 · 상담사별 표 · 면담 화면(admin-team3.js) ───── */
+  var tTimer = 0;
   // 상담사 이름: 카톡 태그 영원3 → 영원 · 톡톡 태그 김영원 → 영원(기록기 match.js person · 팀 서버 person_과 같은 규칙)
   // 예전 판이 '김영원'으로 쌓아 둔 날도 '영원'으로 합쳐 보여 줌
   // 팀장 PC가 보낸 숫자(이름 ‘팀장’)는 관리 화면에 연결할 때 적은 이름(예: 수빈) 칸으로 합쳐 보여 줌
   var leadAs = '';
   function person(n) { var s = String(n || '').replace(/\s+/g, '').replace(/\d+$/, ''); s = /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; return s === '팀장' && leadAs ? leadAs : s; }
-  function dayMs(key) { return Date.parse(key + 'T00:00:00Z'); }
-  function keyOf(ms) { return new Date(ms).toISOString().slice(0, 10); }
-  function addDays(key, n) { return keyOf(dayMs(key) + n * 864e5); }
-  // 고른 주(tWeek: 0 이번 주, -1 지난주 …)의 월요일~일요일 · 월간은 그 주 일요일(오늘을 넘지 않게)이 든 달
-  function weekRange(off) {
-    var today = KBData.todayKey(), dow = (new Date(dayMs(today)).getUTCDay() + 6) % 7, mon = addDays(today, -dow + 7 * off), sun = addDays(mon, 6);
-    var ref = sun > today ? today : sun;
-    return { today: today, mon: mon, sun: sun, days: [0, 1, 2, 3, 4, 5, 6].map(function (i) { return addDays(mon, i); }), month: ref.slice(0, 7) };
+  function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+  // 기간: today · yday · week · month · 'd:YYYY-MM-DD' / 면담: 상담사 이름(비면 전체)
+  var tPeriod = 'today', tWho = '';
+  function needDays(period) {
+    var td = kstToday(), from = td;
+    if (/^d:/.test(period)) from = period.slice(2); else if (period === 'month') from = td.slice(0, 8) + '01'; else if (period === 'week' || period === 'yday') from = new Date(Date.parse(td + 'T00:00:00Z') - 10 * 864e5).toISOString().slice(0, 10);
+    return Math.min(400, Math.max(2, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 864e5) + 1, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(td.slice(0, 8) + '01T00:00:00Z')) / 864e5) + 1));
   }
-  function needDays(off) { var w = weekRange(off), from = w.mon < w.month + '-01' ? w.mon : w.month + '-01'; return Math.min(400, Math.max(14, Math.round((dayMs(w.today) - dayMs(from)) / 864e5) + 1)); }
-  // 날짜 → 이름 → { answered, records } (이름은 성 뺀 이름으로 합침)
-  function byPerson(days) {
-    var out = {};
-    Object.keys(days || {}).forEach(function (d) { var x = days[d] || {}, o = out[d] = {}; Object.keys(x).forEach(function (n) { var k = person(n); if (!k) return; var v = x[n] || {}, s = o[k] || (o[k] = { answered: 0, records: 0 }); s.answered += v.answered || 0; s.records += v.records || 0; }); });
-    return out;
-  }
-  function countPanel(w, days) {
-    var R = weekRange(tWeek), P = byPerson(days), WD = ['월', '화', '수', '목', '금', '토', '일'];
-    var p = mk('div', 'panel'); p.style.maxWidth = '980px';
-    var hd = mk('div', 'ins'); hd.append(mk('span', null, '상담사별 건수'));
-    var prev = btn('◀ 지난주', null, function () { tWeek--; team(w); }), cur = btn('이번 주', null, function () { tWeek = 0; team(w); }), next = btn('다음 주 ▶', null, function () { tWeek++; team(w); });
-    [prev, cur, next].forEach(function (b) { b.className = ''; }); if (tWeek === 0) { cur.className = 'on'; next.disabled = true; }
-    var md = function (k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)); };
-    hd.append(prev, cur, next, mk('span', null, md(R.mon) + '(월) ~ ' + md(R.sun) + '(일)'));
-    p.append(hd);
-    var weekend = [5, 6].filter(function (i) { var o = P[R.days[i]] || {}; return Object.keys(o).some(function (n) { return o[n].answered || o[n].records; }); });
-    var cols = [0, 1, 2, 3, 4].concat(weekend);
-    var names = {}, add = function (d) { Object.keys(P[d] || {}).forEach(function (n) { names[n] = 1; }); };
-    R.days.forEach(add); Object.keys(P).forEach(function (d) { if (d.slice(0, 7) === R.month) add(d); });
-    var list = Object.keys(names).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
-    if (!list.length) { p.append(mk('div', 'empty', '이 주에는 쌓인 숫자가 아직 없어요.')); w.append(p); return; }
-    var get = function (n, d) { var o = P[d] && P[d][n]; return o || { answered: 0, records: 0 }; };
-    var sumOf = function (n, keys) { return keys.reduce(function (s, d) { var o = get(n, d); s.answered += o.answered; s.records += o.records; return s; }, { answered: 0, records: 0 }); };
-    var monthKeys = Object.keys(P).filter(function (d) { return d.slice(0, 7) === R.month && d <= R.today; });
-    var cellOf = function (o, future, cls) {
-      var td = mk('td', 'tc' + (cls ? ' ' + cls : ''));
-      if (future) { td.textContent = ''; return td; }
-      if (!o.answered && !o.records) { td.append(mk('span', 'z', '–')); return td; }
-      td.append(mk('b', null, String(o.records))); td.title = '기록 ' + o.records + ' · 답한 상담(대기 목록에서 빠진 수) ' + o.answered; return td;
-    };
-    var tb = mk('table', 'ttable tcount'), tr = mk('tr');
-    tr.append(mk('th', null, '상담사'));
-    cols.forEach(function (i) { var th = mk('th', R.days[i] === R.today ? 'now' : null, WD[i] + ' ' + md(R.days[i])); tr.append(th); });
-    tr.append(mk('th', 'sum', '주간'), mk('th', 'sum', Number(R.month.slice(5)) + '월'));
-    var th = mk('thead'); th.append(tr); tb.append(th);
-    var bd = mk('tbody'), tot = { days: {}, week: { answered: 0, records: 0 }, month: { answered: 0, records: 0 } };
-    list.forEach(function (n) {
-      var r = mk('tr'); r.append(mk('td', null, n));
-      cols.forEach(function (i) { var d = R.days[i], o = get(n, d), t = tot.days[d] || (tot.days[d] = { answered: 0, records: 0 }); t.answered += o.answered; t.records += o.records; r.append(cellOf(o, d > R.today)); });
-      var wk = sumOf(n, R.days.filter(function (d) { return d <= R.today; })), mo = sumOf(n, monthKeys);
-      ['answered', 'records'].forEach(function (k) { tot.week[k] += wk[k]; tot.month[k] += mo[k]; });
-      r.append(cellOf(wk, false, 'sum'), cellOf(mo, false, 'sum')); bd.append(r);
-    });
-    var tr2 = mk('tr', 'total'); tr2.append(mk('td', null, '팀 합계'));
-    cols.forEach(function (i) { var d = R.days[i]; tr2.append(cellOf(tot.days[d] || { answered: 0, records: 0 }, d > R.today)); });
-    tr2.append(cellOf(tot.week, false, 'sum'), cellOf(tot.month, false, 'sum')); bd.append(tr2);
-    tb.append(bd); var wrap = mk('div', 'twrap'); wrap.append(tb); p.append(wrap);
-    p.append(mk('p', 'muted', '숫자 = 기록(게시판 포함 · 기록기 2.4.3부터 시트 저장 확인 건, 같은 날 같은 방 1건) · 칸에 마우스를 올리면 답한 상담 수도 보여요 · 이름은 성 뺀 이름(카톡 영원3 · 톡톡 김영원 → 영원)'));
-    w.append(p);
-  }
-  // 2.4.3 팀 현황 한 장: 위 네 칸(지금 대기 · 기록 · 문의→기록 · 챙길 것) + 상담사마다 한 줄 + 상담사별 건수(주간)
-  var tPeriod = 'today';
   async function team(w) {
     clearTimeout(tTimer);
-    var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내요. 기다리는 고객의 이름·마지막 말은 이 화면(지금 상태)에만 보이고 날짜별 자료에는 안 남아요. 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
-    if (!w.querySelector('.tgrid2')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
+    var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내요. 숫자는 시트에 저장된 기록만 세요. 기다리는 고객의 이름·마지막 말은 지금 상태에만 보이고 날짜별 자료에는 안 남아요. 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
+    if (!w.querySelector('.tview')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     CSTeam.get('cfg.get', {}).catch(function () {});
-    var r; try { r = await CSTeam.get('team.get', { days: Math.max(needDays(tWeek), 32) }); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
-    var g = window.KBTeam2 ? await KBTeam2.board(r, tPeriod) : mk('div', 'empty', '불러오는 중…');
-    g.classList.add('tgrid2');
+    var r; try { r = await CSTeam.get('team.get', { days: needDays(tPeriod) }, 0); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
+    var again = function () { team(w); };
+    var g = window.KBTeam3 ? await KBTeam3.render(r, { period: tPeriod, person: tWho, who: function (n) { tWho = n || ''; w.scrollTop = 0; team(w); }, again: again }) : mk('div', 'empty', '불러오는 중…');
     var nav = mk('div', 'ins bper'); nav.append(mk('span', null, '기간'));
     [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
-    nav.append(mk('span', 'muted', '기간은 기록 숫자에만 · 기다리는 고객·기록 없음은 늘 지금'));
-    var ub = await updateBox();
+    var td0 = kstToday(), di = mk('input', 'in' + (/^d:/.test(tPeriod) ? ' on' : '')); di.type = 'date'; di.max = td0; di.value = /^d:/.test(tPeriod) ? tPeriod.slice(2) : ''; di.title = '날짜 하나 고르기(그날 기록 · 하루 흐름)';
+    di.addEventListener('change', function () { if (di.value) { tPeriod = di.value === td0 ? 'today' : 'd:' + di.value; team(w); } });
+    nav.append(di, mk('span', 'muted', '기간은 처리·비교에만 · 지금 기다리는 고객·기록 안 함은 늘 지금'));
+    var ub = tWho ? null : await updateBox();
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC));
     if (ub) w.append(ub);
     w.append(nav, g);
-    countPanel(w, r.days || {});
     w.scrollTop = keepScroll;
-    tTimer = setTimeout(function () { if (A() && document.querySelector('.tgrid2') && w.isConnected) team(w); }, 30000);
+    tTimer = setTimeout(function () { if (A() && document.querySelector('.tview') && w.isConnected && !w.querySelector('.tview :focus, details.tdet[open] :focus')) team(w); }, 30000);
   }
 
   /* ───── 못 찾은 검색어(최근 30일): 상담사가 스크립트에서 찾다가 꼭 맞는 멘트가 없던 짧은 검색어 ───── */
@@ -233,9 +180,22 @@
     w.append(p);
   }
 
+  /* ───── 연결 설정(2026-10-18): 요청시트 · 깃허브 · 팀 서버를 한 메뉴의 탭 셋으로 ───── */
+  var cTab = 'sources', ORIG = {}, CONN_TABS = [['sources', '요청시트'], ['github', '깃허브'], ['teamsetup', '팀 서버']];
+  function conn(w, tab) {
+    if (tab) cTab = tab;
+    var bar = mk('div', 'ctabs'), sub = mk('div', 'csub');
+    CONN_TABS.forEach(function (t) { var b = mk('button', 'ctab' + (cTab === t[0] ? ' on' : ''), t[1]); b.type = 'button'; b.dataset.tab = t[0]; if (t[0] === 'teamsetup' && !CSTeam.url) { b.append(mk('i', 'cdot')); b.title = '아직 연결 안 됨'; } b.addEventListener('click', function () { conn(w, t[0]); }); bar.append(b); });
+    w.replaceChildren(mk('h2', null, '연결 설정'), mk('p', 'desc', '처음 한 번 맞추면 거의 안 들어오는 곳이라 한 메뉴로 묶었어요.'), bar, sub);
+    if (cTab === 'teamsetup') ensureUrl().then(function () { var d = bar.querySelector('[data-tab="teamsetup"] .cdot'); if (d && CSTeam.url) d.remove(); });
+    ORIG[cTab](sub);
+  }
   function syncLead() { return adminName().then(function (n) { if (n && n !== 'CS팀') leadAs = n; }).catch(function () {}); }
   window.KBTeam = { syncLead: syncLead, usage: usage, loadUsage: loadUsage, ensureUrl: ensureUrl, adminToken: adminToken, needServer: needServer, person: person, when: when };
-  var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50); Object.assign(KBAdminExtra.views, { board: board, team: team, teamsetup: setup, misses: misses }); };
+  var add = function () { if (!window.KBAdminExtra) return setTimeout(add, 50);
+    var V = KBAdminExtra.views; ORIG = { sources: V.sources, github: V.github, teamsetup: setup };
+    // 예전 메뉴 이름(sources · github · teamsetup)으로 와도 연결 설정의 그 탭
+    Object.assign(V, { board: board, team: team, misses: misses, conn: function (w) { conn(w); }, sources: function (w) { conn(w, 'sources'); }, github: function (w) { conn(w, 'github'); }, teamsetup: function (w) { conn(w, 'teamsetup'); } }); };
   add();
   setTimeout(loadUsage, 1500);
 })();

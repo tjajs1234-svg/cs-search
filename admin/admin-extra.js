@@ -67,6 +67,8 @@
       p.append(r);
     });
     w.append(p);
+    // 공지 확인(누가 [확인했어요]를 눌렀는지 · 예전 '확인할 상담' 화면에서 옮김)
+    if (window.KBTeam2 && KBTeam2.noticeReads) KBTeam2.noticeReads(w);
   }
 
   /* ───── 요청시트 연결 ───── */
