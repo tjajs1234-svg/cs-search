@@ -358,12 +358,42 @@
     w.append(grid);
   }
 
-  /* ───── 게시판 건수: 그날 게시판 사이트별 기록 수(사람별) · 이달 합계 ───── */
+  /* ───── 상담사별 건수(QA): 그날·이달 사람별 카톡 · 톡톡 · 게시판 기록 수 + 답한 상담 · 게시판 사이트별 ───── */
+  //  기록 수 = 시트 저장이 확인된 기록 · 같은 날 같은 방 1건(기록기 2.4.13~). 채널 구분은 기록기 2.4.14 · 팀 서버 1.3.8부터
+  function chanRow(v) {
+    var board = 0; Object.keys(v.sites || {}).forEach(function (k) { board += v.sites[k] || 0; });
+    var kakao = v.kakao || 0, naver = v.naver || 0, rec = v.records || 0, rest = Math.max(0, rec - board - kakao - naver);
+    return { kakao: kakao, naver: naver, board: board, rest: rest, rec: Math.max(rec, kakao + naver + board), ans: v.answered || 0, ak: (v.ach || {}).kakao || 0, an: (v.ach || {}).naver || 0 };
+  }
+  function chanSum(days, keys, P) {
+    var o = {}; keys.forEach(function (d) { var x = days[d] || {}; Object.keys(x).forEach(function (n) { var k = P(n), r = chanRow(x[n] || {}), t = o[k] || (o[k] = { kakao: 0, naver: 0, board: 0, rest: 0, rec: 0, ans: 0, ak: 0, an: 0 }); Object.keys(r).forEach(function (f) { t[f] += r[f]; }); }); }); return o;
+  }
+  function chanTable(S, label) {
+    var ppl = Object.keys(S).filter(function (n) { return S[n].rec || S[n].ans; }).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
+    if (!ppl.length) return mk('div', 'empty', label + ' 기록이 없어요.');
+    var rest = ppl.some(function (n) { return S[n].rest; }), tot = { kakao: 0, naver: 0, board: 0, rest: 0, rec: 0, ans: 0, ak: 0, an: 0 };
+    var cell = function (v, cls) { return { text: v ? String(v) : '–', cls: v ? (cls || '') : 'z' }; };
+    var ans = function (r) { return r.ans ? r.ans + (r.ak || r.an ? ' (카톡 ' + r.ak + ' · 톡톡 ' + r.an + ')' : '') : '–'; };
+    var rows = ppl.map(function (n) { var r = S[n]; Object.keys(tot).forEach(function (f) { tot[f] += r[f]; });
+      return { cells: [n, cell(r.kakao), cell(r.naver), cell(r.board)].concat(rest ? [cell(r.rest)] : [], [cell(r.rec, 'sum'), ans(r)]) }; });
+    rows.push({ cls: 'total', cells: ['합계', String(tot.kakao), String(tot.naver), String(tot.board)].concat(rest ? [String(tot.rest)] : [], [{ text: String(tot.rec), cls: 'sum' }, ans(tot)]) });
+    var wrap = table(['상담사', '카톡', '톡톡', '게시판'].concat(rest ? ['채팅(구분 전)'] : [], ['기록 합계', '답한 상담']), rows, 'tchan');
+    if (rest) wrap.append(mk('p', 'desc', '‘채팅(구분 전)’은 기록기 2.4.14 전에 쌓인 채팅 기록이라 카톡·톡톡을 나누지 못한 숫자예요.'));
+    return wrap;
+  }
+  function chanCsv(days, mon, td, P) {
+    var lines = [['날짜', '상담사', '카톡', '톡톡', '게시판', '채팅(구분 전)', '기록 합계', '답한 상담', '답한 상담(카톡)', '답한 상담(톡톡)']];
+    Object.keys(days).filter(function (d) { return d.slice(0, 7) === mon && d <= td; }).sort().forEach(function (d) {
+      var S = chanSum(days, [d], P); Object.keys(S).sort(function (a, b) { return a.localeCompare(b, 'ko'); }).forEach(function (n) { var r = S[n]; if (r.rec || r.ans) lines.push([d, n, r.kakao, r.naver, r.board, r.rest, r.rec, r.ans, r.ak, r.an]); });
+    });
+    var csv = '\ufeff' + lines.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = '상담사별건수_' + mon + '.csv'; document.body.append(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
   var sDay = '';
   async function sites(w) {
     await (T().syncLead ? T().syncLead() : null);
-    var title = '게시판 건수';
-    if (!(await ready(w, title, '게시판에서 기록할 때 고른 구매처로 저절로 세요. 상담사 PC는 1분마다 · 팀장 PC(태그 여러 개)는 5분마다 ‘팀장’ 줄로 들어와요.'))) return;
+    var title = '상담사별 건수';
+    if (!(await ready(w, title, '시트 저장이 확인된 기록만, 같은 날 같은 상담은 1건으로 세요. 상담사 PC 기록기가 기록할 때마다 보내요. 게시판은 기록할 때 고른 구매처로 나눠요.'))) return;
     var td = today(); if (!sDay || sDay > td) sDay = td;
     var mon = sDay.slice(0, 7), back = Math.max(diffDays(sDay, td), diffDays(mon + '-01', td)) + 1, g;
     try { g = await CSTeam.get('team.get', { days: Math.min(400, back) }); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
@@ -383,6 +413,10 @@
       var all = 0; rows.push({ cls: 'total', cells: ['합계'].concat(cols.map(function (c) { all += all2[c]; return String(all2[c]); }), [{ text: String(all), cls: 'sum' }]) });
       return table(['상담사'].concat(cols, ['합계']), rows, 'tsite');
     };
+    var monKeys = Object.keys(days).filter(function (d) { return d.slice(0, 7) === mon && d <= td; });
+    var c1 = mk('div', 'panel'); c1.style.maxWidth = '1100px'; c1.append(mk('h3', 'qh', md(sDay) + ' · 채널별'), chanTable(chanSum(days, [sDay], P), '이날'));
+    var c2 = mk('div', 'panel'); c2.style.maxWidth = '1100px'; c2.append(mk('h3', 'qh', Number(mon.slice(5)) + '월 합계 · 채널별'), chanTable(chanSum(days, monKeys, P), '이달'), btn('이달 날짜별 엑셀(CSV)로 받기', '', function () { chanCsv(days, mon, td, P); }));
+    w.append(c1, c2, mk('h3', 'qh', '게시판 사이트별'));
     var p1 = mk('div', 'panel'); p1.style.maxWidth = '1100px'; p1.append(mk('h3', 'qh', md(sDay)), siteTable(sumBy([sDay]), '이날'));
     var p2 = mk('div', 'panel'); p2.style.maxWidth = '1100px'; p2.append(mk('h3', 'qh', Number(mon.slice(5)) + '월 합계'), siteTable(sumBy(Object.keys(days).filter(function (d) { return d.slice(0, 7) === mon && d <= td; })), '이달'));
     w.append(p1, p2);

@@ -190,7 +190,7 @@
     var v = await serverVersion(); if (!v || v.now === v.latest) return null;
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
-      mk('p', null, '이번 판(1.3.7): 팀 현황에 기다리는 고객 이름·마지막 말 · 답했는데 기록 없음 상세 · 카톡/톡톡 연결 상태 · 기록 창의 ‘이미 오늘 기록된 상담’ 알림 · 같은 이름 PC 두 대 합쳐 보기 · 못 찾은 검색어 · OT 주말·공휴일 막기. 주소는 그대로예요.'),
+      mk('p', null, '이번 판(1.3.8): 상담사별 건수 탭에 사람마다 카톡 · 톡톡 · 게시판 건수(답한 상담도 채널별) · 엑셀(CSV) 받기 · 기록할 때마다 바로 저장(퇴근하며 크롬을 꺼도 마지막 기록까지) · 전날 빠진 숫자를 다음 날 채움. 주소는 그대로예요.'),
       mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
     var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
     var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });

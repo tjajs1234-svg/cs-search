@@ -20,10 +20,12 @@
             · 오늘 팀이 기록한 방을 모아 기록기에 돌려줌(누가 열든 “이미 오늘 기록된 상담” 알림) · 기록 빠짐은 팀 전체 기록 기준
             · 같은 이름으로 PC 두 대가 보내면 덮어쓰지 않고 합쳐 보여 줌
             · 못 찾은 검색어(miss.add/miss.get) · OT는 주말·공휴일에 적을 수 없음
+   · 1.3.8: (기록기 2.4.14와 함께) 상담사별·채널별 건수(카톡 · 톡톡 · 게시판, 답한 상담도 채널별) — QA용
+            · 기록 수가 바뀌면 5분을 안 기다리고 바로 하루 파일에 씀 · 전날 마지막 숫자를 다음 날 받아 채움(더 큰 숫자만)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.7';
+var TEAM_VERSION = '1.3.8';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -297,24 +299,43 @@ function teamBeat_(req) {
   var names = liveNames_();
   if (names.indexOf(who) < 0) withLock_(function () { var n = liveNames_(); if (n.indexOf(who) < 0) { n.push(who); PropertiesService.getScriptProperties().setProperty('liveNames', JSON.stringify(n.slice(-60))); } return { ok: true }; });
   // 하루 합계는 5분에 한 번만 파일에 남김(파일 쓰기를 줄임) · 이름·말은 빼고
-  if (st && !cache.get('dayw:' + who + ':' + day)) {
-    var ms = mergeStats_(parts.st, mrow);
+  // 1.3.8 기록 수(채널별)가 바뀌면 5분을 안 기다리고 바로 씀 — 퇴근하며 크롬을 꺼도 마지막 기록까지 남게
+  var ms = st ? mergeStats_(parts.st, mrow, mq) : null, rsig = ms ? [ms.records, ms.kakao, ms.naver, JSON.stringify(ms.sites)].join('|') : '';
+  if (ms && (!cache.get('dayw:' + who + ':' + day) || cache.get('dayr:' + who + ':' + day) !== rsig)) {
     withLock_(function () {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
       var d = t[day] || (t[day] = {});
-      d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, at: now };
+      d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, at: now };
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
       if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
       return { ok: true };
     });
-    cache.put('dayw:' + who + ':' + day, '1', 300);
+    cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
   }
+  prevFill_(who, req.prev, day, cache);
   return { ok: true, cfg: cfgOut_(settings_()), recs: teamRecs_(dayKey_(now)) };
 }
-function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null }; }
+function ach_(o) { var out = {}; if (o && typeof o === 'object') ['kakao', 'naver'].forEach(function (k) { var n = num_(o[k]); if (n) out[k] = n; }); return out; }
+// 1.3.8 전날 마지막 숫자: 기록기가 다음 날 보내 줌 → 하루 파일의 그 사람 칸을 더 큰 숫자로만 채움(줄이지 않음) · 사람·날짜마다 한 번
+function prevFill_(who, p, today, cache) {
+  if (!p || typeof p !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(p.day)) || String(p.day) >= today || String(p.day) < dayKey_(Date.now() - 3 * 864e5)) return;
+  var key = 'prevw:' + who + ':' + p.day + ':' + [num_(p.records), num_(p.kakao), num_(p.naver), num_(p.answered)].join('|');
+  if (cache.get(key)) return;
+  withLock_(function () {
+    var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
+    var d = t[p.day] || (t[p.day] = {}), o = d[who] || (d[who] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: 0, sites: {}, at: Date.now() }), ch = 0;
+    ['records', 'kakao', 'naver', 'answered'].forEach(function (k) { var n = num_(p[k]); if (n > (o[k] || 0)) { o[k] = n; ch = 1; } });
+    var ps = sites_(p.sites), os = o.sites || (o.sites = {}); Object.keys(ps).forEach(function (k) { if (ps[k] > (os[k] || 0)) { os[k] = ps[k]; ch = 1; } });
+    var pa = ach_(p.ach), oa = o.ach || (o.ach = {}); Object.keys(pa).forEach(function (k) { if (pa[k] > (oa[k] || 0)) { oa[k] = pa[k]; ch = 1; } });
+    if (ch) writeJson_('team.json', t);
+    return { ok: true };
+  });
+  cache.put(key, '1', 21600);
+}
+function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null }; }
 // 기록 겹침: 같은 날 같은 방을 두 PC가 다 기록했으면 1건
-function recOverlap_(qas) { var all = 0, uniq = {}; qas.forEach(function (q) { (q.rr || []).forEach(function (x) { all++; uniq[x.k] = 1; }); }); return all - Object.keys(uniq).length; }
+function recOverlap_(qas, ch) { var all = 0, uniq = {}; qas.forEach(function (q) { (q.rr || []).forEach(function (x) { if (ch && String(x.k).indexOf(ch + ':') !== 0) return; all++; uniq[x.k] = 1; }); }); return all - Object.keys(uniq).length; }
 function mergeQa_(qas) {
   var first = function (a, b) { return (a.n || a.p) ? a : b; };
   return {
@@ -323,7 +344,7 @@ function mergeQa_(qas) {
     late: byKey_(qas.map(function (q) { return q.late; }), chKey_, function (a, b) { return (a.w || 0) >= (b.w || 0) ? a : b; }).slice(0, 100),
     rt: qas.length > 1 ? [].concat.apply([], qas.map(function (q) { return q.rt || []; })).sort(function (a, b) { return a - b; }).slice(0, 400) : (qas[0] && qas[0].rt || []),
     rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
-    overlap: recOverlap_(qas)
+    overlap: recOverlap_(qas), overK: recOverlap_(qas, 'kakao'), overN: recOverlap_(qas, 'naver')
   };
 }
 function mergeLive_(rows, mq, now) {
@@ -354,13 +375,17 @@ function mergeCases_(list, who, now) {
   var u = function (k, pick) { return byKey_(list.map(function (c) { return c[k]; }), chKey_, pick).slice(0, CASE_MAX); };
   return { name: who, at: now, st: st, pend: u('pend', function (a, b) { return b.s && (!a.s || b.s < a.s) ? b : a; }), hold: u('hold', function (a) { return a; }), done: u('done', function (a) { return a; }) };
 }
-function mergeStats_(sts, mrow) {
+function mergeStats_(sts, mrow, mq) {
   if (!sts.length) return { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: mrow.records || 0, sites: {} };
+  // 1.3.8 채널별: PC 한 대면 그대로 · 두 대면 더하고 같은 방 겹침만 뺌
+  var sumOf = function (k) { return sts.reduce(function (a, x) { return a + (x[k] || 0); }, 0); }, ach = {};
+  sts.forEach(function (x) { Object.keys(x.ach || {}).forEach(function (c) { ach[c] = Math.max(ach[c] || 0, x.ach[c]); }); });
   var top = sts.slice().sort(function (a, b) { return b.answered - a.answered; })[0], sites = {};
   sts.forEach(function (x) { Object.keys(x.sites || {}).forEach(function (k) { sites[k] = (sites[k] || 0) + x.sites[k]; }); });
   var ir = null; sts.forEach(function (x) { if (x.ir && (!ir || (x.ir.n || 0) > (ir.n || 0))) ir = x.ir; });
   return { answered: top.answered, waitSum: top.waitSum, over20: top.over20, holds: top.holds, maxWait: Math.max.apply(null, sts.map(function (x) { return x.maxWait || 0; })),
-    records: sts.length > 1 ? (mrow.records || 0) : top.records, sending: sts.reduce(function (s, x) { return s + (x.sending || 0); }, 0), sites: sites, ir: ir };
+    records: sts.length > 1 ? (mrow.records || 0) : top.records, sending: sts.reduce(function (s, x) { return s + (x.sending || 0); }, 0), sites: sites, ir: ir,
+    kakao: Math.max(0, sumOf('kakao') - (sts.length > 1 && mq ? mq.overK || 0 : 0)), naver: Math.max(0, sumOf('naver') - (sts.length > 1 && mq ? mq.overN || 0 : 0)), ach: sts.length > 1 ? ach : (top.ach || {}) };
 }
 // 1.3.7 오늘 팀이 기록한 방(누가 열든 기록 창에 "이미 오늘 기록된 상담" 알림) — 방 열쇠 · 시각 · 기록한 사람(명단의 성 포함 이름) · 분류
 //  팀장 PC가 기록한 건 이름 없이(상담사 화면에 '팀장'을 쓰지 않음)
@@ -386,16 +411,18 @@ function leadBeat_(req) {
   var put = {}; put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, rr: qa.rr || [], day: day });
   put['live:' + who] = JSON.stringify({ name: who, at: now, conn: connList_(live.conn), records: num_(live.records || st.records), sending: num_(live.sending), v: text_(req.v, 12) });
   cache.putAll(put, 21600); pcsTouch_(cache, who, pc, now);
-  if (!cache.get('dayw:' + who + ':' + day)) {
+  var lsig = [num_(st.records), num_(st.kakao), num_(st.naver), JSON.stringify(sites_(st.sites))].join('|');
+  if (!cache.get('dayw:' + who + ':' + day) || cache.get('dayr:' + who + ':' + day) !== lsig) {
     withLock_(function () {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
-      var d = t[day] || (t[day] = {}); d[who] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: num_(st.records), sites: sites_(st.sites), at: now };
+      var d = t[day] || (t[day] = {}); d[who] = { answered: 0, waitSum: 0, over20: 0, maxWait: 0, holds: 0, records: num_(st.records), sites: sites_(st.sites), kakao: num_(st.kakao), naver: num_(st.naver), at: now };
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
       var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: qa.rt, late: [], miss: [], at: now }; pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q);
       return { ok: true };
     });
-    cache.put('dayw:' + who + ':' + day, '1', 300);
+    cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, lsig, 21600);
   }
+  prevFill_(who, req.prev, day, cache);
   return { ok: true, cfg: cfgOut_(settings_()), recs: teamRecs_(dayKey_(now)) };
 }
 /* ── 1.3.0 확인할 상담 · 기록 시각 ── */
