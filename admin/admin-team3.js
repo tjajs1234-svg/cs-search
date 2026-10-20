@@ -268,12 +268,12 @@
       if (M.isToday && o.fresh) {
         var g = mk('div', 'tpd2'), c1 = mk('div', 'pcol'), l1 = mk('div', 'plab'); l1.append(mk('span', null, '지금 기다리는 고객 '), mk('b', null, o.pend + '명'), mk('span', 'pr', o.bad.length ? '끊기기 전 기준' : '오래 기다린 순')); c1.append(l1);
         if (!o.pend) c1.append(mk('div', 'pnone', '기다리는 고객 없음'));
-        else if (o.top) { var wl = mk('div', 'pwl'); o.top.forEach(function (t) { var r = mk('div', 'pw' + (t.w >= 20 ? ' r' : t.w >= 10 ? ' a' : '')), msg = mk('span', 'pmsg'); if (t.r) msg.append(mk('span', 'pre', '다시 옴')); msg.append(t.p || '(사진·파일 또는 내용 없음)'); msg.title = t.p || ''; r.append(mk('span', 'pmin', t.w + '분'), chip(t.ch), mk('span', 'pcn', t.n || '이름 없음'), msg, link(t)); wl.append(r); }); if (o.pend > o.top.length) wl.append(mk('div', 'pmore', '+ ' + (o.pend - o.top.length) + '명 더 (덜 기다린 고객)')); c1.append(wl); }
+        else if (o.top) { var wl = mk('div', 'pwl'); o.top.forEach(function (t) { var r = mk('div', 'pw' + (t.w >= 20 ? ' r' : t.w >= 10 ? ' a' : '')), msg = mk('span', 'pmsg'); if (t.r) msg.append(mk('span', 'pre', '다시 옴')); msg.append(t.p || '(사진·파일 또는 내용 없음)'); msg.title = t.p || ''; r.append(mk('span', 'pmin', t.w + '분'), chip(t.ch), mk('span', 'pcn', t.n || '이름 없음'), link(t), msg); wl.append(r); }); if (o.pend > o.top.length) wl.append(mk('div', 'pmore', '+ ' + (o.pend - o.top.length) + '명 더 (덜 기다린 고객)')); c1.append(wl); }
         else c1.append(mk('div', 'pmore', o.pend + '명 · 가장 오래 ' + o.oldest + '분 · 고객 이름·메시지는 기록기 2.4.4부터 보여요'));
         // 2.4.15 보류해 둔 고객(최근 보류 순) — 패널 [보류]는 바로, 톡톡 보류 탭은 30초 안에 팀 서버로
         if (o.held) {
           var hl = mk('div', 'plab tholdl'); hl.append(mk('span', null, '보류 중 '), mk('b', null, o.held + '명'), mk('span', 'pr', '최근 보류 순')); c1.append(hl);
-          if (o.hold && o.hold.length) { var hw = mk('div', 'pwl'); o.hold.forEach(function (t) { var r = mk('div', 'pw h'), msg = mk('span', 'pmsg'); msg.append(t.p || '(사진·파일 또는 내용 없음)'); msg.title = t.p || ''; r.append(mk('span', 'pmin', t.s ? '보류 탭' : t.at ? clock(t.at) : '보류'), chip(t.ch), mk('span', 'pcn', t.n || '이름 없음'), msg, link(t)); hw.append(r); }); if (o.held > o.hold.length) hw.append(mk('div', 'pmore', '+ ' + (o.held - o.hold.length) + '명 더')); c1.append(hw); }
+          if (o.hold && o.hold.length) { var hw = mk('div', 'pwl'); o.hold.forEach(function (t) { var r = mk('div', 'pw h'), msg = mk('span', 'pmsg'); msg.append(t.p || '(사진·파일 또는 내용 없음)'); msg.title = t.p || ''; r.append(mk('span', 'pmin', t.s ? '보류 탭' : t.at ? clock(t.at) : '보류'), chip(t.ch), mk('span', 'pcn', t.n || '이름 없음'), link(t), msg); hw.append(r); }); if (o.held > o.hold.length) hw.append(mk('div', 'pmore', '+ ' + (o.held - o.hold.length) + '명 더')); c1.append(hw); }
           else c1.append(mk('div', 'pmore', '보류한 고객 이름·메시지는 기록기 2.4.15 · 팀 서버 1.3.9부터 보여요'));
         }
         var mc = missCol(o); g.append(c1, mc); box.append(g); if (mc.xp) box.append(mc.xp);
