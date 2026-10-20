@@ -253,3 +253,13 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 @media (max-width:640px){.tmodes{grid-template-columns:minmax(0,1fr)}.tlr{grid-template-columns:14px minmax(0,1fr) auto}.tlr .tls{grid-column:1/-1}.tlx{padding-left:4px}.ttk{grid-template-columns:64px minmax(0,1fr)}}
 
 .ttable.tgt{min-width:0}.ttable.tgt th{white-space:nowrap}
+
+/* 2026-10-20 비교 더 세게: 등수 · 성적표 · 오늘 순서 */
+.trk{display:inline-block;font-size:11.5px;font-weight:800;border-radius:6px;padding:1px 6px;background:var(--raised);color:var(--muted);white-space:nowrap}.trk.r{background:var(--danger-soft);color:var(--danger)}.trk.o{color:var(--warning)}.trk.g{color:var(--success)}
+.trank{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.tscore .tshead{font-size:17px;font-weight:800;padding:10px 12px;border-radius:10px;margin:2px 0 8px}.tscore .tshead.r{background:var(--danger-soft);color:var(--danger)}.tscore .tshead.ok{background:var(--accent-soft);color:var(--accent)}
+.tscore .tslines{display:flex;flex-direction:column;gap:4px;margin:0 0 10px}.tscore .tslines .tword{font-size:13.5px}
+.ttable.tsct{min-width:0}.ttable.tsct tr.bad td:first-child{color:var(--danger)}.ttable td.good{color:var(--success);font-weight:800}
+.tord .tor{display:grid;grid-template-columns:44px 64px 120px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;font-size:13.5px}.tord .tor+.tor{border-top:1px solid var(--line)}
+.tord .tor.r{background:var(--danger-soft)}.tord .tor.r .tpos,.tord .tor.r .torg{color:var(--danger);font-weight:800}.tord .tor.g .tpos{color:var(--success)}.tord .torl.bad{color:var(--danger);font-weight:800}.tord .torg{color:var(--muted)}
+@media (max-width:640px){.tord .tor{grid-template-columns:40px 1fr;}.tord .tor .tora,.tord .tor .torg,.tord .tor .torl{grid-column:2}}

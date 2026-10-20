@@ -135,6 +135,44 @@
 
   function hardHigh(o, avg) { return o.hardPct != null && avg.hardPct != null && o.catN >= 5 && o.hardPct >= avg.hardPct + 0.1; }
 
+  /* ───── 2026-10-20 비교 더 세게(주인: "내가 좀 딸리는구나"를 느끼게) — 등수 · 차이(%) · 팀에서 가장 좋은 기록 · 기간 합친 차이 ───── */
+  var MET = {
+    late: { l: '20분 넘게 기다리게 한 상담', s: '20분 넘김', u: '건', hi: '많아요', lo: '적어요', low: true, dec: true, v: function (p) { return p.lateN; }, has: function (p) { return p.perDay != null || p.lateN > 0; } },
+    wait: { l: '고객 평균 대기', s: '평균 대기', u: '분', hi: '길어요', lo: '짧아요', low: true, v: function (p) { return p.wait; }, has: function (p) { return p.wait != null && p.ans >= 3; } },
+    ans: { l: '답한 상담', s: '답한 상담', u: '건', hi: '많아요', lo: '적어요', low: false, v: function (p, M) { return M.oneDay ? p.ans : p.ansDay; }, has: function (p) { return p.ans > 0; } },
+    rec: { l: '완료 기록(참고)', s: '완료 기록', u: '건', hi: '많아요', lo: '적어요', low: false, v: function (p, M) { return M.oneDay ? p.rec : p.perDay; }, has: function (p) { return p.perDay != null; } }
+  };
+  function cmp(k, o, M) {
+    var m = MET[k], val = function (p) { return m.v(p, M); }, list = M.people.filter(function (p) { return m.has(p) && val(p) != null; });
+    if (list.indexOf(o) < 0 || list.length < 2) return null;
+    var v = val(o), avg = mean(list.filter(function (p) { return p !== o; }).map(val));
+    var better = list.filter(function (p) { return m.low ? val(p) < v : val(p) > v; }).length, worse = list.filter(function (p) { return m.low ? val(p) > v : val(p) < v; }).length;
+    var top = list.slice().sort(function (a, b) { return m.low ? val(a) - val(b) : val(b) - val(a); })[0];
+    var d = v - avg, bad = m.low ? d : -d, small = m.dec ? Math.abs(d) < 0.5 : Math.abs(d) < 1 || (avg && Math.abs(d) / avg < 0.1);
+    return { k: k, m: m, v: v, avg: avg, n: list.length, pos: better + 1, first: !better, last: !worse && better > 0, same: !better && !worse, best: val(top), bestN: top.n, bestMe: val(top) === v, d: d, bad: small ? 0 : bad > 0 ? 1 : -1, pct: avg ? Math.abs(d) / avg : null };
+  }
+  function numOf(c, v) { return (c.m.dec && v != null && Math.round(v) !== v ? f1(v) : n0(v)) + c.m.u; }
+  // "5명 중 5등 (가장 적어요)"
+  function rankTxt(c) {
+    if (!c) return '';
+    if (c.same) return c.n + '명 모두 같아요';
+    return c.n + '명 중 ' + c.pos + '등' + (c.last ? ' (가장 ' + (c.m.low ? c.m.hi : c.m.lo) + ')' : c.first ? ' (가장 ' + (c.m.low ? c.m.lo : c.m.hi) + ')' : '');
+  }
+  // "다른 사람 평균보다 10건(40%) 적어요" · 적을수록 좋은 건 "3배 많아요"
+  function gapTxt(c) {
+    if (!c) return '';
+    if (!c.bad) return '다른 사람 평균과 비슷해요';
+    var ad = Math.abs(c.d), more = c.d > 0, t = '다른 사람 평균보다 ' + numOf(c, ad);
+    if (c.m.low && more) return t + (c.avg >= 0.5 && c.v / c.avg >= 1.5 ? '(' + (c.v / c.avg).toFixed(1).replace(/\.0$/, '') + '배)' : '') + ' ' + c.m.hi;
+    return t + (c.pct != null && c.pct >= 0.05 && c.v ? '(' + Math.round(c.pct * 100) + '%)' : '') + ' ' + (more ? c.m.hi : c.m.lo);
+  }
+  // 기간을 합치면 얼마나 차이 나나(답한 상담 · 여러 날)
+  function totalTxt(c, o, M) {
+    if (!c || c.k !== 'ans' || c.bad <= 0 || M.oneDay || o.work < 2) return '';
+    return M.periodName + ' 근무 ' + o.work + '일을 합치면 다른 사람보다 ' + n0(Math.abs(c.d) * o.work) + '건 덜 응대했어요.';
+  }
+  function bestName(c, anon, who) { return c.bestMe ? who + ' 본인' : anon ? '1등 상담사' : c.bestN; }
+
   /* ───── 줄 세우기 막대(많이 한 사람이 위 · 점선 = 평균) ───── */
   function rank(title, items, avg, avgLabel, opt) {
     opt = opt || {}; var box = mk('div', 'rkcol'); box.append(mk('div', 'rklab', title));
@@ -202,17 +240,17 @@
     var multi = !M.oneDay, head = ['상담사', '지금 대기', '20분 넘겨 답함', '평균 대기'].concat(multi ? ['근무일', '답한 상담(하루)', '완료 기록(하루) · 참고'] : ['답한 상담', '완료 기록 · 참고'], ['어려운 상담', '카톡 · 톡톡 · 게시판', '시간당 완료', '기록 안 함(지금)'], M.oneDay ? ['30분+ 빈 때'] : [], ['연결', '']);
     var tb = mk('table', 'ttable tppl'), tr = mk('tr'); head.forEach(function (h) { tr.append(mk('th', null, h)); }); var th = mk('thead'); th.append(tr); tb.append(th);
     var bd = mk('tbody'), cols = head.length;
-    var cell = function (row, main, w, cls) { var td = mk('td', cls || null); td.append(mk('b', null, main)); if (w && w.t) { td.append(mk('br')); td.append(word({ c: w.c, t: w.t.replace(/^평균보다 (.+) 많음$/, '평균 +$1').replace(/^평균보다 (.+) 적음$/, '평균 −$1') })); } row.append(td); return td; };
+    var cell = function (row, main, w, cls, rk) { var td = mk('td', cls || null); td.append(mk('b', null, main)); if (w && w.t) { td.append(mk('br')); td.append(word({ c: w.c, t: w.t.replace(/^평균보다 (.+) 많음$/, '평균 +$1').replace(/^평균보다 (.+) 적음$/, '평균 −$1') })); } if (rk) { td.append(mk('br')); td.append(mk('span', 'trk ' + (rk.last ? 'r' : rk.first ? 'g' : 'm'), rk.pos + '등/' + rk.n + '명')); } row.append(td); return td; };
     ppl.forEach(function (o) {
       var f = flags(o, M, avg), lv = f.list.some(function (s) { return s.c === 'r'; }) ? 'bad' : f.list.length ? 'warn' : '';
       var row = mk('tr', 'tprow ' + lv + (openRow[o.n] ? ' open' : '')); row.tabIndex = 0;
       var nc = mk('td'); nc.append(mk('span', 'av', o.n.slice(0, 1)), mk('b', 'nm', o.n), mk('span', 'car', openRow[o.n] ? '▴' : '▾')); row.append(nc);
       var wc = mk('td'); wc.append(o.fresh ? String(o.pend) : '–'); if (o.over20) { wc.append(mk('br'), mk('span', 'tword r', '20분+ ' + o.over20)); } if (o.fresh && o.held) { wc.append(mk('br'), mk('span', 'tword m', '보류 ' + o.held)); }; if (!o.fresh) wc.title = o.x ? '기록기 꺼짐 · 마지막 신호 ' + ago(o.x.at) : '오늘 신호 없음'; row.append(wc);
-      var lw = vs(o.lateN, avg.late, '건', true); cell(row, String(o.lateN), lw, lw.lv === 2 ? 'bad' : '').title = o.lateMax && o.lateN ? '가장 오래 ' + o.lateMax + '분' : '';
-      cell(row, o.wait != null ? n0(o.wait) + '분' : '–', vs(o.wait, avg.wait, '분', true));
+      var lw = vs(o.lateN, avg.late, '건', true); cell(row, String(o.lateN), lw, lw.lv === 2 ? 'bad' : '', cmp('late', o, M)).title = o.lateMax && o.lateN ? '가장 오래 ' + o.lateMax + '분' : '';
+      cell(row, o.wait != null ? n0(o.wait) + '분' : '–', vs(o.wait, avg.wait, '분', true), '', cmp('wait', o, M));
       var soft = function (w) { return w.c === 'r' || w.c === 'o' ? { t: w.t, c: 'm' } : w; };
-      if (multi) { row.append(mk('td', null, o.work + '일')); cell(row, o.ans ? n0(o.ansDay) + '건' : '–', o.ans ? vs(o.ansDay, avg.ansDay, '건') : null).title = '합계 ' + o.ans + '건 (카톡 ' + o.ak + ' · 톡톡 ' + o.an + ')'; cell(row, o.perDay != null ? n0(o.perDay) + '건' : '–', soft(vs(o.perDay, avg.perDay, '건'))).title = '합계 ' + o.rec + '건'; }
-      else { cell(row, o.ans + '건', soft(vs(o.ans, avg.ansDay, '건'))).title = '카톡 ' + o.ak + ' · 톡톡 ' + o.an; cell(row, o.rec + '건', soft(vs(o.perDay, avg.perDay, '건'))); }
+      if (multi) { row.append(mk('td', null, o.work + '일')); cell(row, o.ans ? n0(o.ansDay) + '건' : '–', o.ans ? vs(o.ansDay, avg.ansDay, '건') : null, '', cmp('ans', o, M)).title = '합계 ' + o.ans + '건 (카톡 ' + o.ak + ' · 톡톡 ' + o.an + ')'; cell(row, o.perDay != null ? n0(o.perDay) + '건' : '–', soft(vs(o.perDay, avg.perDay, '건'))).title = '합계 ' + o.rec + '건'; }
+      else { cell(row, o.ans + '건', soft(vs(o.ans, avg.ansDay, '건')), '', cmp('ans', o, M)).title = '카톡 ' + o.ak + ' · 톡톡 ' + o.an; cell(row, o.rec + '건', soft(vs(o.perDay, avg.perDay, '건'))); }
       var hc = mk('td', hardHigh(o, avg) ? 'thard' : null); hc.append(mk('b', null, pct(o.hardPct))); if (o.hardPct != null && avg.hardPct != null) { hc.append(mk('br')); hc.append(mk('span', 'tword m', '팀 ' + pct(avg.hardPct))); } hc.title = HARD_LABEL + ' 기록 비율' + (o.catN ? ' · ' + o.hardN + '/' + o.catN + '건' : ' · 카테고리 기록은 기록기 2.4.15부터'); row.append(hc);
       var rest = Math.max(0, o.rec - o.k - o.nv - o.bd); var chc = mk('td', null, o.k + ' · ' + o.nv + ' · ' + o.bd); if (rest) { chc.append(mk('br')); chc.append(mk('span', 'tword m', '구분 전 ' + rest)); chc.title = '구분 전 = 기록기 2.4.14 · 팀 서버 1.3.8 전에 쌓여 카톡·톡톡을 못 나눈 채팅 기록'; } row.append(chc);
       row.append(mk('td', 'z2', f1(o.ph)));
@@ -325,38 +363,54 @@
       var b = mk('div', 'thcb' + (bad ? ' r' : cls ? ' ' + cls : '')); b.append(big, mk('small', null, unit)); c.append(b);
       c.append(mk('div', 'thtx', meL), mk('div', 'thtx o', othL), mk('div', 'thsay' + (bad ? ' r' : ' ok'), sayT)); return c;
     };
+    var cL = cmp('late', o, M), cW = cmp('wait', o, M), cA = cmp('ans', o, M), cR = cmp('rec', o, M);
     var l1 = av.late, lb = o.lateN >= 2 && l1 != null && o.lateN >= l1 * 1.5;
     hero.append(card('고객을 20분 넘게 기다리게 한 상담', '① 고객을 오래 기다리게 했어요', String(o.lateN), '건 · 20분 넘게 기다린 뒤 답함', o.lateN, l1, o.n + ' · ' + o.lateN + '건', '다른 사람 평균 · ' + f1(l1) + '건',
-      !o.lateN ? '20분 넘게 기다리게 한 상담이 없어요.' : lb ? (l1 ? '다른 사람보다 ' + (o.lateN / Math.max(0.5, l1)).toFixed(1).replace(/\.0$/, '') + '배 많아요. ' : '') + (o.lateMax ? '가장 오래 기다린 고객 ' + o.lateMax + '분.' : '') : '다른 사람과 비슷해요.', lb));
+      (!o.lateN ? '20분 넘게 기다리게 한 상담이 없어요.' : lb ? (l1 ? '다른 사람보다 ' + (o.lateN / Math.max(0.5, l1)).toFixed(1).replace(/\.0$/, '') + '배 많아요. ' : '') + (o.lateMax ? '가장 오래 기다린 고객 ' + o.lateMax + '분.' : '') : cL && cL.bad > 0 ? gapTxt(cL) + '.' : '다른 사람과 비슷해요.') + (cL && (cL.bad || cL.same) ? ' ' + rankTxt(cL) + '.' : ''), lb));
     // ② 응대: 답한 상담(주) · 완료 기록(참고) — 응대는 비슷한데 완료만 적으면 긴 상담이 많았던 것
-    var aa = vs(o.ansDay, av.ansDay, '건'), pd = vs(o.perDay, av.perDay, '건'), sorted = M.people.filter(function (p) { return p.ans; }).sort(function (a, b) { return b.ansDay - a.ansDay; }), pos = sorted.indexOf(o) + 1;
-    var aBad = multi && aa.lv === 2, aSay = !o.ans ? '답한 상담 숫자가 아직 없어요(게시판만 했거나 기록기 2.4.0 전).' : aa.lv > 0 ? (multi ? '하루에 ' : '') + n0(av.ansDay - o.ansDay) + '건 덜 응대했어요.' + (pos ? ' ' + sorted.length + '명 중 ' + pos + '번째.' : '') : aa.c === 'g' ? '다른 사람보다 ' + n0(o.ansDay - av.ansDay) + '건 더 응대했어요.' : '응대 횟수는 다른 사람과 비슷해요.';
+    var aa = vs(o.ansDay, av.ansDay, '건'), pd = vs(o.perDay, av.perDay, '건');
+    var aBad = multi && aa.lv === 2, aSay = !o.ans ? '답한 상담 숫자가 아직 없어요(게시판만 했거나 기록기 2.4.0 전).' : aa.lv > 0 ? (multi ? '하루에 ' : '') + n0(av.ansDay - o.ansDay) + '건 덜 응대했어요.' + (cA ? ' ' + rankTxt(cA) + '.' : '') : aa.c === 'g' ? '다른 사람보다 ' + n0(o.ansDay - av.ansDay) + '건 더 응대했어요.' : '응대 횟수는 다른 사람과 비슷해요.';
     if (o.ans && aa.lv <= 0 && pd.lv > 0) aSay += ' 완료 기록은 ' + n0(av.perDay - o.perDay) + '건 적어요 — 길게 주고받는 상담이 많았을 수 있어요.';
     hero.append(card('응대한 상담', '② 응대한 상담이 적어요', multi ? '하루 ' + n0(o.ansDay) : String(o.ans), '건 답함 · 완료 기록 ' + (multi ? '하루 ' + n0(o.perDay) : o.rec) + '건', o.ansDay, av.ansDay, o.n + ' · 답한 상담 ' + (multi ? '하루 ' : '') + n0(o.ansDay) + '건', '다른 사람 평균 · ' + (multi ? '하루 ' : '') + n0(av.ansDay) + '건', aSay, aBad));
     var mb = o.missN >= 2 && (av.miss == null || o.missN > av.miss);
     hero.append(card('답했는데 기록 안 한 상담', '③ 기록을 안 한 상담이 있어요', String(o.missN), '건 · 지금 남아 있음', o.missN, av.miss, o.n + ' · ' + o.missN + '건', '다른 사람 평균 · ' + f1(av.miss) + '건', o.missN ? '아래 목록에서 하나씩 열어 볼 수 있어요.' : '빠진 기록이 없어요.', mb, o.missN ? 'o' : ''));
     box.append(hero);
+    // 2026-10-20 성적표: 나 · 다른 사람 평균 · 팀에서 가장 좋은 기록 · 등수 · 차이(같은 기간 · 같은 기준)
+    var cs = [cL, cW, cA, cR].filter(Boolean);
+    if (cs.length) {
+      var sp = mk('div', 'tpanel tscore'), sh = mk('div', 'tph'); sh.append(mk('b', null, M.periodName + ' 성적표'), mk('span', 'muted', '같은 기간 · 같은 기준 · 본인을 뺀 다른 사람 평균')); sp.append(sh);
+      var low = cs.filter(function (c) { return c.k !== 'rec' && c.bad > 0; }), good = cs.filter(function (c) { return c.k !== 'rec' && c.bad < 0; });
+      var hl = mk('div', 'tshead' + (low.length ? ' r' : ' ok'));
+      hl.textContent = low.length ? who + ' 님은 ' + M.periodName + ' ' + low.map(function (c) { return c.m.s + ' ' + c.n + '명 중 ' + c.pos + '등'; }).join(', ') + '이에요.' : who + ' 님은 ' + M.periodName + ' 모든 항목이 다른 사람 평균만큼 하거나 더 잘했어요.';
+      sp.append(hl);
+      var lines = mk('div', 'tslines');
+      low.forEach(function (c) { lines.append(mk('div', 'tword r', c.m.l + ': ' + numOf(c, c.v) + ' · ' + gapTxt(c) + ' · 가장 좋은 기록은 ' + numOf(c, c.best) + '(' + bestName(c, anon, who) + ')')); });
+      var tt = totalTxt(cA, o, M); if (tt) lines.append(mk('div', 'tword r', tt));
+      if (cL && cL.bad > 0 && cL.avg != null) { var less = Math.round(o.lateN - cL.avg); if (less >= 1) lines.append(mk('div', 'tword r', '다른 사람만큼만 했다면 20분 넘게 기다린 고객이 ' + less + '명 적었어요.')); }
+      good.forEach(function (c) { lines.append(mk('div', 'tword g', '잘한 점 · ' + c.m.l + ': ' + gapTxt(c) + ' (' + rankTxt(c) + ')')); });
+      if (lines.childNodes.length) sp.append(lines);
+      sp.append(T2().table(['항목', who, '다른 사람 평균', '팀에서 가장 좋은 기록', '등수', '차이'], cs.map(function (c) {
+        var lab = c.m.l + (M.oneDay || c.k === 'late' || c.k === 'wait' ? '' : ' (하루)');
+        return { cls: c.bad > 0 && c.k !== 'rec' ? 'bad' : '', cells: [lab, { text: numOf(c, c.v), cls: c.bad > 0 && c.k !== 'rec' ? 'bad' : '' }, numOf(c, c.avg), numOf(c, c.best) + ' · ' + bestName(c, anon, who), { text: c.pos + '등 / ' + c.n + '명', cls: c.last && c.k !== 'rec' ? 'bad' : '' }, { text: gapTxt(c).replace('다른 사람 평균보다 ', '').replace('다른 사람 평균과 ', ''), cls: c.bad > 0 && c.k !== 'rec' ? 'bad' : c.bad < 0 ? 'good' : '' }] };
+      }), 'tsct'));
+      sp.append(mk('p', 'muted tfoot', '1등 = 가장 좋은 기록(20분 넘김 · 평균 대기는 적을수록, 답한 상담은 많을수록) · 같은 숫자는 같은 등수 · 완료 기록은 상담이 끝나야 남아서 참고로만'));
+      box.append(sp);
+    }
     // 날짜별(여러 날) · 시간대별(하루): 나 vs 다른 사람 평균
     var g2 = mk('div', 'tg2'), pc = mk('div', 'tpanel'), ph = mk('div', 'tph');
     ph.append(mk('b', null, multi ? '날짜별 답한 상담' : '시간대별 완료 기록'), mk('span', 'muted', o.n + ' · 다른 사람 평균')); pc.append(ph);
     var groups = [];
-    if (multi) M.keys.forEach(function (d) { var od = o.days[d] || {}; if (!W.day(d, M.wcfg) && !od.ans) return; if (d > M.td) return; var oth = mean(M.people.filter(function (p) { return p.n !== who && ((p.days[d] || {}).ans || 0) > 0; }).map(function (p) { return p.days[d].ans; })); groups.push({ l: Number(d.slice(8)) + '일 ' + WD[W.weekday(d)], a: od.ans || 0, b: oth, sub: '완료 ' + (od.rec || 0) }); });
+    if (multi) M.keys.forEach(function (d) { var od = o.days[d] || {}; if (!W.day(d, M.wcfg) && !od.ans) return; if (d > M.td) return; var oth = mean(M.people.filter(function (p) { return p.n !== who && ((p.days[d] || {}).ans || 0) > 0; }).map(function (p) { return p.days[d].ans; })); var dl = M.people.filter(function (p) { return ((p.days[d] || {}).ans || 0) > 0; }).map(function (p) { return p.days[d].ans; }), dpos = od.ans ? dl.filter(function (v) { return v > od.ans; }).length + 1 : 0; groups.push({ l: Number(d.slice(8)) + '일 ' + WD[W.weekday(d)], a: od.ans || 0, b: oth, sub: '완료 ' + (od.rec || 0), rk: dpos && dl.length >= 2 ? dpos + '등/' + dl.length + '명' : '–', last: dpos && dl.length >= 2 && dpos === dl.length }); });
     else { var fl0 = (o.days[M.oneDay] || {}).fl || { hours: {} }, wd0 = W.day(M.oneDay, M.wcfg), hi0 = Math.ceil((wd0 ? wd0.workEnd : 19 * 60) / 60) - 1;
       for (var h = 10; h <= hi0; h++) { var oth2 = mean(M.people.filter(function (p) { return p.n !== who && ((p.days[M.oneDay] || {}).fl || {}).n; }).map(function (p) { return p.days[M.oneDay].fl.hours[h] || 0; })); groups.push({ l: h === 13 ? '점심' : h + '시', a: (fl0.hours || {})[h] || 0, b: oth2 }); } }
-    var gt = T2().table([multi ? '날짜' : '시간', o.n, '다른 사람 평균'].concat(multi ? ['완료 기록'] : []), groups.map(function (g) { return { cells: [g.l, { text: String(g.a), cls: g.b != null && g.a < g.b * 0.75 ? 'bad' : '' }, g.b != null ? n0(g.b) : '–'].concat(multi ? [String(g.sub || '').replace(/^완료 /, '')] : []) }; }), 'tgt');
+    var dif = function (g) { if (g.b == null) return { text: '–' }; var d = Math.round(g.a - g.b); return { text: d > 0 ? '+' + d : d < 0 ? '−' + (-d) : '같음', cls: g.a < g.b * 0.75 ? 'bad' : d > 0 ? 'good' : '' }; };
+    var gt = T2().table([multi ? '날짜' : '시간', o.n, '다른 사람 평균', '차이'].concat(multi ? ['그날 등수', '완료 기록'] : []), groups.map(function (g) { return { cells: [g.l, { text: String(g.a), cls: g.b != null && g.a < g.b * 0.75 ? 'bad' : '' }, g.b != null ? n0(g.b) : '–', dif(g)].concat(multi ? [{ text: g.rk, cls: g.last ? 'bad' : '' }, String(g.sub || '').replace(/^완료 /, '')] : []) }; }), 'tgt');
     pc.append(groups.length ? gt : mk('div', 'pnone', '이 기간 기록이 없어요'));
     pc.append(mk('p', 'muted tfoot', '빨간 숫자 = 다른 사람 평균의 4분의 3보다 적음'));
     g2.append(pc);
-    var rp = mk('div', 'tpanel'), rh = mk('div', 'tph'); rh.append(mk('b', null, M.periodName + ' 다른 사람과 견주면'), mk('span', 'muted', '다른 사람 이름은 안 나와요'));
+    var rp = mk('div', 'tpanel'), rh = mk('div', 'tph'); rh.append(mk('b', null, '억울하지 않게 확인한 것'), mk('span', 'muted', '숫자가 낮게 나올 사정이 있었나'));
     rp.append(rh);
-    var rl = M.people.filter(function (p) { return p.perDay != null || p.lateN; }).sort(function (a, b) { return a.lateN - b.lateN; }), ra = M.people.filter(function (p) { return p.ans; }).sort(function (a, b) { return b.ansDay - a.ansDay; });
     var rt = mk('div', 'note tnote');
-    // 순위는 글로: 같은 숫자는 같은 자리 · 맨 앞/맨 뒤는 '가장'
-    var place = function (list, v, val, more, less) { var all = list.map(val), lo = all.filter(function (x) { return x < v; }).length, hi = all.filter(function (x) { return x > v; }).length;
-      if (!lo && !hi) return list.length + '명 모두 같아요'; if (!hi) return list.length + '명 중 가장 ' + more + '요'; if (!lo) return list.length + '명 중 가장 ' + less + '요';
-      return list.length + '명 중 ' + more + ' 쪽으로 ' + (hi + 1) + '번째예요'; };
-    if (rl.indexOf(o) >= 0) rt.append(mk('div', null, '20분 넘게 기다리게 한 상담: ' + place(rl, o.lateN, function (p) { return p.lateN; }, '많아', '적어') + ' (' + o.lateN + '건 · 팀 평균 ' + f1(M.team.late) + '건)'));
-    if (ra.indexOf(o) >= 0) rt.append(mk('div', null, (multi ? '하루 평균 답한 상담: ' : '답한 상담: ') + place(ra, o.ansDay, function (p) { return p.ansDay; }, '많아', '적어') + ' (' + n0(o.ansDay) + '건 · 팀 평균 ' + n0(M.team.ansDay) + '건)'));
     if (o.perCase != null && av.perCase != null) rt.append(mk('div', null, '상담 1건당 답한 횟수: ' + f1(o.perCase) + '번 (다른 사람 ' + f1(av.perCase) + '번) · ' + (o.perCase >= av.perCase * 1.3 ? '길게 주고받은 상담이 많았어요.' : '다른 사람과 비슷해요.')));
     if (rt.childNodes.length) rp.append(rt);
     // 채널 비율(게시판이 많으면 건수가 적게 나올 수 있어서)
@@ -393,8 +447,8 @@
     else mp.append(T2().table(['답한 때', '채널', '상담 상태', ''], o.miss.map(function (m) { var st = T2().missStatus(m); return { cells: [md(W.dayKey(m.at || M.now)) + ' ' + clock(m.at), { node: chip(m.ch) }, st[1], { node: link(m, '상담 열기') }] }; }), 'tmiss'));
     // 말할 거리
     var talk = [];
-    if (lb) talk.push('20분 넘게 기다린 고객이 ' + o.lateN + '건이에요(다른 사람 평균 ' + f1(l1) + '건). 패널 위쪽, 오래 기다린 고객부터 먼저 답해 주세요.');
-    if (aBad) talk.push('하루 평균 답한 상담이 ' + n0(o.ansDay) + '건으로 다른 사람보다 ' + n0(av.ansDay - o.ansDay) + '건 적어요.' + (wdays.length ? ' 하루 흐름에서 비는 시간을 같이 봐요.' : ''));
+    if (lb) talk.push('20분 넘게 기다린 고객이 ' + o.lateN + '건이에요(다른 사람 평균 ' + f1(l1) + '건' + (cL ? ' · ' + rankTxt(cL) : '') + '). 패널 위쪽, 오래 기다린 고객부터 먼저 답해 주세요.');
+    if (aBad) talk.push('하루 평균 답한 상담이 ' + n0(o.ansDay) + '건으로 다른 사람보다 ' + n0(av.ansDay - o.ansDay) + '건 적어요' + (cA ? '(' + rankTxt(cA) + ')' : '') + '. ' + (totalTxt(cA, o, M) ? totalTxt(cA, o, M) + ' ' : '') + '하루 목표는 다른 사람 평균인 ' + n0(av.ansDay) + '건이에요.' + (wdays.length ? ' 하루 흐름에서 비는 시간을 같이 봐요.' : ''));
     else if (o.wait != null && av.wait != null && o.wait >= av.wait * 1.5 && o.ans >= 5) talk.push('고객이 답을 받기까지 평균 ' + n0(o.wait) + '분 기다렸어요(다른 사람 ' + n0(av.wait) + '분). 진행 중 고객부터 먼저 답해 주세요.');
     if ((aBad || lb) && hardHigh(o, av)) talk.push('다만 어려운 상담(' + HARD_LABEL + ')이 ' + pct(o.hardPct) + '로 다른 사람(' + pct(av.hardPct) + ')보다 많았어요. 이 점은 참작해요.');
     if (o.missN) talk.push('답하고 기록 안 한 상담 ' + o.missN + '건, 지금 열어서 기록해 주세요.');
@@ -421,10 +475,11 @@
   function catLine(cats) { return catList(cats).slice(0, 8).map(function (x) { return x.c + ' ' + x.n; }).join(' · '); }
   function tline(k, v, cls) { var r = mk('div', 'ttk' + (cls ? ' ' + cls : '')); r.append(mk('span', 'k', k), mk('span', null, v)); return r; }
   // 근거 문장(다른 사람 평균과 같이)
-  function evOf(z, o, av) {
-    if (z.k === 'late') return '20분 넘게 기다린 뒤 답한 상담 ' + o.lateN + '건 · 다른 사람 평균 ' + f1(av.late) + '건' + (o.lateMax ? ' · 가장 오래 ' + o.lateMax + '분' : '');
-    if (z.k === 'wait') return '고객 평균 대기 ' + n0(o.wait) + '분 · 다른 사람 평균 ' + n0(av.wait) + '분';
-    if (z.k === 'ans') return '하루 평균 답한 상담 ' + n0(o.ansDay) + '건 · 다른 사람 평균 ' + n0(av.ansDay) + '건';
+  function evOf(z, o, av, M) {
+    var c = M && MET[z.k] ? cmp(z.k, o, M) : null, tail = c ? ' · ' + rankTxt(c) : '';
+    if (z.k === 'late') return '20분 넘게 기다린 뒤 답한 상담 ' + o.lateN + '건 · 다른 사람 평균 ' + f1(av.late) + '건' + tail + (o.lateMax ? ' · 가장 오래 ' + o.lateMax + '분' : '');
+    if (z.k === 'wait') return '고객 평균 대기 ' + n0(o.wait) + '분 · 다른 사람 평균 ' + n0(av.wait) + '분' + tail;
+    if (z.k === 'ans') return '하루 평균 답한 상담 ' + n0(o.ansDay) + '건 · 다른 사람 평균 ' + n0(av.ansDay) + '건' + (c && c.pct != null ? '(' + Math.round(c.pct * 100) + '% 적음)' : '') + tail;
     if (z.k === 'miss') return '답하고 기록 안 한 상담 ' + o.missN + '건 (지금 남아 있음)';
     return z.t;
   }
@@ -461,7 +516,12 @@
   function itemCard(z, M, ctx) {
     var o = z.o, red = z.f.some(function (x) { return x.c === 'r'; }), c = mk('div', 'titem' + (red ? ' r' : ''));
     var h = mk('div', 'tih'); h.append(mk('span', 'av', o.n.slice(0, 1)), mk('b', 'who', o.n), mk('b', 'what' + (red ? '' : ' o'), z.f.map(function (x) { return HEAD[x.k]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · '))); c.append(h);
-    var ev = mk('div', 'tev'); z.f.forEach(function (x) { ev.append(mk('div', 'tword ' + x.c, evOf(x, o, z.av))); }); c.append(ev);
+    var ev = mk('div', 'tev'); z.f.forEach(function (x) { ev.append(mk('div', 'tword ' + x.c, evOf(x, o, z.av, M))); });
+    var tot = totalTxt(cmp('ans', o, M), o, M); if (tot) ev.append(mk('div', 'tword r', tot)); c.append(ev);
+    // 등수 한 줄: 세 가지 모두(좋은 것도 같이 보여야 억울하지 않음)
+    var rk = mk('div', 'trank'); rk.append(mk('span', 'tfl', '등수'));
+    ['late', 'wait', 'ans'].forEach(function (k) { var q = cmp(k, o, M); if (!q) return; rk.append(mk('span', 'trk ' + (q.bad > 0 ? (q.last ? 'r' : 'o') : q.bad < 0 ? 'g' : 'm'), q.m.s + ' ' + q.pos + '등/' + q.n + '명')); });
+    if (rk.childNodes.length > 1) c.append(rk);
     var fr = mk('div', 'tfair'); fr.append(mk('span', 'tfl', '화면이 먼저 확인한 것')); z.fair.forEach(function (x) { fr.append(mk('span', 'tfc' + (x.ok ? '' : ' c'), (x.ok ? '✓ ' : '! ') + x.t)); }); c.append(fr);
     var sm = mk('div', 'tverd'); sm.append(mk('b', null, '한 줄 정리 '), sumLine(o, M, z.f, z.fair)); c.append(sm);
     var ac = mk('div', 'tia'); ac.append(btn('면담 화면', 'primary sm', function () { ctx.who(o.n); }), btn('이번엔 넘어가기', 'ghost sm', function () { store(skipKey(o, M), '1'); ctx.again(); })); c.append(ac);
@@ -476,7 +536,8 @@
     var lw = vs(o.lateN, av.late, '', true), ww = vs(o.wait, av.wait, '', true), aw = vs(multi ? o.ansDay : o.ans, av.ansDay, '');
     var col = function (w) { return multi && w.lv === 2 ? 'r' : w.c === 'g' ? 'g' : ''; };
     var nums = mk('div', 'tlnums');
-    nums.append(numCell('20분 넘김', o.lateN + '건', '다른 사람 ' + f1(av.late), col(lw)), numCell('평균 대기', o.wait != null ? n0(o.wait) + '분' : '–', '다른 사람 ' + (av.wait != null ? n0(av.wait) + '분' : '–'), col(ww)), numCell(multi ? '하루 답한 상담' : '답한 상담', o.ans ? n0(multi ? o.ansDay : o.ans) + '건' : '–', '다른 사람 ' + n0(av.ansDay), col(aw)));
+    var rk = function (k) { var q = cmp(k, o, M); return q ? ' · ' + q.pos + '등' : ''; };
+    nums.append(numCell('20분 넘김', o.lateN + '건', '다른 사람 ' + f1(av.late) + rk('late'), col(lw)), numCell('평균 대기', o.wait != null ? n0(o.wait) + '분' : '–', '다른 사람 ' + (av.wait != null ? n0(av.wait) + '분' : '–') + rk('wait'), col(ww)), numCell(multi ? '하루 답한 상담' : '답한 상담', o.ans ? n0(multi ? o.ansDay : o.ans) + '건' : '–', '다른 사람 ' + n0(av.ansDay) + rk('ans'), col(aw)));
     body.append(nums);
     var ref = ['완료 기록 ' + o.rec + '건(참고)']; if (o.perCase != null) ref.push('1건당 ' + f1(o.perCase) + '번 답함'); if (o.hardPct != null) ref.push('어려운 상담 ' + pct(o.hardPct)); if (o.missN) ref.push('기록 안 함 ' + o.missN + '건');
     body.append(mk('div', 'tlref', ref.join(' · ')));
@@ -553,6 +614,7 @@
       if (!o.fresh) { t.append(mk('span', 'big', '–'), mk('span', 'st bad', o.x ? '기록기 꺼짐 · ' + ago(o.x.at) : '오늘 신호 없음')); tiles.append(t); return; }
       t.append(mk('span', 'big', o.pend + '명 기다림'), mk('span', 'st', o.pend ? '가장 오래 ' + o.oldest + '분' : '기다리는 고객 없음'));
       if (o.bad.length) t.append(mk('span', 'st bad', chName(o.bad[0].ch) + ' ' + (T2().CONN_LABEL[o.bad[0].s] || '확인 필요')));
+      var qa = cmp('ans', o, M); t.append(mk('span', 'st' + (qa && qa.last ? ' bad' : ''), '오늘 답한 상담 ' + o.ans + '건' + (qa ? ' · ' + qa.pos + '등' : '')));
       var ex = []; if (o.held) ex.push('보류 ' + o.held + '명'); if (o.missN) ex.push('기록 안 함 ' + o.missN + '건'); if (ex.length) t.append(mk('span', 'st', ex.join(' · ')));
       t.tabIndex = 0; t.title = '누르면 ' + o.n + ' 님 고객 목록';
       var d = mk('div', 'tpanel tnowd'), dh = mk('div', 'tph'), key = 'now:' + o.n; dh.append(mk('b', null, o.n), mk('span', 'muted', '지금 기다리는 고객 · 보류 · 답했는데 기록 없음')); d.append(dh);
@@ -563,6 +625,20 @@
       tiles.append(t); dets.append(d);
     });
     box.append(tiles, dets);
+    // 2026-10-20 오늘 지금까지 순서(답한 상담 많은 순) — 1등과 몇 건 차이인지 글로
+    var ord = M.people.filter(function (o) { return o.ans > 0 || o.lateN > 0; }).sort(function (a, b) { return b.ans - a.ans || a.lateN - b.lateN; });
+    if (ord.length >= 2) {
+      var op = mk('div', 'tpanel tord'), oh = mk('div', 'tph'); oh.append(mk('b', null, '오늘 지금까지 순서'), mk('span', 'muted', '답한 상담 많은 순 · 20분 넘김은 적을수록 좋음')); op.append(oh);
+      var top = ord[0].ans, avA = mean(ord.map(function (o) { return o.ans; })), avL = mean(ord.map(function (o) { return o.lateN; }));
+      ord.forEach(function (o) {
+        var pos = ord.filter(function (p) { return p.ans > o.ans; }).length + 1, last = pos > 1 && !ord.some(function (p) { return p.ans < o.ans; });
+        var r = mk('div', 'tor' + (last ? ' r' : pos === 1 ? ' g' : '')); r.append(mk('b', 'tpos', pos + '등'), mk('b', 'tlnm', o.n), mk('span', 'tora', '답한 상담 ' + o.ans + '건'));
+        var gap = top - o.ans, txt = pos === 1 ? '가장 많아요' : '1등보다 ' + gap + '건 적어요' + (avA && o.ans < avA * 0.75 ? ' · 평균(' + n0(avA) + '건)의 ' + Math.round(o.ans / avA * 100) + '%' : '');
+        r.append(mk('span', 'torg', txt), mk('span', 'torl' + (o.lateN >= 2 && o.lateN > avL * 1.5 ? ' bad' : ''), '20분 넘김 ' + o.lateN + '건'));
+        op.append(r);
+      });
+      box.append(op);
+    }
     box.append(mk('p', 'muted tfoot', '칸 테두리: 노랑 = 10분 넘게, 빨강 = 20분 넘게 기다리는 고객이 있어요 · 칸을 누르면 그 사람 고객 목록이 열려요 · 30초마다 새로 읽어요 · 기다린 시간은 업무시간만 셈(점심 빼고).'));
     return box;
   }
