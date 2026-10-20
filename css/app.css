@@ -116,6 +116,7 @@ svg{flex:none}
 .card.added{border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
 /* 마우스를 올리면 뜨는 전체 문안 미리보기 */
 .peek{position:fixed;z-index:55;width:min(400px,calc(100vw - 16px));max-height:min(62vh,540px);display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px 10px;pointer-events:auto}
+.peek:not([hidden]){animation:pkin .13s ease-out}@keyframes pkin{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){.peek:not([hidden]){animation:none}}
 .peek .pk-h b{font-size:14.5px;line-height:1.4}
 .peek .pk-b{overflow:hidden;min-height:0;flex:1 1 auto;position:relative;display:flex;flex-direction:column;gap:8px}
 .peek .pk-b p{margin:0;font-size:13.5px;line-height:1.65;white-space:pre-wrap;color:var(--ink)}

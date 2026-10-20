@@ -356,8 +356,10 @@
     markT = setTimeout(function () { Array.prototype.forEach.call(document.querySelectorAll('#results .card[data-id]'), function (c) { var r = byId.get(c.dataset.id); c.classList.toggle('added', !!r && isAdded(r.script)); }); }, 120);
   }
   /* 미리보기: 카드에 마우스를 올리면 누르지 않아도 전체 문안이 옆에 뜸 */
-  var peek = null, peekT = 0, peekFor = null, canHover = window.matchMedia ? matchMedia('(hover: hover) and (pointer: fine)').matches : true;
-  function peekHide(now) { clearTimeout(peekT); if (now) { if (peek) peek.hidden = true; peekFor = null; return; } peekT = setTimeout(function () { if (peek) peek.hidden = true; peekFor = null; }, 120); }
+  // 2026-10-20 더 빠르고 매끄럽게: 처음엔 0.2초 뒤 · 이미 떠 있거나 방금 닫혔으면 다른 카드로 옮길 때 바로 바뀜(깜빡임 없음) · 뜰 때 살짝 나타남
+  var peek = null, peekT = 0, peekFor = null, peekWarm = 0, canHover = window.matchMedia ? matchMedia('(hover: hover) and (pointer: fine)').matches : true;
+  function peekOff() { if (peek && !peek.hidden) { peek.hidden = true; peekWarm = Date.now() + 600; } peekFor = null; }
+  function peekHide(now) { clearTimeout(peekT); if (now) { peekOff(); peekWarm = 0; return; } peekT = setTimeout(peekOff, 140); }
   function peekShow(c, r, terms) {
     if (!c.isConnected || c.classList.contains('open')) return;
     if (!peek) {
@@ -381,7 +383,7 @@
   }
   function peekOn(c, r, terms) {
     if (!canHover) return;
-    c.addEventListener('mouseenter', function () { clearTimeout(peekT); if (peekFor === c && peek && !peek.hidden) return; peekT = setTimeout(function () { peekShow(c, r, terms); }, 380); });
+    c.addEventListener('mouseenter', function () { clearTimeout(peekT); if (peekFor === c && peek && !peek.hidden) return; var warm = (peek && !peek.hidden) || Date.now() < peekWarm; peekT = setTimeout(function () { peekShow(c, r, terms); }, warm ? 30 : 200); });
     c.addEventListener('mouseleave', function () { peekHide(false); });
     c.addEventListener('mousedown', function () { peekHide(true); });
   }
