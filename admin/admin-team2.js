@@ -66,6 +66,8 @@
     var td = today(), out = [];
     if (/^d:\d{4}-\d{2}-\d{2}$/.test(period || '')) return [period.slice(2)]; // 2.4.14 날짜 하나 고르기
     if (period === 'yday') { var y = W.addDays(td, -1); while (!W.day(y, {}) && out.length < 1 && y > W.addDays(td, -10)) y = W.addDays(y, -1); return [y]; }
+    // 2026-10-20 지난주(월~일) — 피드백은 주로 지난주를 봄
+    if (period === 'lweek') { var dw = (W.weekday(td) + 6) % 7, mon = W.addDays(td, -dw - 7); for (var j = 0; j < 7; j++) out.push(W.addDays(mon, j)); return out; }
     if (period === 'week') { var dow = (W.weekday(td) + 6) % 7; for (var i = dow; i >= 0; i--) out.push(W.addDays(td, -i)); return out; }
     if (period === 'month') { var d = td.slice(0, 8) + '01'; while (d <= td) { out.push(d); d = W.addDays(d, 1); } return out; }
     return [td];

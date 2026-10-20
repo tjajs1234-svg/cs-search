@@ -65,10 +65,13 @@
   function person(n) { var s = String(n || '').replace(/\s+/g, '').replace(/\d+$/, ''); s = /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; return s === '팀장' && leadAs ? leadAs : s; }
   function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
   // 기간: today · yday · week · month · 'd:YYYY-MM-DD' / 면담: 상담사 이름(비면 전체)
-  var tPeriod = 'today', tWho = '';
+  // 2026-10-20 완성판: 화면 셋 — 지금(놓치는 고객) · 피드백(이야기할 것) · 숫자(QA 표). 고른 화면은 기억
+  function tstore(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+  var tMode = /^(now|fb|num)$/.test(tstore('kb:tmode') || '') ? tstore('kb:tmode') : 'fb';
+  var tPeriod = 'week', tWho = '';
   function needDays(period) {
     var td = kstToday(), from = td;
-    if (/^d:/.test(period)) from = period.slice(2); else if (period === 'month') from = td.slice(0, 8) + '01'; else if (period === 'week' || period === 'yday') from = new Date(Date.parse(td + 'T00:00:00Z') - 10 * 864e5).toISOString().slice(0, 10);
+    if (/^d:/.test(period)) from = period.slice(2); else if (period === 'month') from = td.slice(0, 8) + '01'; else if (period === 'week' || period === 'yday') from = new Date(Date.parse(td + 'T00:00:00Z') - 10 * 864e5).toISOString().slice(0, 10); else if (period === 'lweek') from = new Date(Date.parse(td + 'T00:00:00Z') - 15 * 864e5).toISOString().slice(0, 10);
     return Math.min(400, Math.max(2, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 864e5) + 1, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(td.slice(0, 8) + '01T00:00:00Z')) / 864e5) + 1));
   }
   async function team(w) {
@@ -79,17 +82,19 @@
     CSTeam.get('cfg.get', {}).catch(function () {});
     var r; try { r = await CSTeam.get('team.get', { days: needDays(tPeriod) }, 0); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
     var again = function () { team(w); };
-    var g = window.KBTeam3 ? await KBTeam3.render(r, { period: tPeriod, person: tWho, who: function (n) { tWho = n || ''; w.scrollTop = 0; team(w); }, again: again }) : mk('div', 'empty', '불러오는 중…');
+    var g = window.KBTeam3 ? await KBTeam3.render(r, { mode: tWho ? 'fb' : tMode, period: tMode === 'now' && !tWho ? 'today' : tPeriod, person: tWho, who: function (n) { tWho = n || ''; w.scrollTop = 0; team(w); }, again: again }) : mk('div', 'empty', '불러오는 중…');
+    var modes = mk('div', 'tmodes'); [['now', '지금', '놓치는 고객이 있나'], ['fb', '피드백', '누구와 무슨 이야기를 하나'], ['num', '숫자', 'QA 표 · 내려받기']].forEach(function (f) { var b = mk('button', 'tmode' + (tMode === f[0] && !tWho ? ' on' : '')); b.type = 'button'; b.dataset.mode = f[0]; b.append(mk('b', null, f[1]), mk('span', null, f[2])); b.addEventListener('click', function () { tMode = f[0]; tWho = ''; tstore('kb:tmode', f[0]); team(w); }); modes.append(b); });
     var nav = mk('div', 'ins bper'); nav.append(mk('span', null, '기간'));
-    [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
+    [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['lweek', '지난주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
     var td0 = kstToday(), di = mk('input', 'in' + (/^d:/.test(tPeriod) ? ' on' : '')); di.type = 'date'; di.max = td0; di.value = /^d:/.test(tPeriod) ? tPeriod.slice(2) : ''; di.title = '날짜 하나 고르기(그날 기록 · 하루 흐름)';
     di.addEventListener('change', function () { if (di.value) { tPeriod = di.value === td0 ? 'today' : 'd:' + di.value; team(w); } });
-    nav.append(di, mk('span', 'muted', '기간은 처리·비교에만 · 지금 기다리는 고객·기록 안 함은 늘 지금'));
+    nav.append(di, mk('span', 'muted', tMode === 'num' ? '기간은 건수에만 · 지금 기다리는 고객·기록 안 함은 늘 지금' : '하루 숫자로는 이야기할 것을 고르지 않아요(이번 주 · 지난주 · 이번 달)'));
+    if (tMode === 'now' && !tWho) nav.hidden = true;
     var ub = tWho ? null : await updateBox();
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC));
     if (ub) w.append(ub);
-    w.append(nav, g);
+    w.append(modes, nav, g);
     w.scrollTop = keepScroll;
     tTimer = setTimeout(function () { if (A() && document.querySelector('.tview') && w.isConnected && !w.querySelector('.tview :focus, details.tdet[open] :focus')) team(w); }, 30000);
   }
