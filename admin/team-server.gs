@@ -24,10 +24,12 @@
             · 기록 수가 바뀌면 5분을 안 기다리고 바로 하루 파일에 씀 · 전날 마지막 숫자를 다음 날 받아 채움(더 큰 숫자만)
    · 1.3.9: (기록기 2.4.15와 함께) 상담사별 카테고리별 기록 수(교환/반품 · 고장/불량 등) — 어려운 상담을 많이 맡았는지 참작용
             · 보류한 고객 10명(이름·마지막 말·보류한 시각)을 지금 상태에 — 팀 현황에서 누가 무엇을 보류해 뒀는지
+   · 1.3.10: 날짜별 파일에 그날 기록한 방 · (기록기 2.4.17부터) 그날 답한 고객의 방을 짧은 숫자(방 번호를 바꾼 것 · 되돌릴 수 없음)로 남김
+            — 팀 현황이 하루·이번 주·이번 달 모두 같은 고객을 1번으로 셀 수 있게(완료 기록 · 답한 상담)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.9';
+var TEAM_VERSION = '1.3.10';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -261,7 +263,7 @@ function connList_(v) { return Array.isArray(v) ? v.slice(0, 4).filter(function 
 function holdList_(v) { return Array.isArray(v) ? v.slice(0, 10).filter(function (x) { return x && x.id; }).map(function (x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), n: text_(x.n, 20), p: text_(x.p, 60).replace(/\s+/g, ' '), at: ms_(x.at), u: okUrl_(x.u) }; if (x.s) o.s = 1; return o; }) : []; }
 function topList_(v) { return Array.isArray(v) ? v.slice(0, 5).filter(function (x) { return x && x.id; }).map(function (x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), n: text_(x.n, 20), p: text_(x.p, 60).replace(/\s+/g, ' '), w: num_(x.w), u: okUrl_(x.u) }; if (x.r) o.r = 1; return o; }) : []; }
 function pwList_(v) { return Array.isArray(v) ? v.slice(0, 200).filter(function (x) { return x && x.k; }).map(function (x) { return { k: caseText_(x.k), w: num_(x.w) }; }) : []; }
-function rrList_(v) { return Array.isArray(v) ? v.slice(0, 200).filter(function (x) { return x && /^(kakao|naver):.{1,100}$/.test(String(x.k || '')); }).map(function (x) { var o = { k: String(x.k), t: ms_(x.t) }; var c = text_(x.c, 20); if (c) o.c = c; return o; }) : []; }
+function rrList_(v, max) { return Array.isArray(v) ? v.slice(0, max || 200).filter(function (x) { return x && /^(kakao|naver):.{1,100}$/.test(String(x.k || '')); }).map(function (x) { var o = { k: String(x.k), t: ms_(x.t) }; var c = text_(x.c, 20); if (c) o.c = c; return o; }) : []; }
 function byKey_(lists, keyOf, pick) { var m = {}; lists.forEach(function (l) { (l || []).forEach(function (x) { var k = keyOf(x); m[k] = m[k] ? pick(m[k], x) : x; }); }); return Object.keys(m).map(function (k) { return m[k]; }); }
 function chKey_(x) { return x.ch + ':' + x.id; }
 
@@ -286,7 +288,7 @@ function teamBeat_(req) {
   var st = req.stats && typeof req.stats === 'object' ? statsClean_(req.stats, now) : null;
   // PC마다 받아 둠
   var put = {}; put['p:live:' + who + ':' + pc] = JSON.stringify(row);
-  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, day: day });
+  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, day: day });
   if (cs) put['p:cases:' + who + ':' + pc] = JSON.stringify(cs);
   if (st) put['p:st:' + who + ':' + pc] = JSON.stringify(st);
   cache.putAll(put, 21600);
@@ -313,13 +315,23 @@ function teamBeat_(req) {
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, at: now };
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
   }
   prevFill_(who, req.prev, day, cache);
   return { ok: true, cfg: cfgOut_(settings_()), recs: teamRecs_(dayKey_(now)) };
+}
+// 1.3.10 기록한 방 → 짧은 숫자(k/n + 해시). 방 번호 자체는 남기지 않음 · 같은 방은 같은 숫자
+function roomHash_(rr) {
+  var seen = {}, out = [];
+  (rr || []).forEach(function (x) {
+    var k = String(x && x.k || ''), h = 2166136261; if (!/^(kakao|naver):/.test(k)) return;
+    for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    var v = k.charAt(0) + h.toString(36); if (!seen[v]) { seen[v] = 1; out.push(v); }
+  });
+  return out.slice(0, 400);
 }
 function ach_(o) { var out = {}; if (o && typeof o === 'object') ['kakao', 'naver'].forEach(function (k) { var n = num_(o[k]); if (n) out[k] = n; }); return out; }
 // 1.3.8 전날 마지막 숫자: 기록기가 다음 날 보내 줌 → 하루 파일의 그 사람 칸을 더 큰 숫자로만 채움(줄이지 않음) · 사람·날짜마다 한 번
@@ -350,6 +362,7 @@ function mergeQa_(qas) {
     late: byKey_(qas.map(function (q) { return q.late; }), chKey_, function (a, b) { return (a.w || 0) >= (b.w || 0) ? a : b; }).slice(0, 100),
     rt: qas.length > 1 ? [].concat.apply([], qas.map(function (q) { return q.rt || []; })).sort(function (a, b) { return a - b; }).slice(0, 400) : (qas[0] && qas[0].rt || []),
     rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
+    ar: byKey_(qas.map(function (q) { return q.ar; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }), hasAr: qas.some(function (q) { return Array.isArray(q.ar); }),
     overlap: recOverlap_(qas), overK: recOverlap_(qas, 'kakao'), overN: recOverlap_(qas, 'naver')
   };
 }
@@ -442,7 +455,7 @@ function qaPlain_(x) { var o = {}; Object.keys(x).forEach(function (k) { if (k !
 function qaClean_(q, withNames) {
   var list = function (v, n, f) { return Array.isArray(v) ? v.slice(0, n).filter(function (x) { return x && x.id; }).map(f || qaItem_) : []; };
   var rt = Array.isArray(q.rt) ? q.rt.slice(0, 400).map(function (v) { return Math.max(0, Math.min(1439, Math.floor(Number(v) || 0))); }) : [];
-  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr) };
+  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr), ar: Array.isArray(q.ar) ? rrList_(q.ar, 300) : null };
 }
 function qaDays_(days) { var q = readJson_('qa.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(q || {}).forEach(function (k) { if (k >= from) out[k] = q[k]; }); return out; }
 function qaLive_() {

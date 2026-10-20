@@ -63,9 +63,11 @@
           Object.keys(s.cats || {}).forEach(function (c) { v.cats[c] = (v.cats[c] || 0) + (s.cats[c] || 0); });
         });
         if (d === td && fresh) v.rec += x.records || 0;
-        var seen = {}; Object.keys(qd).forEach(function (k) { if (P(k) !== n) return; v.rt = v.rt.concat(qd[k].rt || []); (qd[k].late || []).forEach(function (z) { var id = z.ch + ':' + z.id; if (!seen[id]) { seen[id] = 1; v.late.push(Object.assign({ d: d }, z)); } }); });
-        v.rt.sort(function (a, b) { return a - b; }); v.fl = K.flowOf(v.rt);
+        var seen = {}, rks = {}, aks = {}, hasAk = false; Object.keys(qd).forEach(function (k) { if (P(k) !== n) return; (qd[k].rk || []).forEach(function (h) { rks[h] = 1; }); if (Array.isArray(qd[k].ak)) { hasAk = true; qd[k].ak.forEach(function (h) { aks[h] = 1; }); } v.rt = v.rt.concat(qd[k].rt || []); (qd[k].late || []).forEach(function (z) { var id = z.ch + ':' + z.id; if (!seen[id]) { seen[id] = 1; v.late.push(Object.assign({ d: d }, z)); } }); });
+        v.rk = Object.keys(rks); v.rt.sort(function (a, b) { return a - b; }); v.fl = K.flowOf(v.rt);
         v.lateN = Math.max(v.late.length, v.o20);
+        // 2026-10-20 답한 상담 = 고객 수(같은 고객은 하루 1명 · 기록기 2.4.17 · 팀 서버 1.3.10부터) · 답한 횟수(ansN)는 참고 · 예전 날은 답한 횟수 그대로
+        v.ansN = v.ans; v.akl = hasAk ? Object.keys(aks) : null; if (v.akl && v.akl.length && v.ans) v.ans = Math.min(v.ans, v.akl.length);
         Object.keys(v.cats).forEach(function (c) { o.cats[c] = (o.cats[c] || 0) + v.cats[c]; });
         o.days[d] = v; o.rec += v.rec; o.k += v.k; o.nv += v.nv; o.bd += v.bd; o.ans += v.ans; o.ak += v.ak; o.an += v.an; o.wsum += v.wsum; o.late = o.late.concat(v.late); o.lateN += v.lateN;
         o.lateMax = Math.max(o.lateMax, v.maxW, v.late.reduce(function (m, z) { return Math.max(m, z.w || 0); }, 0));
@@ -73,10 +75,20 @@
         if (v.rec > 0 || v.fl.n > 0 || v.ans > 0) o.work++;
       });
       o.late.sort(function (a, b) { return (b.w || 0) - (a.w || 0); });
+      // 2026-10-20 같은 고객은 한 주(월~금)에 1건(주인) — 팀 서버 1.3.10부터 남는 그날 기록한 방으로 · 이번 달은 주마다 센 것을 더함
+      //  다른 날 다시 기록한 건 빼고 따로 보여 줌
+      var wkOf = function (d) { return W.addDays(d, -((W.weekday(d) + 6) % 7)); };
+      var seenR = {}; o.redup = 0; o.rdK = 0; o.rdN = 0; o.rkAll = {};
+      keys.forEach(function (d) { var wk = wkOf(d); (o.days[d].rk || []).forEach(function (r) { var h = wk + ':' + r; if (seenR[h]) { o.redup++; if (r.charAt(0) === 'k') o.rdK++; else o.rdN++; } else { seenR[h] = 1; o.rkAll[h] = 1; } }); });
+      if (o.redup) { o.rec = Math.max(0, o.rec - o.redup); o.k = Math.max(0, o.k - o.rdK); o.nv = Math.max(0, o.nv - o.rdN); }
+      // 답한 고객도 기간에 한 번(다른 날 다시 온 같은 고객은 빼고 · 답한 횟수는 그대로 참고)
+      var seenA = {}; o.ansN = 0; o.reAns = 0; o.akAll = {};
+      keys.forEach(function (d) { var v2 = o.days[d], wk = wkOf(d); o.ansN += v2.ansN || 0; (v2.akl || []).forEach(function (h) { h = wk + ':' + h; if (seenA[h]) { if (v2.ans) o.reAns++; } else { seenA[h] = 1; o.akAll[h] = 1; } }); });
+      if (o.reAns) o.ans = Math.max(0, o.ans - o.reAns);
       o.perDay = o.work ? o.rec / o.work : (o.rec ? o.rec : null);
       if (!o.work && !o.rec) o.perDay = null;
       o.ph = o.flH >= 0.5 ? o.flN / o.flH : null;
-      o.ansDay = o.work ? o.ans / o.work : null; o.wait = o.ans ? o.wsum / o.ans : null;
+      o.ansDay = o.work ? o.ans / o.work : null; o.wait = o.ansN ? o.wsum / o.ansN : null; // 대기는 답할 때마다 잰 시간이라 답한 횟수로 나눔
       // 2026-10-20 상담 1건당 답한 횟수(카톡·톡톡: 답한 상담 ÷ 완료 기록) — 많으면 길게 주고받은 상담이 많았던 것(참작)
       o.perCase = (o.k + o.nv) >= 5 && (o.ak + o.an) > 0 ? (o.ak + o.an) / (o.k + o.nv) : null;
       o.catN = 0; o.hardN = 0; Object.keys(o.cats).forEach(function (c) { o.catN += o.cats[c]; if (isHard(c)) o.hardN += o.cats[c]; }); o.hardPct = o.catN >= 3 ? o.hardN / o.catN : null;
@@ -94,6 +106,11 @@
     team.catN = 0; team.hardN = 0; team.cats = {};
     people.forEach(function (o) { team.rec += o.rec; team.k += o.k; team.nv += o.nv; team.bd += o.bd; team.ans += o.ans; team.wsum += o.wsum; team.catN += o.catN; team.hardN += o.hardN; Object.keys(o.cats).forEach(function (c) { team.cats[c] = (team.cats[c] || 0) + o.cats[c]; }); });
     team.hardPct = team.catN >= 5 ? team.hardN / team.catN : null;
+    // 두 상담사가 같은 고객을 기록하면 사람마다는 각자 1건 · 팀 합계에서만 1건
+    var tR = {}; team.redup = 0; people.forEach(function (o) { Object.keys(o.rkAll).forEach(function (h) { if (tR[h]) { team.redup++; if (h.slice(11).charAt(0) === 'k') team.k--; else team.nv--; } else tR[h] = 1; }); });
+    team.rec = Math.max(0, team.rec - team.redup); team.k = Math.max(0, team.k); team.nv = Math.max(0, team.nv);
+    team.redupP = people.reduce(function (s2, o) { return s2 + o.redup; }, 0);
+    var tA = {}; team.reAns = 0; team.ansN = 0; people.forEach(function (o) { team.ansN += o.ansN; Object.keys(o.akAll).forEach(function (h) { if (tA[h]) team.reAns++; else tA[h] = 1; }); }); team.ans = Math.max(0, team.ans - team.reAns);
     team.perCase = mean(people.map(function (o) { return o.perCase; }));
     return { r: r, q: q, wcfg: wcfg, now: now, td: td, keys: keys, oneDay: oneDay, isToday: isToday, periodName: periodName, period: period, people: people, team: team, days: days };
   }
@@ -217,8 +234,8 @@
     var tile = function (lab, big, sub, cls) { var t = mk('div', 'tk' + (cls ? ' ' + cls : '')); t.append(mk('span', 'tkl', lab), mk('b', 'tkb', big)); if (sub) t.append(mk('span', 'tks', sub)); return t; };
     kp.append(tile('지금 기다리는 고객', nowP + (part ? '+' : '') + '명', part ? '연결이 끊긴 PC는 끊기기 전 기준' : '업무시간으로 셈(점심 빼고)'),
       tile('20분 넘게 방치 (지금)', now20 ? now20 + '건 · ' + now20p + '명' : '없음', '', now20 ? 'bad' : 'ok'),
-      tile(M.periodName + ' 팀 답한 상담', avg.ans + '건', '완료 기록 ' + avg.rec + '건 (카톡 ' + avg.k + ' · 톡톡 ' + avg.nv + ' · 게시판 ' + avg.bd + ')'),
-      tile('고객 평균 대기', avg.ans ? n0(avg.wsum / avg.ans) + '분' : '–', '답을 받기까지 · 업무시간으로 셈'));
+      tile(M.periodName + ' 팀 답한 상담', avg.ans + '건', '완료 기록 ' + avg.rec + '건 (카톡 ' + avg.k + ' · 톡톡 ' + avg.nv + ' · 게시판 ' + avg.bd + ')' + (avg.redup + avg.redupP ? ' · 같은 고객 ' + (avg.redup + avg.redupP) + '건 뺌' : '')),
+      tile('고객 평균 대기', avg.ansN ? n0(avg.wsum / avg.ansN) + '분' : '–', '답을 받기까지 · 업무시간으로 셈'));
     box.append(kp);
     // 2026-10-20 [숫자] 화면: 지금 급한 고객 · 챙길 사람 · 줄 세우기는 [지금] · [피드백] 화면으로 옮김
     var need = M.people.map(function (o) { return { o: o, f: flags(o, M, avg) }; }).filter(function (z) { return z.f.list.length; }).sort(function (a, b) { return b.f.score - a.f.score; });
@@ -231,7 +248,7 @@
     var S = {}; M.people.concat([]).forEach(function () {}); M.keys.forEach(function (d) { var x = M.days[d] || {}; Object.keys(x).forEach(function (n) { var k = T().person(n), s2 = (x[n] || {}).sites || {}, t2 = S[k] || (S[k] = {}); Object.keys(s2).forEach(function (st) { t2[st] = (t2[st] || 0) + s2[st]; }); }); });
     sd.append(T2().siteTable(S, M.periodName)); if (store('kb:tdet') === '1') sd.open = true; sd.addEventListener('toggle', function () { store('kb:tdet', sd.open ? '1' : '0'); }); box.append(sd);
     box.append(catTable(M));
-    box.append(mk('p', 'muted tfoot', '처리 = 시트에 저장된 기록(같은 날 같은 고객 1건) · 시간당 = 그날 첫 기록~마지막 기록 사이(점심 빼고)로 나눔(반차·늦은 출근은 저절로 반영) · 20분 넘김 = 고객이 20분 넘게 기다린 뒤 답한 상담(업무시간) · 기록 안 함 = 지금 남아 있는 것(다른 상담사가 그날 기록했으면 빠짐) · 긴 통화·어려운 상담이 많은 날은 숫자가 낮게 나오니 하루 흐름과 같이 봐 주세요 · 기록기를 끈 시간과 다른 PC 기록은 안 잡혀요'));
+    box.append(mk('p', 'muted tfoot', '답한 상담 = 답한 고객 수(같은 고객은 한 주(월~금)에 1명 · 이번 달은 주마다 센 것을 더함, 기록기 2.4.17 · 팀 서버 1.3.10부터 · 그 전 날은 답한 횟수) · 처리 = 시트에 저장된 기록(같은 고객은 한 주(월~금)에 1건 · 이번 달은 주마다 더함, 팀 서버 1.3.10부터 · 다른 상담사와 같은 고객은 각자 1건, 팀 합계만 1건) · 시간당 = 그날 첫 기록~마지막 기록 사이(점심 빼고)로 나눔(반차·늦은 출근은 저절로 반영) · 20분 넘김 = 고객이 20분 넘게 기다린 뒤 답한 상담(업무시간) · 기록 안 함 = 지금 남아 있는 것(다른 상담사가 그날 기록했으면 빠짐) · 긴 통화·어려운 상담이 많은 날은 숫자가 낮게 나오니 하루 흐름과 같이 봐 주세요 · 기록기를 끈 시간과 다른 PC 기록은 안 잡혀요'));
     return box;
   }
   function peopleTable(M, avg, need, ctx) {
@@ -249,8 +266,8 @@
       var lw = vs(o.lateN, avg.late, '건', true); cell(row, String(o.lateN), lw, lw.lv === 2 ? 'bad' : '', cmp('late', o, M)).title = o.lateMax && o.lateN ? '가장 오래 ' + o.lateMax + '분' : '';
       cell(row, o.wait != null ? n0(o.wait) + '분' : '–', vs(o.wait, avg.wait, '분', true), '', cmp('wait', o, M));
       var soft = function (w) { return w.c === 'r' || w.c === 'o' ? { t: w.t, c: 'm' } : w; };
-      if (multi) { row.append(mk('td', null, o.work + '일')); cell(row, o.ans ? n0(o.ansDay) + '건' : '–', o.ans ? vs(o.ansDay, avg.ansDay, '건') : null, '', cmp('ans', o, M)).title = '합계 ' + o.ans + '건 (카톡 ' + o.ak + ' · 톡톡 ' + o.an + ')'; cell(row, o.perDay != null ? n0(o.perDay) + '건' : '–', soft(vs(o.perDay, avg.perDay, '건'))).title = '합계 ' + o.rec + '건'; }
-      else { cell(row, o.ans + '건', soft(vs(o.ans, avg.ansDay, '건')), '', cmp('ans', o, M)).title = '카톡 ' + o.ak + ' · 톡톡 ' + o.an; cell(row, o.rec + '건', soft(vs(o.perDay, avg.perDay, '건'))); }
+      if (multi) { row.append(mk('td', null, o.work + '일')); cell(row, o.ans ? n0(o.ansDay) + '건' : '–', o.ans ? vs(o.ansDay, avg.ansDay, '건') : null, '', cmp('ans', o, M)).title = '고객 ' + o.ans + '명(같은 고객은 한 번) · 답한 횟수 ' + o.ansN + '번 (카톡 ' + o.ak + ' · 톡톡 ' + o.an + ')'; cell(row, o.perDay != null ? n0(o.perDay) + '건' : '–', soft(vs(o.perDay, avg.perDay, '건'))).title = '합계 ' + o.rec + '건' + (o.redup ? ' · 다른 날 같은 고객 ' + o.redup + '건은 뺌' : ''); }
+      else { cell(row, o.ans + '건', soft(vs(o.ans, avg.ansDay, '건')), '', cmp('ans', o, M)).title = '고객 ' + o.ans + '명(같은 고객은 한 번) · 답한 횟수 ' + o.ansN + '번 (카톡 ' + o.ak + ' · 톡톡 ' + o.an + ')'; cell(row, o.rec + '건', soft(vs(o.perDay, avg.perDay, '건'))); }
       var hc = mk('td', hardHigh(o, avg) ? 'thard' : null); hc.append(mk('b', null, pct(o.hardPct))); if (o.hardPct != null && avg.hardPct != null) { hc.append(mk('br')); hc.append(mk('span', 'tword m', '팀 ' + pct(avg.hardPct))); } hc.title = HARD_LABEL + ' 기록 비율' + (o.catN ? ' · ' + o.hardN + '/' + o.catN + '건' : ' · 카테고리 기록은 기록기 2.4.15부터'); row.append(hc);
       var rest = Math.max(0, o.rec - o.k - o.nv - o.bd); var chc = mk('td', null, o.k + ' · ' + o.nv + ' · ' + o.bd); if (rest) { chc.append(mk('br')); chc.append(mk('span', 'tword m', '구분 전 ' + rest)); chc.title = '구분 전 = 기록기 2.4.14 · 팀 서버 1.3.8 전에 쌓여 카톡·톡톡을 못 나눈 채팅 기록'; } row.append(chc);
       row.append(mk('td', 'z2', f1(o.ph)));
@@ -539,7 +556,7 @@
     var rk = function (k) { var q = cmp(k, o, M); return q ? ' · ' + q.pos + '등' : ''; };
     nums.append(numCell('20분 넘김', o.lateN + '건', '다른 사람 ' + f1(av.late) + rk('late'), col(lw)), numCell('평균 대기', o.wait != null ? n0(o.wait) + '분' : '–', '다른 사람 ' + (av.wait != null ? n0(av.wait) + '분' : '–') + rk('wait'), col(ww)), numCell(multi ? '하루 답한 상담' : '답한 상담', o.ans ? n0(multi ? o.ansDay : o.ans) + '건' : '–', '다른 사람 ' + n0(av.ansDay) + rk('ans'), col(aw)));
     body.append(nums);
-    var ref = ['완료 기록 ' + o.rec + '건(참고)']; if (o.perCase != null) ref.push('1건당 ' + f1(o.perCase) + '번 답함'); if (o.hardPct != null) ref.push('어려운 상담 ' + pct(o.hardPct)); if (o.missN) ref.push('기록 안 함 ' + o.missN + '건');
+    var ref = ['완료 기록 ' + o.rec + '건(참고)']; if (o.redup) ref.push('같은 고객 다시 기록 ' + o.redup + '건은 안 셈'); if (o.ansN > o.ans) ref.push('답한 횟수 ' + o.ansN + '번(같은 고객 여러 번 포함)'); if (o.perCase != null) ref.push('1건당 ' + f1(o.perCase) + '번 답함'); if (o.hardPct != null) ref.push('어려운 상담 ' + pct(o.hardPct)); if (o.missN) ref.push('기록 안 함 ' + o.missN + '건');
     body.append(mk('div', 'tlref', ref.join(' · ')));
     row.append(mk('span', 'lamp ' + lv), mk('b', 'tlnm', o.n), body, btn('면담 화면', 'ghost sm', function (e) { e.stopPropagation(); ctx.who(o.n); }));
     var xp = mk('div', 'tlx'), key = 'fb:' + o.n; xp.hidden = !openRow[key];
