@@ -31,7 +31,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.11';
+var TEAM_VERSION = '1.3.12';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -292,7 +292,7 @@ function teamBeat_(req) {
   var st = req.stats && typeof req.stats === 'object' ? statsClean_(req.stats, now) : null;
   // PC마다 받아 둠
   var put = {}; put['p:live:' + who + ':' + pc] = JSON.stringify(row);
-  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, day: day });
+  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, sd: qa.sd, day: day });
   if (cs) put['p:cases:' + who + ':' + pc] = JSON.stringify(cs);
   if (st) put['p:st:' + who + ':' + pc] = JSON.stringify(st);
   cache.putAll(put, 21600);
@@ -311,15 +311,17 @@ function teamBeat_(req) {
   if (names.indexOf(who) < 0) withLock_(function () { var n = liveNames_(); if (n.indexOf(who) < 0) { n.push(who); PropertiesService.getScriptProperties().setProperty('liveNames', JSON.stringify(n.slice(-60))); } return { ok: true }; });
   // 하루 합계는 5분에 한 번만 파일에 남김(파일 쓰기를 줄임) · 이름·말은 빼고
   // 1.3.8 기록 수(채널별)가 바뀌면 5분을 안 기다리고 바로 씀 — 퇴근하며 크롬을 꺼도 마지막 기록까지 남게
+  // 1.3.12 기록기가 켜져 있던 업무시간(분) — 면담 화면 '시간당'을 이 시간으로 나눔
+  var onMin = onlineAdd_(cache, who, day, now);
   var ms = st ? mergeStats_(parts.st, mrow, mq) : null, rsig = ms ? [ms.records, ms.kakao, ms.naver, JSON.stringify(ms.sites), JSON.stringify(ms.cats || {})].join('|') : '';
   if (ms && (!cache.get('dayw:' + who + ':' + day) || cache.get('dayr:' + who + ':' + day) !== rsig)) {
     withLock_(function () {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
       var d = t[day] || (t[day] = {});
-      d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, at: now };
+      d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
@@ -341,6 +343,31 @@ function tagsGet_() {
   return Object.keys(all).filter(function (n) { return n !== '팀장'; }).map(function (n) { return { name: n, kakao: all[n].kakao || '', naver: all[n].naver || '', at: all[n].at || 0 }; }).sort(function (a, b) { return a.name > b.name ? 1 : -1; });
 }
 // 1.3.10 기록한 방 → 짧은 숫자(k/n + 해시). 방 번호 자체는 남기지 않음 · 같은 방은 같은 숫자
+// 1.3.12 이 PC에서 답을 보낸 방(기록기 2.4.22) → 방마다 그날 처음·마지막 보낸 때(분) · 방 열쇠는 짧은 숫자로
+function sdList_(v) { return v.slice(-600).filter(function (x) { return x && /^(kakao|naver):[A-Za-z0-9_.-]{1,64}$/.test(String(x.k || '')) && ms_(x.t); }).map(function (x) { return { k: String(x.k), t: ms_(x.t) }; }); }
+function hash1_(k) { var h = 2166136261; for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return k.charAt(0) + h.toString(36); }
+function sdPack_(list, day) {
+  var out = {}, n = 0, start = Date.parse(day + 'T00:00:00+09:00');
+  (list || []).forEach(function (x) {
+    if (!x || dayKey_(x.t) !== day) return; var h = hash1_(String(x.k)), m = Math.floor((x.t - start) / 60000), o = out[h];
+    if (!o) { if (n >= 400) return; n++; out[h] = [m, m]; } else { o[0] = Math.min(o[0], m); o[1] = Math.max(o[1], m); }
+  });
+  return out;
+}
+// 1.3.12 켜져 있던 업무시간: 박동 사이가 3분 안이면 그 사이의 업무시간(월~금 10시~19시, 목 17시 · 점심 12:30~14:00 빼고)을 더함
+function bizMin_(a, b) {
+  var KST = 9 * 3600e3, d0 = Math.floor((a + KST) / 864e5), wd = new Date(d0 * 864e5).getUTCDay(); if (wd === 0 || wd === 6) return 0;
+  var base = d0 * 864e5 - KST, m0 = (a - base) / 60000, m1 = Math.min((b - base) / 60000, 1440), end = wd === 4 ? 17 * 60 : 19 * 60;
+  var ov = function (x0, x1) { return Math.max(0, Math.min(m1, x1) - Math.max(m0, x0)); };
+  return Math.max(0, ov(600, end) - ov(750, 840));
+}
+function onlineAdd_(cache, who, day, now) {
+  var k = 'onl:' + who + ':' + day, v = jget_(cache, k);
+  if (!v || typeof v !== 'object') { var t = readJson_('team.json', {}), row = t && t[day] && t[day][who]; v = { l: 0, m: Number(row && row.on) || 0 }; }
+  if (v.l && now > v.l && now - v.l <= 180000) v.m += bizMin_(v.l, now);
+  v.l = now; cache.put(k, JSON.stringify(v), 21600);
+  return Math.round(v.m * 10) / 10;
+}
 function roomHash_(rr) {
   var seen = {}, out = [];
   (rr || []).forEach(function (x) {
@@ -380,6 +407,7 @@ function mergeQa_(qas) {
     rt: qas.length > 1 ? [].concat.apply([], qas.map(function (q) { return q.rt || []; })).sort(function (a, b) { return a - b; }).slice(0, 400) : (qas[0] && qas[0].rt || []),
     rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
     ar: byKey_(qas.map(function (q) { return q.ar; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }), hasAr: qas.some(function (q) { return Array.isArray(q.ar); }),
+    sd: [].concat.apply([], qas.map(function (q) { return q.sd || []; })), hasSd: qas.some(function (q) { return Array.isArray(q.sd); }),
     overlap: recOverlap_(qas), overK: recOverlap_(qas, 'kakao'), overN: recOverlap_(qas, 'naver')
   };
 }
@@ -472,7 +500,7 @@ function qaPlain_(x) { var o = {}; Object.keys(x).forEach(function (k) { if (k !
 function qaClean_(q, withNames) {
   var list = function (v, n, f) { return Array.isArray(v) ? v.slice(0, n).filter(function (x) { return x && x.id; }).map(f || qaItem_) : []; };
   var rt = Array.isArray(q.rt) ? q.rt.slice(0, 400).map(function (v) { return Math.max(0, Math.min(1439, Math.floor(Number(v) || 0))); }) : [];
-  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr), ar: Array.isArray(q.ar) ? rrList_(q.ar, 300) : null };
+  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr), ar: Array.isArray(q.ar) ? rrList_(q.ar, 300) : null, sd: Array.isArray(q.sd) ? sdList_(q.sd) : null };
 }
 function qaDays_(days) { var q = readJson_('qa.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(q || {}).forEach(function (k) { if (k >= from) out[k] = q[k]; }); return out; }
 function qaLive_() {
