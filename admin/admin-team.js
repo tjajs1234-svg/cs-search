@@ -142,7 +142,7 @@
     var v = await serverVersion(); if (!v || v.now === v.latest) return null;
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
-      mk('p', null, '이번 판(1.3.10): 이번 주·이번 달 숫자에서 같은 고객을 1건으로 세요(그날 기록한 방을 짧은 숫자로 남겨요 · 이 판을 올린 날부터). 1.3.9의 카테고리별 기록 수 · 1.3.8의 채널별 건수도 그대로 들어 있어요. 주소는 그대로예요.'),
+      mk('p', null, '이번 판(1.3.11): 기록기를 다시 깐 PC에서 내 이름을 누르면 예전 카톡·톡톡 태그를 불러와요(기록기 2.4.18). 1.3.10의 같은 고객 한 번 세기(이번 주·이번 달) · 1.3.9 카테고리 · 1.3.8 채널별 건수도 그대로 들어 있어요. 주소는 그대로예요.'),
       mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
     var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
     var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });

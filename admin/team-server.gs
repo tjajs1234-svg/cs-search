@@ -26,10 +26,12 @@
             · 보류한 고객 10명(이름·마지막 말·보류한 시각)을 지금 상태에 — 팀 현황에서 누가 무엇을 보류해 뒀는지
    · 1.3.10: 날짜별 파일에 그날 기록한 방 · (기록기 2.4.17부터) 그날 답한 고객의 방을 짧은 숫자(방 번호를 바꾼 것 · 되돌릴 수 없음)로 남김
             — 팀 현황이 하루·이번 주·이번 달 모두 같은 고객을 1번으로 셀 수 있게(완료 기록 · 답한 상담)
+   · 1.3.11: (기록기 2.4.18과 함께) 꺼짐 복구 — 상담사 이름별 카톡·톡톡 태그를 보관(tags.json · 바뀔 때만 씀)
+            → 기록기를 다시 깐 PC의 패널 첫 화면에서 내 이름을 한 번 누르면 예전 태그를 불러옴(tags.get). 고객 정보 없음
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.10';
+var TEAM_VERSION = '1.3.11';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -64,6 +66,7 @@ function handle_(req) {
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
   if (a === 'board.uncomment') return withLock_(function () { return boardUncomment_(req); });
   if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
+  if (a === 'tags.get') return { ok: true, list: tagsGet_() };
   if (a === 'qa.get') return { ok: true, days: qaDays_(Number(req.days) || 7), live: qaLive_(), now: Date.now() };
   if (a === 'work.get') { var st = settings_(); return { ok: true, items: otList_(req), cfg: cfgOut_(st), roster: st.roster || [] }; }
   if (a === 'cfg.get') return { ok: true, cfg: cfgOut_(settings_()), roster: settings_().roster || [] };
@@ -271,6 +274,7 @@ function teamBeat_(req) {
   if (req.lead) return leadBeat_(req);
   var who = person_(req.name); if (!who) return { ok: false, error: '이름이 없어요' };
   var live = req.live && typeof req.live === 'object' ? req.live : {}, now = Date.now(), cache = CacheService.getScriptCache(), pc = pcOf_(req);
+  tagsSave_(who, req.tags, cache);
   var row = { name: who, at: now, pending: num_(live.pending), oldestMin: num_(live.oldestMin), over10: num_(live.over10), over20: num_(live.over20), held: num_(live.held), records: num_(live.records), channels: text_(live.channels, 60) };
   if (pc !== 'x') row.pc = pc;
   if (req.v) row.v = text_(req.v, 12);
@@ -322,6 +326,19 @@ function teamBeat_(req) {
   }
   prevFill_(who, req.prev, day, cache);
   return { ok: true, cfg: cfgOut_(settings_()), recs: teamRecs_(dayKey_(now)) };
+}
+// 1.3.11 꺼짐 복구: 이름별 태그(기록기 2.4.18이 박동에 실어 보냄) — 바뀔 때만 파일에 씀
+function tagsSave_(who, tags, cache) {
+  if (!tags || typeof tags !== 'object' || who === '팀장') return;
+  var t = { kakao: text_(tags.kakao, 80), naver: text_(tags.naver, 80) }, sig = t.kakao + '|' + t.naver;
+  if (!t.kakao && !t.naver) return;
+  if (cache.get('tagsig:' + who) === sig) return;
+  withLock_(function () { var all = readJson_('tags.json', {}); if (!all || typeof all !== 'object') all = {}; all[who] = { kakao: t.kakao, naver: t.naver, at: Date.now() }; writeJson_('tags.json', all); return { ok: true }; });
+  cache.put('tagsig:' + who, sig, 21600);
+}
+function tagsGet_() {
+  var all = readJson_('tags.json', {}); if (!all || typeof all !== 'object') all = {};
+  return Object.keys(all).filter(function (n) { return n !== '팀장'; }).map(function (n) { return { name: n, kakao: all[n].kakao || '', naver: all[n].naver || '', at: all[n].at || 0 }; }).sort(function (a, b) { return a.name > b.name ? 1 : -1; });
 }
 // 1.3.10 기록한 방 → 짧은 숫자(k/n + 해시). 방 번호 자체는 남기지 않음 · 같은 방은 같은 숫자
 function roomHash_(rr) {

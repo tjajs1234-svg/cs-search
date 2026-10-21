@@ -619,7 +619,7 @@
       var wl = mk('div', 'tpanel tlate20'), wh = mk('div', 'tph'); wh.append(mk('span', 'tdot r'), mk('b', null, '20분 넘게 기다리는 고객'), mk('span', 'muted', '오래된 순 · [열기]를 누르면 그 상담방')); wl.append(wh);
       waits.slice(0, 12).forEach(function (z) {
         var row = mk('div', 'tact'); row.append(mk('b', 'tmin', z.t.w + '분'), mk('b', null, z.o.n));
-        if (z.t.ch) row.append(chip(z.t.ch)); var msg = mk('span', 'tmsg', z.t.ch ? (z.t.r ? '다시 옴 · ' : '') + (z.t.p || '(사진·파일 또는 내용 없음)') : '고객 이름·메시지는 기록기 2.4.4부터'); msg.title = z.t.p || ''; row.append(msg);
+        if (z.t.ch) row.append(chip(z.t.ch)); if (z.t.ch) row.append(mk('b', 'tcn', z.t.n || '이름 없음')); var msg = mk('span', 'tmsg', z.t.ch ? (z.t.r ? '다시 옴 · ' : '') + (z.t.p || '(사진·파일 또는 내용 없음)') : '고객 이름·메시지는 기록기 2.4.4부터'); msg.title = z.t.p || ''; row.append(msg);
         if (z.t.ch) row.append(link(z.t)); wl.append(row);
       });
       box.append(wl);

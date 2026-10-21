@@ -263,3 +263,4 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .tord .tor{display:grid;grid-template-columns:44px 64px 120px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;font-size:13.5px}.tord .tor+.tor{border-top:1px solid var(--line)}
 .tord .tor.r{background:var(--danger-soft)}.tord .tor.r .tpos,.tord .tor.r .torg{color:var(--danger);font-weight:800}.tord .tor.g .tpos{color:var(--success)}.tord .torl.bad{color:var(--danger);font-weight:800}.tord .torg{color:var(--muted)}
 @media (max-width:640px){.tord .tor{grid-template-columns:40px 1fr;}.tord .tor .tora,.tord .tor .torg,.tord .tor .torl{grid-column:2}}
+.tlate20 .tact .tcn{flex:none;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
