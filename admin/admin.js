@@ -143,7 +143,8 @@
  const half=(e,el)=>{const r=el.getBoundingClientRect();return e.clientY<r.top+r.height/2;};
  function clearOver(){for(const x of document.querySelectorAll('.over-top,.over-bot,.drop,.dragging'))x.classList.remove('over-top','over-bot','drop','dragging');}
  function leaveCard(){ // 아무것도 안 적은 새 멘트는 다른 곳으로 가면 조용히 치움
-  if(!sel)return;const f=findCard(sel);if(f&&isNew(sel)&&!String(f.k.title).trim()&&!String(f.k.script).trim()){f.c.cards.splice(f.i,1);sel='';changed();}}
+  if(!sel)return;const f=findCard(sel);if(f&&isNew(sel)&&(!String(f.k.title).trim()||String(f.k.title).trim()===seeded[sel])&&!String(f.k.script).trim()){f.c.cards.splice(f.i,1);sel='';changed();}}
+ const seeded={}; // 못 찾은 검색어 [멘트 만들기]로 제목만 넣어 둔 새 멘트: 내용 없이 떠나면 똑같이 치움
  function pickCat(id){leaveCard();view='cards';catId=id;$('q').value='';const f=sel&&findCard(sel);if(f&&id&&f.c.id!==id)sel='';render();}
  function moveCat(id,beforeId,top){const a=cats(),i=a.findIndex(c=>c.id===id);if(i<0||id===beforeId)return;const [c]=a.splice(i,1);let j=a.findIndex(x=>x.id===beforeId);if(j<0)j=a.length;a.splice(top?j:j+1,0,c);changed();render();}
  function uniqueName(n){let i=1,x=n;while(cats().some(c=>c.name===x))x=n+' '+(++i);return x;}
@@ -227,14 +228,14 @@
   render();
  }
  function pickCard(id,focus){if(sel!==id)leaveCard();sel=id;renderRows();renderEdit();if(focus){const t=document.querySelector('#edit .ta');if(t)t.focus();}}
- function newCard(){
-  leaveCard();if(view!=='cards')view='cards';
+ function newCard(seed){
+  seed=typeof seed==='string'?seed.trim():'';leaveCard();if(view!=='cards')view='cards';
   let c=catOf(catId)||(sel&&findCard(sel)?findCard(sel).c:null)||cats()[0];
   if(!c){c={id:rid('c_'),name:'새 분류',cards:[]};cats().push(c);}
-  const k={id:rid('k_'),title:'',group:'',script:'',note:''};c.cards.unshift(k);$('q').value='';if(catId)catId=c.id;sel=k.id;changed();render();
-  const r0=document.querySelector('#rows .row[aria-current="true"]');if(r0)r0.scrollIntoView({block:'nearest'});const t=document.querySelector('#edit .in.title');if(t)t.focus();
+  const k={id:rid('k_'),title:seed,group:'',script:'',note:''};c.cards.unshift(k);if(seed)seeded[k.id]=seed;$('q').value='';if(catId)catId=c.id;sel=k.id;changed();render();
+  const r0=document.querySelector('#rows .row[aria-current="true"]');if(r0)r0.scrollIntoView({block:'nearest'});const t=document.querySelector(seed?'#edit .ta':'#edit .in.title');if(t)t.focus();
  }
- $('addCard').addEventListener('click',newCard);
+ $('addCard').addEventListener('click',()=>newCard());
  const q=$('q');
  q.addEventListener('input',()=>{renderRows();});
  q.addEventListener('compositionstart',()=>{composing=true;});q.addEventListener('compositionend',()=>{composing=false;renderRows();});
@@ -496,6 +497,6 @@
   else if(e.altKey&&!mod&&(e.key==='ArrowUp'||e.key==='ArrowDown')&&view==='cards'&&sel){const f=document.querySelector('#edit .form');if(f&&f.rgStep){e.preventDefault();f.rgStep(e.key==='ArrowUp'?-1:1);}}
  });
  chrome.storage.onChanged.addListener((ch,area)=>{if(area==='local'&&ch.kbContent&&!busy&&!KBAdminExtra.connecting)load();});
- window.KBAdminApp={refresh:()=>{if(base)render();},say,dialog,confirmDlg,btn,mk,lab:(...a)=>lab(...a),reload:()=>load(),current:()=>({draft,base,pubVer,D}),setView:v=>{leaveCard();view=v;render();}};
+ window.KBAdminApp={refresh:()=>{if(base)render();},say,dialog,confirmDlg,btn,mk,lab:(...a)=>lab(...a),reload:()=>load(),current:()=>({draft,base,pubVer,D}),setView:v=>{leaveCard();view=v;render();},newCard:t=>newCard(t)};
  load(true);
 })();

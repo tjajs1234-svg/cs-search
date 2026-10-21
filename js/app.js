@@ -604,9 +604,9 @@
     var any = (src.requests && src.requests.length) || src.defects || src.notice;
     if (!any && kind !== 'notice') { box.append(el('span', null, kind === 'defect' ? '· 관리자가 ‘제품 불량 모음’ 탭을 연결하면 보여요' : '· 2024·2025 요청시트 · 2026년은 관리자가 연결하면 함께 찾아요')); return; }
     problemLine(box);
-    var at = BD && BD.at; if (at) box.append(el('span', null, '· ' + ago(at) + ' 읽음 · 5분마다 저절로'));
+    var at = BD && BD.at; if (at) box.append(el('span', 'agoAt', '· ' + ago(at) + ' 읽음 · 5분마다 저절로'));
     var g = el('span', 'grow'); box.append(g);
-    var r = el('button', 'lk', BD && BD.busy ? '읽는 중…' : '지금 새로 읽기'); r.type = 'button';
+    var r = el('button', 'lk reread', BD && BD.busy ? '읽는 중…' : '지금 새로 읽기'); r.type = 'button';
     r.addEventListener('click', function () { r.disabled = true; r.textContent = '읽는 중…'; refreshBridge(true); }); box.append(r);
   }
   function chips(box, values, cur, pick) { box.replaceChildren(); values.forEach(function (v) { var b = el('button', 'fchip', v || '전체'); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.addEventListener('click', function () { pick(v); }); box.append(b); }); }
@@ -790,11 +790,14 @@
   function pushSources() { if (CSBridge.ready) refreshBridge(false); }
   async function refreshBridge(force) {
     if (!CSBridge.ready) return;
+    var changed = true;
     try {
       var r = await CSBridge.call('data', { sources: C && C.sources || {}, since: force ? '' : bdVersion, force: !!force }, 60000);
       if (r && !r.unchanged) { BD = r; bdVersion = r.version || ''; rebuildReq(); }
-      else if (r && BD) { BD.at = r.at || BD.at; BD.busy = r.busy; }
+      else if (r && BD) { changed = !!force || BD.busy !== r.busy; BD.at = r.at || BD.at; BD.busy = r.busy; }
     } catch (e) { /* 다음 차례에 */ }
+    // 2026-10-21 1분마다 묻는데 바뀐 게 없으면 목록은 그대로 두고 '몇 분 전 읽음'만 고침(읽던 자리 · 펼친 카드가 안 흔들림)
+    if (!changed) { ['rinfo', 'dinfo', 'ninfo'].forEach(function (id) { var a = $(id) && $(id).querySelector('.agoAt'); if (a && BD && BD.at) a.textContent = '· ' + ago(BD.at) + ' 읽음 · 5분마다 저절로'; }); renderBadges(); return; }
     if (curView === 'req') renderReq(); else if (curView === 'defect') renderDefect(); else if (curView === 'notice') renderNotices();
     renderBadges();
   }

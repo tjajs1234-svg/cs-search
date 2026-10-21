@@ -74,15 +74,21 @@
     if (/^d:/.test(period)) from = period.slice(2); else if (period === 'month') from = td.slice(0, 8) + '01'; else if (period === 'week' || period === 'yday') from = new Date(Date.parse(td + 'T00:00:00Z') - 10 * 864e5).toISOString().slice(0, 10); else if (period === 'lweek') from = new Date(Date.parse(td + 'T00:00:00Z') - 15 * 864e5).toISOString().slice(0, 10);
     return Math.min(400, Math.max(2, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 864e5) + 1, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(td.slice(0, 8) + '01T00:00:00Z')) / 864e5) + 1));
   }
-  async function team(w) {
+  // 2026-10-21 빠르게: 메뉴로 들어오거나 기간·화면을 바꾸면 방금 받은 숫자로 바로 그리고 곧바로 새 숫자로 바꿈 ·
+  // [빼기]처럼 이 PC에서만 바뀐 건 다시 받지 않음(soft) · 30초마다는 늘 새로 받음(fresh)
+  var tGen = 0;
+  async function team(w, how) {
     clearTimeout(tTimer);
+    if (!how && CSTeam.peek && CSTeam.peek('team.get', { days: needDays(tPeriod) }) >= 0) { await team(w, 'soft'); if (w.isConnected) team(w, 'fresh'); return; }
+    var my = ++tGen, soft = how === 'soft', SOFT = 120000;
     var T = '팀 현황', DESC = '상담사 기록기가 1분마다 보내요. 숫자는 시트에 저장된 기록만 세요. 기다리는 고객의 이름·마지막 말은 지금 상태에만 보이고 날짜별 자료에는 안 남아요. 기다린 시간은 업무시간만 셈(주말·공휴일·점심·퇴근 뒤 빼고).';
     if (!w.querySelector('.tview')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     CSTeam.get('cfg.get', {}).catch(function () {});
-    var r; try { r = await CSTeam.get('team.get', { days: needDays(tPeriod) }, 0); } catch (e) { w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
-    var again = function () { team(w); };
-    var g = window.KBTeam3 ? await KBTeam3.render(r, { mode: tWho ? 'fb' : tMode, period: tMode === 'now' && !tWho ? 'today' : tPeriod, person: tWho, who: function (n) { tWho = n || ''; w.scrollTop = 0; team(w); }, again: again }) : mk('div', 'empty', '불러오는 중…');
+    var r; try { r = await CSTeam.get('team.get', { days: needDays(tPeriod) }, soft ? SOFT : 0); } catch (e) { if (my !== tGen) return; w.replaceChildren(mk('h2', null, T), mk('div', 'empty', '불러오지 못했어요. ' + e.message)); return; }
+    if (my !== tGen) return;
+    var again = function () { team(w, 'soft'); };
+    var g = window.KBTeam3 ? await KBTeam3.render(r, { mode: tWho ? 'fb' : tMode, period: tMode === 'now' && !tWho ? 'today' : tPeriod, person: tWho, who: function (n) { tWho = n || ''; w.scrollTop = 0; team(w); }, again: again, maxAge: soft ? SOFT : 0 }) : mk('div', 'empty', '불러오는 중…');
     var modes = mk('div', 'tmodes'); [['now', '지금', '놓치는 고객이 있나'], ['fb', '피드백', '누구와 무슨 이야기를 하나'], ['num', '숫자', 'QA 표 · 내려받기']].forEach(function (f) { var b = mk('button', 'tmode' + (tMode === f[0] && !tWho ? ' on' : '')); b.type = 'button'; b.dataset.mode = f[0]; b.append(mk('b', null, f[1]), mk('span', null, f[2])); b.addEventListener('click', function () { tMode = f[0]; tWho = ''; tstore('kb:tmode', f[0]); team(w); }); modes.append(b); });
     var nav = mk('div', 'ins bper'); nav.append(mk('span', null, '기간'));
     [['today', '오늘'], ['yday', '어제'], ['week', '이번 주'], ['lweek', '지난주'], ['month', '이번 달']].forEach(function (f) { var b = mk('button', tPeriod === f[0] ? 'on' : null, f[1]); b.type = 'button'; b.addEventListener('click', function () { tPeriod = f[0]; team(w); }); nav.append(b); });
@@ -91,12 +97,13 @@
     nav.append(di, mk('span', 'muted', tMode === 'num' ? '기간은 건수에만 · 지금 기다리는 고객·기록 안 함은 늘 지금' : '하루 숫자로는 이야기할 것을 고르지 않아요(이번 주 · 지난주 · 이번 달)'));
     if (tMode === 'now' && !tWho) nav.hidden = true;
     var ub = tWho ? null : await updateBox();
+    if (my !== tGen) return;
     var keepScroll = w.scrollTop;
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC));
     if (ub) w.append(ub);
     w.append(modes, nav, g);
     w.scrollTop = keepScroll;
-    tTimer = setTimeout(function () { if (A() && document.querySelector('.tview') && w.isConnected && !w.querySelector('.tview :focus, details.tdet[open] :focus')) team(w); }, 30000);
+    tTimer = setTimeout(function () { if (A() && document.querySelector('.tview') && w.isConnected && !w.querySelector('.tview :focus, details.tdet[open] :focus')) team(w, 'fresh'); }, 30000);
   }
 
   /* ───── 못 찾은 검색어(최근 30일): 상담사가 스크립트에서 찾다가 꼭 맞는 멘트가 없던 짧은 검색어 ───── */
@@ -108,11 +115,29 @@
     var sum = {}, last = {}; Object.keys(r.days || {}).sort().forEach(function (d) { var x = r.days[d] || {}; Object.keys(x).forEach(function (k) { sum[k] = (sum[k] || 0) + x[k]; last[k] = d; }); });
     var keys = Object.keys(sum).sort(function (a, b) { return sum[b] - sum[a] || (last[b] > last[a] ? 1 : -1); });
     w.lastChild.remove();
-    var p = mk('div', 'panel'); p.style.maxWidth = '720px';
-    p.append(mk('div', 'ins', '검색어 ' + keys.length + '개'));
-    if (!keys.length) p.append(mk('div', 'empty', '아직 모인 검색어가 없어요.'));
-    keys.slice(0, 200).forEach(function (k) { var row = mk('div', 'hrow'); row.style.gridTemplateColumns = 'minmax(0,1fr) 70px 90px'; row.append(mk('b', null, k), mk('span', null, sum[k] + '번'), mk('span', 'muted', '마지막 ' + Number(last[k].slice(5, 7)) + '/' + Number(last[k].slice(8, 10)))); p.append(row); });
-    p.append(mk('p', 'muted', '자주 나오는 말은 멘트 제목이나 내용에 그 말을 넣으면 다음부터 찾혀요.'));
+    // 2026-10-21 팀장이 멘트를 만들었으면: 상담사에게 보낸 멘트로 이제 찾아지는 검색어는 저절로 아래로 접음 · [빼기]로 직접 지우기(이 PC에만 · 그 뒤에 또 나오면 다시 보임)
+    var cur = A() && A().current ? A().current() : {}, finder = function (sc) { if (!sc || !window.KBSearch || !window.KBData) return null; try { var pl = KBData.toPayload(sc), recs = pl.records.map(function (r) { return { id: r.id, category: r.category, sheetLabel: r.sheetLabel, situation: r.situation, script: r.script, note: r.note }; }).concat(pl.sharedClosings.map(function (c) { return { id: c.id, category: '공용 끝인사', sheetLabel: '끝인사', situation: c.title, script: c.body, note: '' }; })), ix = KBSearch.createIndex(recs); return function (k) { var r = ix.search(k, { limit: 5 }); return r.list.length > 0 && !r.loose; }; } catch (e) { return null; } };
+    var inBase = finder(cur.base), inDraft = finder(cur.draft), hide = {}; try { hide = JSON.parse(localStorage.getItem('kb:missHide') || '{}') || {}; } catch (e) { hide = {}; }
+    var saveHide = function () { try { localStorage.setItem('kb:missHide', JSON.stringify(hide)); } catch (e) {} };
+    var open = [], fixed = [], gone = [];
+    keys.forEach(function (k) { if (inBase && inBase(k)) fixed.push(k); else if (hide[k] && last[k] <= hide[k]) gone.push(k); else open.push(k); });
+    var md2 = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); };
+    var p = mk('div', 'panel'); p.style.maxWidth = '760px';
+    p.append(mk('div', 'ins', '찾아야 할 검색어 ' + open.length + '개' + (fixed.length ? ' · 이제 찾아지는 것 ' + fixed.length + '개' : '') + (gone.length ? ' · 뺀 것 ' + gone.length + '개' : '')));
+    if (!open.length) p.append(mk('div', 'empty', keys.length ? '남은 검색어가 없어요 ✓' : '아직 모인 검색어가 없어요.'));
+    open.slice(0, 200).forEach(function (k) {
+      var row = mk('div', 'hrow'); row.style.gridTemplateColumns = 'minmax(0,1fr) 60px 80px auto'; var st = mk('span', 'muted');
+      if (inDraft && inDraft(k)) st.append('보내지 않은 수정에 있어요 · [상담사에게 보내기] 뒤 빠져요');
+      else st.append(btn('멘트 만들기', 'sm', function () { if (A() && A().newCard) A().newCard(k); }), ' ', btn('빼기', 'ghost sm', function () { hide[k] = last[k]; saveHide(); misses(w); }));
+      row.append(mk('b', null, k), mk('span', null, sum[k] + '번'), mk('span', 'muted', '마지막 ' + md2(last[k]) + (hide[k] ? ' · 다시 나옴' : '')), st); p.append(row);
+    });
+    p.append(mk('p', 'muted', '[멘트 만들기]를 누르면 그 검색어가 제목에 들어간 새 멘트가 열려요. 내용을 적고 [상담사에게 보내기]를 누르면 다음부터 찾혀요. 그러면 이 목록에서도 저절로 빠져요. [빼기]는 이 PC에만 기억되고, 그 뒤에 상담사가 또 못 찾으면 다시 보여요.'));
+    var fold = function (title, list, undo) {
+      if (!list.length) return; var d = mk('details', 'tdet'); d.append(mk('summary', null, title + ' ' + list.length + '개'));
+      list.forEach(function (k) { var row = mk('div', 'hrow'); row.style.gridTemplateColumns = 'minmax(0,1fr) 60px 80px auto'; var st = mk('span', 'muted'); if (undo) st.append(btn('되돌리기', 'ghost sm', function () { delete hide[k]; saveHide(); misses(w); })); else st.append('이제 찾아져요 ✓'); row.append(mk('span', null, k), mk('span', 'muted', sum[k] + '번'), mk('span', 'muted', '마지막 ' + md2(last[k])), st); d.append(row); });
+      p.append(d);
+    };
+    fold('이제 찾아지는 검색어', fixed, false); fold('뺀 검색어', gone, true);
     w.append(p);
   }
 
@@ -142,7 +167,7 @@
     var v = await serverVersion(); if (!v || v.now === v.latest) return null;
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
-      mk('p', null, '이번 판(1.3.12): 면담 화면이 ‘누가 답했나’(어느 PC에서 답을 보냈나, 기록기 2.4.22)와 기록기 켜진 시간을 알아요. 1.3.11 태그 불러오기 · 1.3.10의 같은 고객 한 번 세기(이번 주·이번 달) · 1.3.9 카테고리 · 1.3.8 채널별 건수도 그대로 들어 있어요. 주소는 그대로예요.'),
+      mk('p', null, '이번 판(1.3.13): 기록 창에서 ‘이 고객 지난 기록’(날짜 · 상담사 · 카테고리)을 보여 줘요(기록기 2.4.23). 1.3.12 ‘누가 답했나’ · 기록기 켜진 시간 · 1.3.11 태그 불러오기 · 1.3.10의 같은 고객 한 번 세기(이번 주·이번 달) · 1.3.9 카테고리 · 1.3.8 채널별 건수도 그대로 들어 있어요. 주소는 그대로예요.'),
       mk('p', null, '① [코드 복사] → ② 앱스크립트 편집기에서 글을 모두 지우고 붙여 넣기 → 저장(Ctrl+S) → ③ [배포] → [배포 관리] → 연필(수정) → 버전: [새 버전] → [배포]'));
     var cp = btn('코드 복사', 'ghost', async function () { try { await navigator.clipboard.writeText(await gsText()); say('코드를 복사했어요. 앱스크립트 편집기에 붙여 넣어 주세요', 'ok'); } catch (e) { say('복사하지 못했어요: ' + e.message, 'err'); } });
     var again = btn('다 했어요 · 다시 확인', 'ghost', function () { verCheck = null; updateBox().then(function (b) { if (!b) { box.remove(); say('팀 서버가 새 판이에요', 'ok'); } else say('아직 예전 판이에요. [새 버전]으로 배포했는지 확인해 주세요', 'err'); }); });

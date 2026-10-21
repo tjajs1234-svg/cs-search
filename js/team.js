@@ -27,6 +27,8 @@
     p.catch(function () { if (memo[k] && memo[k].p === p) delete memo[k]; });
     return p;
   }
+  // 기억해 둔 읽기가 있으면 몇 ms 전에 받았는지(없으면 -1)
+  function peek(action, params) { var m = memo[action + JSON.stringify(params || {})]; return m ? Date.now() - m.at : -1; }
   var rawCall = call;
   // 읽기는 인터넷이 잠깐 끊기거나 서버가 늦으면 한 번 더 물어봄(서버가 ‘안 돼요’라고 답한 건 다시 안 물음)
   call = async function (action, params, ms, keepalive) {
@@ -34,5 +36,5 @@
     try { return await rawCall(action, params, ms, keepalive); }
     catch (e) { if (e && e.server) throw e; await new Promise(function (r) { setTimeout(r, 700); }); return rawCall(action, params, ms, keepalive); }
   };
-  root.CSTeam = { valid: valid, set: set, call: function (a, p, m, k) { return call(a, p, m, k); }, get: get, ready: function () { return !!url; }, get url() { return url; } };
+  root.CSTeam = { valid: valid, set: set, call: function (a, p, m, k) { return call(a, p, m, k); }, get: get, peek: peek, ready: function () { return !!url; }, get url() { return url; } };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

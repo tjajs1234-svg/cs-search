@@ -45,11 +45,12 @@
   function skipSet(key, v) { var o = skipGet(), cut = W.addDays(W.dayKey(Date.now()), -62); Object.keys(o).forEach(function (k) { if (k.slice(0, 10) < cut) delete o[k]; }); if (v) o[key] = v; else delete o[key]; store(SKIP_KEY, JSON.stringify(o)); }
 
   /* ───── 숫자 모으기: 사람마다 고른 기간의 기록 · 채널 · 시간당 · 20분 넘김 · 빈 시간 + 지금 상태 ───── */
-  async function collect(r, period) {
+  async function collect(r, period, maxAge) {
     await (T().syncLead ? T().syncLead() : null);
     var K = T2(), P = T().person, now = Date.now(), td = W.dayKey(now), days = r.days || {}, keys = K.periodKeys(period);
-    var back = Math.min(62, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(keys[0] + 'T00:00:00Z')) / 864e5) + 1);
-    var got = await Promise.all([CSTeam.get('qa.get', { days: back }, 0).catch(function () { return { days: {}, live: {} }; }), CSTeam.get('cases.get', {}).catch(function () { return { list: [] }; }), K.getCfg().catch(function () { return null; })]);
+    // 2026-10-21 이번 달·2주는 늘 같은 범위로 물어서 기간을 바꿔도 방금 받은 걸 다시 씀(팀 서버는 qa.json 하나만 읽음)
+    var back = Math.min(62, Math.max(14, Number(td.slice(8, 10)), Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(keys[0] + 'T00:00:00Z')) / 864e5) + 1));
+    var got = await Promise.all([CSTeam.get('qa.get', { days: back }, maxAge || 0).catch(function () { return { days: {}, live: {} }; }), CSTeam.get('cases.get', {}).catch(function () { return { list: [] }; }), K.getCfg().catch(function () { return null; })]);
     var q = got[0], wcfg = (got[2] || {}).cfg || {}, cbn = {}; (got[1].list || []).forEach(function (x) { cbn[P(x.name)] = x; });
     var live = {}; (r.live || []).forEach(function (x) { live[P(x.name)] = x; });
     var ql = {}; Object.keys(q.live || {}).forEach(function (n) { ql[P(n)] = q.live[n]; });
@@ -840,7 +841,7 @@
 
   /* ───── 그리기: 팀 현황(admin-team.js team())이 부름 ───── */
   async function render(r, st) {
-    var M = await collect(r, st.period), ctx = { who: st.who, again: st.again };
+    var M = await collect(r, st.period, st.maxAge), ctx = { who: st.who, again: st.again };
     if (st.person) {
       var wrap = mk('div', 'tview'), hd = mk('div', 'tivh'), back = btn('← 팀 현황', 'ghost sm', function () { st.who(''); });
       var sel = mk('select', 'sel'); M.people.forEach(function (p) { sel.append(new Option(p.n, p.n)); }); sel.value = st.person; sel.setAttribute('aria-label', '상담사'); sel.addEventListener('change', function () { st.who(sel.value); });

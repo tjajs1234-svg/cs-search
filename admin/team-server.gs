@@ -31,7 +31,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.12';
+var TEAM_VERSION = '1.3.13';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -61,6 +61,7 @@ function handle_(req) {
   if (a === 'miss.add') return withLock_(function () { return missAdd_(req); });
   if (a === 'miss.get') return { ok: true, days: missGet_(Number(req.days) || 30) };
   if (a === 'team.beat') return teamBeat_(req);
+  if (a === 'hist.get') return { ok: true, list: histGet_(req.k) };
   if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
   if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
@@ -321,7 +322,7 @@ function teamBeat_(req) {
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
@@ -353,6 +354,27 @@ function sdPack_(list, day) {
     if (!o) { if (n >= 400) return; n++; out[h] = [m, m]; } else { o[0] = Math.min(o[0], m); o[1] = Math.max(o[1], m); }
   });
   return out;
+}
+// 1.3.13 이 고객 지난 기록(기록 창에서 봄): 방 열쇠는 짧은 숫자로만 · 방마다 [날짜, 상담사, 카테고리] 최근 10개 · 60일 지나면 지움
+function histAdd_(rr, who, day) {
+  if (!Array.isArray(rr) || !rr.length) return;
+  var h = readJson_('hist.json', {}); if (!h || typeof h !== 'object') h = {};
+  var from = dayKey_(Date.now() - 60 * 864e5), changed = false;
+  rr.forEach(function (x) {
+    var k = String(x && x.k || ''); if (!/^(kakao|naver):/.test(k)) return;
+    var key = hash1_(k), l = Array.isArray(h[key]) ? h[key] : [], c = text_(x.c, 20);
+    var e = l.filter(function (y) { return y[0] === day && y[1] === who; })[0];
+    if (e) { if (c && e[2] !== c) { e[2] = c; changed = true; } return; }
+    l.unshift([day, who, c]); h[key] = l.filter(function (y) { return y[0] >= from; }).slice(0, 10); changed = true;
+  });
+  if (!changed) return;
+  if (Math.random() < 0.05) Object.keys(h).forEach(function (key) { var l = (h[key] || []).filter(function (y) { return y[0] >= from; }); if (l.length) h[key] = l; else delete h[key]; });
+  writeJson_('hist.json', h);
+}
+function histGet_(k) {
+  k = String(k || ''); if (!/^(kakao|naver):[A-Za-z0-9_.-]{1,64}$/.test(k)) return [];
+  var h = readJson_('hist.json', {}) || {}, l = Array.isArray(h[hash1_(k)]) ? h[hash1_(k)] : [];
+  return l.slice().sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; }).slice(0, 10).map(function (y) { return { d: y[0], n: y[1], c: y[2] || '' }; });
 }
 // 1.3.12 켜져 있던 업무시간: 박동 사이가 3분 안이면 그 사이의 업무시간(월~금 10시~19시, 목 17시 · 점심 12:30~14:00 빼고)을 더함
 function bizMin_(a, b) {
