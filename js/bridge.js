@@ -4,7 +4,7 @@
 (function (root) {
   'use strict';
   var pending = new Map(), seq = 0, helloWaiters = [];
-  var B = { ready: false, version: '', info: null };
+  var B = { ready: false, version: '', info: null, lost: false };
 
   function onHello(d) {
     var first = !B.ready; B.ready = true; B.version = String(d.version || ''); B.info = d;
@@ -18,6 +18,8 @@
     if (d.cs === 'csb-event') { document.dispatchEvent(new CustomEvent('csbridge-event', { detail: d })); return; }
     if (d.cs === 'csb-res' && pending.has(d.id)) {
       var p = pending.get(d.id); pending.delete(d.id); clearTimeout(p.t);
+      // 2026-10-21 확장이 새 판으로 바뀌어(다시 켜져) 이 화면의 연결 다리가 끊김 → 화면이 알아채고 새로고침하게 한 번 알림
+      if (!d.ok && d.kind === 'ext' && !B.lost) { B.lost = true; try { document.dispatchEvent(new CustomEvent('csbridge-lost')); } catch (e) {} }
       if (d.ok) p.res(d.data); else { var err = new Error(d.error || '확장이 처리하지 못했어요'); err.kind = d.kind || ''; p.rej(err); }
     }
   });

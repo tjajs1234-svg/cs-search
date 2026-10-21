@@ -28,10 +28,13 @@
             — 팀 현황이 하루·이번 주·이번 달 모두 같은 고객을 1번으로 셀 수 있게(완료 기록 · 답한 상담)
    · 1.3.11: (기록기 2.4.18과 함께) 꺼짐 복구 — 상담사 이름별 카톡·톡톡 태그를 보관(tags.json · 바뀔 때만 씀)
             → 기록기를 다시 깐 PC의 패널 첫 화면에서 내 이름을 한 번 누르면 예전 태그를 불러옴(tags.get). 고객 정보 없음
+   · 1.3.14: (기록기 2.4.24와 함께) 다시 깐 PC — 같은 날 그 사람 숫자를 줄이지 않음(설치 이름표가 바뀌어 0부터 오면 그 PC의 앞선 숫자를 이어 붙임 ·
+            그 밖에도 하루 파일의 숫자는 더 큰 쪽으로만) · 내 보류 목록(상담 번호 · 마지막 메시지 번호 · 보류한 시각만)을 돌려줌(hold.get)
+            · 그 방이 오늘 팀에서 기록됐는지 바로 물어봄(rec.get) — 기록 창 '이미 기록된 상담' 알림을 1분 기다리지 않게
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.13';
+var TEAM_VERSION = '1.3.14';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -62,6 +65,8 @@ function handle_(req) {
   if (a === 'miss.get') return { ok: true, days: missGet_(Number(req.days) || 30) };
   if (a === 'team.beat') return teamBeat_(req);
   if (a === 'hist.get') return { ok: true, list: histGet_(req.k) };
+  if (a === 'hold.get') return { ok: true, list: holdGet_(req.name) };
+  if (a === 'rec.get') return recGet_(req.k);
   if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
   if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
@@ -291,6 +296,12 @@ function teamBeat_(req) {
   var cs = req.cases && typeof req.cases === 'object' ? cases_(req.cases, now, who) : null;
   var day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.day)) ? String(req.day) : dayKey_();
   var st = req.stats && typeof req.stats === 'object' ? statsClean_(req.stats, now) : null;
+  // 1.3.14 다시 깐 PC: 설치 이름표(inst)가 바뀌고 숫자가 0부터 오면, 같은 PC가 그날 앞서 보낸 숫자를 이어 붙일 몫(carry)에 더해 둠
+  if (st) { st.day = day; st.inst = /^[a-z0-9]{8}$/.test(String(req.inst || '')) ? String(req.inst) : ''; }
+  var prevSt = st ? jget_(cache, 'p:st:' + who + ':' + pc) : null;
+  if (st && prevSt && prevSt.day === day && prevSt.inst && st.inst && prevSt.inst !== st.inst) carryAdd_(cache, who, day, prevSt);
+  // 1.3.14 내 보류 목록(다시 깐 PC가 hold.get으로 되살림) — 다시 깐 PC가 되살리기 전에 보낸 빈 목록(fresh)으로는 덮어쓰지 않음
+  if (cs && !req.fresh) cache.put('holdk:' + who, JSON.stringify({ at: now, list: cs.hold }), 21600);
   // PC마다 받아 둠
   var put = {}; put['p:live:' + who + ':' + pc] = JSON.stringify(row);
   if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, sd: qa.sd, day: day });
@@ -304,6 +315,8 @@ function teamBeat_(req) {
   pcs.forEach(function (p) { ['live', 'qa', 'cases', 'st'].forEach(function (k) { try { var v = JSON.parse(g['p:' + k + ':' + who + ':' + p] || 'null'); if (v && now - (v.at || 0) < FRESH_PC) parts[k].push(v); } catch (e) {} }); });
   var mq = mergeQa_(parts.qa), mrow = mergeLive_(parts.live, mq, now);
   if (parts.live.length > 1) { mrow.dup = 1; mrow.pcs = parts.live.length; }
+  // 1.3.14 다시 깐 PC의 앞선 기록 수도 '지금' 숫자에 더함(하루 파일과 같게)
+  var crr = jget_(cache, 'carry:' + who + ':' + day); if (crr && crr.records) mrow.records = (mrow.records || 0) + crr.records;
   var out = {}; out['live:' + who] = JSON.stringify(mrow);
   if (parts.qa.length) out['qa:' + who] = JSON.stringify({ at: now, miss: mq.miss, lh: mq.lh });
   if (parts.cases.length) out['cases:' + who] = JSON.stringify(mergeCases_(parts.cases, who, now));
@@ -318,9 +331,11 @@ function teamBeat_(req) {
   if (ms && (!cache.get('dayw:' + who + ':' + day) || cache.get('dayr:' + who + ':' + day) !== rsig)) {
     withLock_(function () {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
-      var d = t[day] || (t[day] = {});
+      var d = t[day] || (t[day] = {}), old = d[who];
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
+      // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
+      dayKeep_(d[who], carryGet_(cache, who, day, old), old);
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
       if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
       return { ok: true };
@@ -338,6 +353,44 @@ function tagsSave_(who, tags, cache) {
   if (cache.get('tagsig:' + who) === sig) return;
   withLock_(function () { var all = readJson_('tags.json', {}); if (!all || typeof all !== 'object') all = {}; all[who] = { kakao: t.kakao, naver: t.naver, at: Date.now() }; writeJson_('tags.json', all); return { ok: true }; });
   cache.put('tagsig:' + who, sig, 21600);
+}
+// 1.3.14 다시 깐 PC가 이어 붙일 숫자(그날 · 사람마다): 캐시 + 하루 파일(d[이름].carry)에 같이 둠
+var CARRY_KEYS = ['answered', 'waitSum', 'over20', 'holds', 'records', 'kakao', 'naver'], CARRY_MAPS = ['sites', 'cats', 'ach'], KEEP_MAX = ['answered', 'holds', 'records', 'kakao', 'naver'];
+function carryAdd_(cache, who, day, p) {
+  var c = jget_(cache, 'carry:' + who + ':' + day);
+  if (!c) { var t = readJson_('team.json', {}), row = t && t[day] && t[day][who]; c = row && row.carry && typeof row.carry === 'object' ? row.carry : {}; }
+  CARRY_KEYS.forEach(function (k) { c[k] = (c[k] || 0) + num_(p[k]); });
+  c.maxWait = Math.max(c.maxWait || 0, num_(p.maxWait));
+  CARRY_MAPS.forEach(function (m) { var src = p[m] && typeof p[m] === 'object' ? p[m] : {}, o = c[m] || (c[m] = {}); Object.keys(src).slice(0, 40).forEach(function (k) { o[k] = (o[k] || 0) + num_(src[k]); }); });
+  cache.put('carry:' + who + ':' + day, JSON.stringify(c), 21600);
+}
+function carryGet_(cache, who, day, old) { return jget_(cache, 'carry:' + who + ':' + day) || (old && old.carry && typeof old.carry === 'object' ? old.carry : null); }
+function dayKeep_(r, carry, old) {
+  if (carry) {
+    CARRY_KEYS.forEach(function (k) { r[k] = (r[k] || 0) + (carry[k] || 0); });
+    r.maxWait = Math.max(r.maxWait || 0, carry.maxWait || 0);
+    CARRY_MAPS.forEach(function (m) { var o = r[m] || (r[m] = {}); Object.keys(carry[m] || {}).forEach(function (k) { o[k] = (o[k] || 0) + carry[m][k]; }); });
+    r.carry = carry;
+  }
+  if (!old || typeof old !== 'object') return r;
+  // 세기만 하는 숫자(답함 · 기록 · 채널 · 보류)만 큰 쪽을 남김 · 기다린 시간·20분 넘김은 기록기가 바로잡으면 줄어야 해서 그대로 씀
+  KEEP_MAX.forEach(function (k) { if (num_(old[k]) > (r[k] || 0)) r[k] = num_(old[k]); });
+  CARRY_MAPS.forEach(function (m) { var src = old[m] && typeof old[m] === 'object' ? old[m] : {}, o = r[m] || (r[m] = {}); Object.keys(src).forEach(function (k) { if (num_(src[k]) > (o[k] || 0)) o[k] = num_(src[k]); }); });
+  if (num_(old.on) > (r.on || 0)) r.on = old.on;
+  return r;
+}
+// 1.3.14 내 보류 목록(상담 번호 · 마지막 메시지 번호 · 보류한 시각만 — 이름·내용 없음): 다시 깐 PC가 되살림
+function holdGet_(name) {
+  var who = person_(name); if (!who) return [];
+  var cache = CacheService.getScriptCache(), v = jget_(cache, 'holdk:' + who);
+  if (!v) { var c = jget_(cache, 'cases:' + who); v = c ? { at: c.at, list: c.hold } : null; }
+  return v && Array.isArray(v.list) && Date.now() - (v.at || 0) < 6 * 3600e3 ? v.list.slice(0, CASE_MAX).map(function (x) { return { ch: x.ch, id: x.id, m: x.m, at: x.at }; }) : [];
+}
+// 1.3.14 그 방이 오늘 팀에서 기록됐는지(기록 창을 열 때 한 방만)
+function recGet_(k) {
+  k = String(k || ''); if (!/^(kakao|naver):[A-Za-z0-9_.-]{1,64}$/.test(k)) return { ok: false, error: '방 확인 필요' };
+  var day = dayKey_(), hit = null; teamRecs_(day).list.forEach(function (x) { if (x.k === k) hit = x; });
+  return { ok: true, day: day, rec: hit };
 }
 function tagsGet_() {
   var all = readJson_('tags.json', {}); if (!all || typeof all !== 'object') all = {};

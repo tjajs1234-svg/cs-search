@@ -88,6 +88,7 @@
   }
   function saveFav() { S.put(K.favorites, Array.from(M.favorites)); S.put(K.favoriteOrder, M.favoriteOrder); }
   function saveCustom() { S.put(K.customScripts, M.custom); S.put(K.customOrder, M.customOrder); }
+  function usedCount(id) { var u = M.usage && M.usage[id]; return u && u.count || 0; }
   function touch(r) {
     if (!r) return;
     M.recent = [r.id].concat(M.recent.filter(function (x) { return x !== r.id; })).slice(0, 12);
@@ -277,7 +278,8 @@
     if (!P && !M.custom.length) return;
     var rows, terms = null, searching = !!q.trim();
     if (searching) {
-      var res = lastSearch && lastSearch.q === q ? lastSearch.res : idx.search(q, { limit: 200 }); lastSearch = { q: q, res: res };
+      // 2026-10-21 점수가 같으면 이 PC에서 많이 담은(담기·교체) 멘트 먼저 — 쓴 횟수는 원래 저장하던 M.usage
+      var res = lastSearch && lastSearch.q === q ? lastSearch.res : idx.search(q, { limit: 200, rank: usedCount }); lastSearch = { q: q, res: res };
       rows = res.list;
       var chip = el('span', 'chip'); chip.append(ic('globe'), '전체 문안에서 찾는 중'); Sc.append(chip, el('b', null, rows.length + '개'));
       if (res.loose) Sc.append(el('span', null, '· 꼭 맞는 문안이 없어 낱말이 많이 맞는 순으로 보여 줘요'));
@@ -323,17 +325,25 @@
     var b = $('blank'); b.replaceChildren(); PLACEHOLDER.lastIndex = 0;
     var m = note.value.match(PLACEHOLDER);
     if (m) { b.append(ic('warn'), el('span', null, '채울 곳: ' + Array.from(new Set(m)).slice(0, 3).join(' ') + (m.length > 3 ? ' 외' : ''))); var go = el('button', null, '첫 칸으로'); go.type = 'button'; go.addEventListener('click', jumpBlank); b.append(go); }
-    $('cc').textContent = note.value.length.toLocaleString() + '자';
+    $('cc').textContent = $('cc2').textContent = note.value.length.toLocaleString() + '자';
     markAdded();
   }
   function jumpBlank() { PLACEHOLDER.lastIndex = 0; var m = PLACEHOLDER.exec(note.value); if (!m) return; note.focus(); note.setSelectionRange(m.index, m.index + m[0].length); }
   function splitP(t) { return KBSearch.splitParagraphs(t); }
+  // 2026-10-21 [복사]한 뒤 앞 글이 남아 있는 채로 처음 [담기]하면 한 번 알려 줌(그냥 두면 지금처럼 아래에 붙음 · 저절로 지우지는 않음)
+  var copiedText = null;
   function add(text, r) {
     var addition = String(text || '').trim(); if (!addition) return;
     var cur = note.value.trim(), have = splitP(cur), inc = splitP(addition).filter(function (p) { return have.indexOf(p) < 0; });
     if (!inc.length) { toast('이미 담겨 있어요'); return; }
+    var was = note.value, stale = copiedText != null && cur && cur === copiedText; copiedText = null;
     note.value = cur ? cur + '\n\n' + inc.join('\n\n') : inc.join('\n\n');
-    saveNote(); blanks(); touch(r); note.scrollTop = note.scrollHeight; toast('작성공간에 담았어요');
+    saveNote(); blanks(); touch(r); note.scrollTop = note.scrollHeight;
+    if (stale) toast('앞 글이 남아 있어요', { warn: true, action: { label: '비우고 담기', fn: function () {
+      archive(was); note.value = addition; S.set(K.note, note.value); blanks(); note.scrollTop = 0;
+      toast('앞 글을 비우고 담았어요', { action: { label: '되돌리기', fn: function () { note.value = was.trim() ? was.trim() + '\n\n' + addition : addition; S.set(K.note, note.value); blanks(); } } });
+    } } });
+    else toast('작성공간에 담았어요');
     if (curView !== 'scripts') setView('scripts', false);
   }
   /* [교체]: 작성공간을 비우고 이 문안만 담기 — 지운 글은 [되돌리기]로 살림 */
@@ -394,9 +404,11 @@
   $('copyBtn').addEventListener('click', function () {
     if (!note.value.trim()) { toast('작성공간이 비어 있어요'); return; }
     PLACEHOLDER.lastIndex = 0; var left = note.value.match(PLACEHOLDER);
-    if (left && left.length) { jumpBlank(); toast('채울 곳 ' + left.length + '개가 남았어요 · ' + Array.from(new Set(left)).slice(0, 2).join(' '), { warn: true, action: { label: '그래도 복사', fn: function () { copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요'); } } }); return; }
-    copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요');
+    if (left && left.length) { jumpBlank(); toast('채울 곳 ' + left.length + '개가 남았어요 · ' + Array.from(new Set(left)).slice(0, 2).join(' '), { warn: true, action: { label: '그래도 복사', fn: copyNote } }); return; }
+    copyNote();
   });
+  $('cc2').addEventListener('click', function () { note.scrollIntoView({ block: 'center' }); note.focus(); });
+  function copyNote() { copyText(note.value, '복사했어요 · 상담창에 붙여 넣으세요').then(function (ok) { if (ok) copiedText = note.value.trim(); }); }
   $('clearBtn').addEventListener('click', function () {
     var was = note.value; if (!was.trim()) { toast('이미 비어 있어요'); return; }
     archive(was); note.value = ''; S.set(K.note, ''); blanks();
@@ -419,7 +431,7 @@
   }
   function snip() { var h = shortcutAtCaret(false), s = $('snip'); if (!h) { s.hidden = true; return; } s.textContent = h.key + ' → ' + h.name + ' · 스페이스'; s.hidden = false; }
   note.addEventListener('input', function (e) {
-    saveNote(); blanks();
+    copiedText = null; saveNote(); blanks();
     if (e && e.isComposing) return;
     if (note.value.slice(note.selectionStart - 1, note.selectionStart) === ' ') { var h = shortcutAtCaret(true); if (h) { expand(h); return; } }
     snip();
@@ -540,7 +552,6 @@
     var hit = skus.filter(function (k) { return rows.some(function (x) { return String(x.sku || '').toUpperCase().split(/[^A-Z0-9-]+/).indexOf(k) >= 0; }); });
     return { skus: hit, rows: rows.slice().reverse() };
   }
-  function isSku(s) { s = String(s || '').trim(); return /^[A-Za-z][A-Za-z0-9-]{4,}$/.test(s) && /\d/.test(s); }
   function rebuildReq() {
     var seen = new Set(), rows = [];
     var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dateKey(r.d), hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) })); };
@@ -637,23 +648,8 @@
   }
   // 띄어쓰기 무시(s26울트라 = S26 울트라) · 초성(ㄱㄹㅅㅇㅌ) — 제품코드·제품명·유형·증상의 첫소리
   function squash(v) { return String(v || '').replace(/[\s·\-_/()[\]{}.,!?~'"“”‘’:;]+/g, ''); }
-  function searchRows(rows, qq, hayOf, skuOf) {
-    var toks = norm(qq).split(/\s+/).filter(Boolean).slice(0, 8), sku = isSku(qq) ? qq.trim().toUpperCase() : '';
-    if (!toks.length) return { rows: rows, toks: [], loose: false };
-    var strict = [], loose = [], sq = toks.map(squash);
-    rows.forEach(function (r) {
-      var hay = hayOf(r), hc = r.hayC != null ? r.hayC : squash(hay), code = skuOf(r) || '', hits = 0, sc = 0;
-      toks.forEach(function (t, i) {
-        var hit = hay.indexOf(t) >= 0 || (sq[i].length >= 2 && hc.indexOf(sq[i]) >= 0) || (KBSearch.isCho(t) && String(r.hayCho || '').indexOf(t) >= 0);
-        if (hit) { hits++; sc += norm(code).indexOf(t) >= 0 ? 8 : 1; }
-      });
-      if (sku && code === sku) sc += 100; else if (sku && code.indexOf(sku) === 0) sc += 60;
-      var all = hits === toks.length || (sku && code.indexOf(sku) === 0);
-      if (all) strict.push({ r: r, sc: sc + (r.k || 0) / 1e9 }); else if (hits) loose.push({ r: r, sc: hits * 10 + sc + (r.k || 0) / 1e9 });
-    });
-    var use = strict.length ? strict : loose; use.sort(function (a, b) { return b.sc - a.sc; });
-    return { rows: use.map(function (x) { return x.r; }), toks: toks, loose: !strict.length && loose.length > 0 };
-  }
+  // 2026-10-21 문의 검색도 스크립트 검색 규칙(말끝·비슷한 말) · 일부만 맞을 때도 기종·제품코드 낱말은 꼭 맞아야 — search.js
+  function searchRows(rows, qq, hayOf, skuOf) { return KBSearch.searchRows(rows, qq, hayOf, skuOf); }
   function renderReq() {
     var list = $('rlist'); list.replaceChildren();
     if (!CSBridge.ready) { infoLine($('rinfo'), '문의 검색', 'req'); bridgeCard(list); return; }
@@ -677,7 +673,7 @@
       if (defHit.rows.length > 5) list.append(btn('불량가이드에서 ' + defHit.rows.length + '건 모두 보기', '', null, function () { $('dq').value = defHit.skus[0]; $('dq').dispatchEvent(new Event('input')); setView('defect'); }));
       list.append(el('div', 'sec', '비슷한 문의'));
     }
-    if (!s.rows.length) { list.append(el('div', 'empty', Rrows.length ? '비슷한 문의가 없어요. 제품코드나 다른 말로 찾아보세요.' : '아직 읽은 요청시트가 없어요.')); return; }
+    if (!s.rows.length) { list.append(el('div', 'empty', s.missing && s.missing.length ? '‘' + s.missing.join(' ').toUpperCase() + '’ 문의는 없어요.\n다른 기종·제품 문의는 섞지 않았어요. 기종 이름을 빼고 찾아보세요.' : Rrows.length ? '비슷한 문의가 없어요. 제품코드나 다른 말로 찾아보세요.' : '아직 읽은 요청시트가 없어요.')); return; }
     s.rows.slice(0, rlimit).forEach(function (r) { list.append(reqCard(r, s.toks)); });
     if (s.rows.length > rlimit) { var mb = btn('더 보기 (' + (s.rows.length - rlimit).toLocaleString() + '건 남음)', '', null, function () { rlimit += 40; renderReq(); }); mb.style.alignSelf = 'center'; list.append(mb); }
   }
@@ -733,7 +729,10 @@
   // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
   function firstUse() { var v = Number(S.get('csx:firstUse') || 0); if (!v) { v = Date.now(); S.set('csx:firstUse', String(v)); S.mirrorSoon(); } return v; }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
-  function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices();  syncReads(); }
+  function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices();  syncReads(); tellSeen(); }
+  // 2026-10-21 확장 아이콘의 새 공지 수: [확인했어요] 누른 족보 공지를 확장에도 알려 줌(확장이 읽어 온 족보 공지로 셈)
+  function sheetSeen() { return M.seen.filter(function (id) { return /^s:/.test(id); }).slice(-300); }
+  function tellSeen() { if (CSBridge.ready && !extLost) CSBridge.call('notice.seen', { ids: sheetSeen() }, 10000).catch(function () {}); }
   function linkify(node, text, terms) {
     var re = /https?:\/\/[^\s<>"']+/g, s = String(text || ''), i = 0, m;
     var put = function (t) { if (terms && terms.length) markText(node, t, terms); else node.append(t); };
@@ -792,7 +791,7 @@
     if (!CSBridge.ready) return;
     var changed = true;
     try {
-      var r = await CSBridge.call('data', { sources: C && C.sources || {}, since: force ? '' : bdVersion, force: !!force }, 60000);
+      var r = await CSBridge.call('data', { sources: C && C.sources || {}, since: force ? '' : bdVersion, force: !!force, seen: sheetSeen() }, 60000);
       if (r && !r.unchanged) { BD = r; bdVersion = r.version || ''; rebuildReq(); }
       else if (r && BD) { changed = !!force || BD.busy !== r.busy; BD.at = r.at || BD.at; BD.busy = r.busy; }
     } catch (e) { /* 다음 차례에 */ }
@@ -1085,6 +1084,9 @@
     var left = Math.round((dl - today) / 864e5), exp = left < 0, box = el('div', 'due');
     box.append(el('div', 'dlb', exp ? '반품·교환이 가능했던 마지막 날' : '반품·교환이 가능한 마지막 날'), el('div', 'dt', dl.getFullYear() + '년 ' + (dl.getMonth() + 1) + '월 ' + dl.getDate() + '일 (' + WD[dl.getDay()] + ')'),
       el('span', 'pill ' + (exp ? 'no' : 'ok'), exp ? '기한 지남 · ' + Math.abs(left) + '일 지남' : left === 0 ? '기한 안 · 오늘 마감' : '기한 안 · ' + left + '일 남음'));
+    // 2026-10-21 오늘이 수령일로부터 며칠째인지(수령일 다음 날이 1일째)
+    var nth = Math.round((today - dt) / 864e5);
+    if (nth >= 0) box.append(el('div', 'dnth', nth === 0 ? '오늘이 수령일이에요' : '오늘은 수령일로부터 ' + nth + '일째예요'));
     out.append(box);
     var key = dl.getFullYear() + '-' + String(dl.getMonth() + 1).padStart(2, '0') + '-' + String(dl.getDate()).padStart(2, '0'), we = dl.getDay() === 0 || dl.getDay() === 6, hol = WorkClock.holidays(workCfg())[key];
     if (we || hol) out.append(el('div', 'memo', '마감일이 ' + (hol ? '공휴일(' + hol + ')' : '주말') + '과 겹쳐요. 실제 접수 기한은 판매처 기준을 함께 확인해 주세요.'));
@@ -1105,8 +1107,23 @@
   $('themeBtn').addEventListener('click', function () { S.set(K.theme, isDark() ? 'light' : 'dark'); S.mirrorSoon(); applyTheme(); });
 
   /* ───── 위 띠: 연결 문제 · 고정 공지 ───── */
+  // 2026-10-21 구글 로그인이 풀려 시트를 못 읽는 중(확장이 ‘login’으로 알려 줌) → 위 띠로 크게 · 누르면 시트 한 장을 새 탭으로
+  function loginLost() {
+    if (!CSBridge.ready || !BD) return false;
+    return (BD.req && BD.req.sources || []).some(function (s) { return s.kind === 'login'; }) || !!(BD.def && BD.def.kind === 'login') || !!(BD.notice && BD.notice.kind === 'login');
+  }
+  function sheetToOpen() { var s = C && C.sources || {}; var u = (s.requests && s.requests[0] && s.requests[0].url) || (s.defects && s.defects.url) || (s.notice && s.notice.url) || ''; return /^https:\/\/docs\.google\.com\//.test(u) ? u : 'https://docs.google.com/spreadsheets/'; }
   function renderBanner() {
     var b = $('banner'), st = CSContent.status(); b.replaceChildren(); b.className = 'banner'; b.onclick = null;
+    if (extLost) {
+      b.append(ic('warn'), el('span', 't', '검색기 연결 확장이 새 판으로 바뀌었어요 · 새로고침하면 문의 검색·불량가이드·공지·사진이 다시 새로워져요'));
+      var rl = el('button', null, '새로고침'); rl.type = 'button'; rl.addEventListener('click', saveReload); b.append(rl); b.hidden = false; return;
+    }
+    if (loginLost()) {
+      b.append(ic('warn'), el('span', 't', '구글 로그인이 풀렸어요 · 문의 검색·불량가이드·족보 공지가 새로 안 읽혀요(마지막으로 읽은 것으로 보여 줘요)'));
+      var og = el('a', null, '구글 시트 열기'); og.href = sheetToOpen(); og.target = '_blank'; og.rel = 'noopener noreferrer'; og.title = '시트를 새 탭으로 열어 회사 계정으로 로그인해 주세요';
+      b.append(og); b.hidden = false; return;
+    }
     if (C && st.state && ['auth', 'bad', 'error'].indexOf(st.state) >= 0) {
       b.append(ic('warn'), el('span', 't', '최신 문안을 확인하지 못했어요 · ' + (st.message || '') + ' · 마지막으로 받은 문안으로 검색 중'));
       var d = el('button', null, '자세히'); d.type = 'button'; d.addEventListener('click', openSettings); b.append(d); b.hidden = false; return;
@@ -1251,13 +1268,15 @@
   function renderAll() { renderScripts(); renderBadges(); if (curView === 'req') renderReq(); if (curView === 'defect') renderDefect(); if (curView === 'notice') renderNotices(); }
   CSContent.on(function (what) { if (what === 'content') loadContent(); else renderBanner(); });
   document.addEventListener('csbridge', function () { refreshBridge(false); });
-  document.addEventListener('csbridge-event', function (e) { var d = e.detail || {}; if (d.what === 'data') refreshBridge(false); else if (d.what === 'view' && d.view) setView(d.view); });
+  // 가려진 화면은 확장이 새로 읽었다고 알려도 바로 안 받음(보일 때 받음) — 가려진 채로 부르면 확장이 ‘화면을 보는 중’으로 여겨 시트를 계속 읽음
+  document.addEventListener('csbridge-event', function (e) { var d = e.detail || {}; if (d.what === 'data') { if (!document.hidden) refreshBridge(false); } else if (d.what === 'view' && d.view) setView(d.view); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshBridge(false); } });
 
   /* 새 판 알아채기: 화면을 새로 올리면(배포) 5분 안에 알아챔
      · 다른 창을 보고 있을 때(이 탭이 가려져 있을 때) 조용히 새로고침 · 보고 있으면 [새로고침] 알림만
      · 작성공간 글은 새로고침 전에 저장해 둬서 그대로 남음 */
-  var appVer = '', newVer = false;
+  var appVer = '', newVer = false, extLost = false;
+  function saveReload() { try { S.set(K.note, note.value); } catch (e) {} location.reload(); }
   async function checkVer() {
     if (!/^https?:$/.test(location.protocol)) return;
     try {
@@ -1269,11 +1288,14 @@
   }
   function applyVer() {
     if (!newVer) return;
-    if (document.hidden) { try { S.set(K.note, note.value); } catch (e) {} location.reload(); return; }
-    toast('검색기 새 판이 나왔어요', { action: { label: '새로고침', fn: function () { try { S.set(K.note, note.value); } catch (e) {} location.reload(); } } });
+    if (document.hidden) { saveReload(); return; }
+    toast('검색기 새 판이 나왔어요', { action: { label: '새로고침', fn: saveReload } });
   }
   checkVer(); setInterval(function () { checkVer(); }, 5 * 60000);
-  document.addEventListener('visibilitychange', function () { if (document.hidden) applyVer(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { applyVer(); if (extLost) saveReload(); } });
+  /* 2026-10-21 검색기 연결 확장이 새 판으로 바뀌면(크롬이 확장을 다시 켜면) 이미 열린 이 화면과 끊김 — 웹 새 판과 같은 방식:
+     화면이 가려져 있으면 작성공간을 저장하고 저절로 새로고침 · 보고 있으면 위 띠에 [새로고침] */
+  document.addEventListener('csbridge-lost', function () { extLost = true; if (document.hidden) saveReload(); else renderBanner(); });
 
   // 기록기 Alt+S: 주소 끝 #find-… → 스크립트 화면 검색창에 커서
   function findFromHash() { if (!/^#find-/.test(location.hash || '')) return false; setView('scripts', false); var i = $('q'); setTimeout(function () { window.focus(); i.focus(); i.select(); }, 0); return true; }
@@ -1294,5 +1316,5 @@
     CSContent.sync(false).then(function () { renderBanner(); });
     refreshBridge(false);
   })();
-  window.CSApp = { setView: setView, add: add, reload: loadContent };
+  window.CSApp = { setView: setView, add: add, reload: loadContent, refreshBridge: refreshBridge, _rec: function (id) { return byId.get(id) || null; } };
 })();
