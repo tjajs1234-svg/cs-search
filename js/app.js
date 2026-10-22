@@ -554,7 +554,7 @@
   }
   function rebuildReq() {
     var seen = new Set(), rows = [];
-    var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dateKey(r.d), hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) })); };
+    var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dateKey(r.d) || Number(r.dk) || 0, hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) })); };
     if (BD && BD.req && Array.isArray(BD.req.rows)) BD.req.rows.forEach(addRow);
     if (ARCH) ARCH.forEach(addRow);
     rows.sort(function (a, b) { return b.k - a.k; }); Rrows = rows;
