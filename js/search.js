@@ -46,8 +46,16 @@
   // ‘반품 취소’ · ‘교환 취소’는 고객이 신청을 거두겠다는 뜻(= 철회). 주문 ‘취소’ 멘트보다 ‘반품 철회’가 위로
   var WITHDRAW_OF = ['반품', '교환'];
   // 물음 말: 주제어(환불·배송…)보다 가볍게 셈(‘환불 언제’가 ‘배송 기간, 언제 받을 수 있나요’로 가지 않게)
+  // 2026-10-22 처리 말(무엇을 해 달라는지): 이 말이 제목·작은 분류에 맞은 멘트를 같은 점수의 다른 멘트보다 위로
+  //  ‘배송 취소’ → ‘취소 불가’가 ‘출고 전 배송지 변경’(본문에만 취소)보다 먼저
+  var ACTION = ['취소', '철회', '반품', '교환', '환불', '신청'];
   var QWORDS = ['언제', '어떻게', '얼마나', '어디', '어디서', '왜', '방법', '가능', '가능한지', '뭐', '무엇'];
   var CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  // 2026-10-22 붙여 쓴 업무 말 나누기: 교환신청 → 교환 신청 · 반품취소 → 반품 취소(= 철회) · 출고전 → 출고 전
+  //  (붙여 쓰면 한 낱말로 찾아서 ‘교환신청’이 ‘교환 신청은 … 철회되었습니다’ 본문 하나에만 맞았음)
+  var JOIN_HEAD = '배송지|재입고|반품|교환|주문|배송|환불|출고|결제|입고|주소|옵션|취소|철회|접수|구매';
+  var JOIN_TAIL = '신청|취소|철회|접수|변경|요청|지연|완료|불가|가능|기간|일정|방법|전|후';
+  var JOIN_RE = new RegExp('(' + JOIN_HEAD + ')(' + JOIN_TAIL + ')(?=[가-힣]{0,4}(?:$|[^가-힣]))', 'g');
 
   function str(v) { return v == null ? '' : String(v); }
   /* 소문자 · 전각 영숫자를 반각으로 · 한글 첫소리(ㄱ~ㅎ)는 그대로 둠(NFKC는 첫소리를 다른 글자로 바꿔서 쓰지 않음) */
@@ -81,6 +89,7 @@
   function preprocessQuery(q) {
     return normalizeSearchText(q)
       .replace(/(^|[\s,.!?~])(안|못)\s+(?=[가-힣])/g, '$1$2') // 안 와요 → 안와요 · 못 받았어요 → 못받았어요
+      .replace(JOIN_RE, '$1 $2')
       .replace(/(\d+)\s*in\s*(\d+)/gi, '$1in$2')
       .replace(/(\d+(?:\.\d+)?)\s*(kw|mah|mm|cm|gb|tb|hz|w|v|a)\b/gi, '$1$2')
       .replace(/\b([a-z])\s+(\d{1,4}[a-z]*)\b/gi, '$1$2');
@@ -163,6 +172,8 @@
       FIELDS.forEach(function (fi) {
         var f = doc[fi.name]; if (!termInField(f, alt.term)) return;
         if (model && (fi.name === 'category' || fi.name === 'sheet')) { c.push({ token: token, term: alt.term, kind: alt.kind, field: fi.name, evidence: needle, value: 4, weak: true }); return; }
+        // 2026-10-22 큰 분류 이름(주문·배송·취소)에만 있는 말은 약하게: ‘배송 취소’에 취소와 상관없는 배송 멘트가 1등으로 오지 않게
+        if (fi.name === 'sheet') { c.push({ token: token, term: alt.term, kind: alt.kind, field: fi.name, evidence: needle, value: 12, weak: true }); return; }
         var v = Math.round(fi.weight * alt.quality);
         if (f.compact === needle) v += fi.name === 'situation' ? 52 : 14;
         if (alt.kind === 'direct') v += 7;
@@ -202,6 +213,7 @@
     var inTitle = function (t) { return termInField(doc.situation, t) || (withdraw && t === '취소' && termInField(doc.situation, '철회')); };
     // 낱말이 모두 문안 제목에 있으면 조금 더 위로(본문에 붙어 있는 것보다)
     if (total >= 2 && tokens.every(function (t) { return !isCho(t) && QWORDS.indexOf(t) < 0 ? inTitle(t) : true; })) score += 90;
+    if (total >= 2) matches.forEach(function (m) { if (!m.weak && ACTION.indexOf(m.token) >= 0 && (m.field === 'situation' || m.field === 'category')) score += 30; });
     if (REVERSE.some(function (w) {
       if (head.indexOf(w) < 0 || q.indexOf(w) >= 0) return false;
       if (w === '철회' && withdraw) return false;

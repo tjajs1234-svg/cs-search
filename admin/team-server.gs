@@ -31,10 +31,12 @@
    · 1.3.14: (기록기 2.4.24와 함께) 다시 깐 PC — 같은 날 그 사람 숫자를 줄이지 않음(설치 이름표가 바뀌어 0부터 오면 그 PC의 앞선 숫자를 이어 붙임 ·
             그 밖에도 하루 파일의 숫자는 더 큰 쪽으로만) · 내 보류 목록(상담 번호 · 마지막 메시지 번호 · 보류한 시각만)을 돌려줌(hold.get)
             · 그 방이 오늘 팀에서 기록됐는지 바로 물어봄(rec.get) — 기록 창 '이미 기록된 상담' 알림을 1분 기다리지 않게
+   · 1.3.15: (기록기 2.4.25와 함께) 다시 깐 PC — 그날 기록한 방 · 답한 고객 · 보낸 방 목록도 줄이지 않고 앞서 남긴 것과 합침
+            (답한 상담 숫자는 이어 붙였는데 고객 목록이 비어 팀 현황이 숫자를 깎던 것)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.14';
+var TEAM_VERSION = '1.3.15';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -337,7 +339,7 @@ function teamBeat_(req) {
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
       dayKeep_(d[who], carryGet_(cache, who, day, old), old);
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}); qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}), qold = qd[who]; qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); qaKeep_(qd[who], qold); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
@@ -400,6 +402,15 @@ function tagsGet_() {
 // 1.3.12 이 PC에서 답을 보낸 방(기록기 2.4.22) → 방마다 그날 처음·마지막 보낸 때(분) · 방 열쇠는 짧은 숫자로
 function sdList_(v) { return v.slice(-600).filter(function (x) { return x && /^(kakao|naver):[A-Za-z0-9_.-]{1,64}$/.test(String(x.k || '')) && ms_(x.t); }).map(function (x) { return { k: String(x.k), t: ms_(x.t) }; }); }
 function hash1_(k) { var h = 2166136261; for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return k.charAt(0) + h.toString(36); }
+// 1.3.15 그날 기록한 방 · 답한 고객 · 보낸 방은 줄이지 않음 — 기록기를 다시 깔면 PC에 남은 목록이 비어 0부터 오므로 앞서 남긴 것과 합침
+//  (답한 상담 숫자는 하루 파일에서 이어 붙는데 고객 목록이 1명만 남으면 팀 현황이 숫자를 목록 수로 깎았음)
+function qaKeep_(cur, old) {
+  if (!old || typeof old !== 'object') return;
+  var uni = function (a, b) { var seen = {}, out = []; (a || []).concat(b || []).forEach(function (h) { if (!seen[h]) { seen[h] = 1; out.push(h); } }); return out.slice(0, 600); };
+  if (Array.isArray(old.rk) && old.rk.length) cur.rk = uni(cur.rk, old.rk);
+  if (Array.isArray(old.ak)) cur.ak = uni(cur.ak, old.ak);
+  if (old.sd && typeof old.sd === 'object') { var sd = cur.sd || (cur.sd = {}); Object.keys(old.sd).forEach(function (h) { var o = old.sd[h], c = sd[h]; if (!Array.isArray(o)) return; sd[h] = c ? [Math.min(c[0], o[0]), Math.max(c[1], o[1])] : o; }); }
+}
 function sdPack_(list, day) {
   var out = {}, n = 0, start = Date.parse(day + 'T00:00:00+09:00');
   (list || []).forEach(function (x) {
