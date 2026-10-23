@@ -554,10 +554,20 @@
   }
   function rebuildReq() {
     var seen = new Set(), rows = [];
-    var addRow = function (r) { var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k); var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dateKey(r.d) || Number(r.dk) || 0, hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) })); };
+    // 2026-10-23 날짜 칸이 빈 줄(검색기 연결 1.0.4는 '답변처리' 칸을 날짜로 읽어 답하기 전 줄은 비어 있음)은 같은 시트의 바로 위 줄 날짜로 정렬
+    //  · 시트는 들어온 순서로 쌓이니 위 줄 날짜 = 거의 같은 때 · 위 줄도 없으면 탭 이름의 해(2026 → 2026년 맨 앞) · 화면의 날짜 글자는 그대로
+    var lastK = {};
+    var addRow = function (r) {
+      var k = [r.d, r.c, String(r.q || '').slice(0, 40)].join('|'); if (seen.has(k)) return; seen.add(k);
+      var sk = r.src ? r.src.id + ':' + r.src.gid : '', dk = dateKey(r.d) || Number(r.dk) || 0;
+      if (!dk && sk) dk = lastK[sk] || (/^20\d\d$/.test(r.yr || '') ? Number(r.yr) * 10000 + 101 : 0);
+      if (sk && dk) lastK[sk] = dk;
+      var hay = norm([r.c, r.n, r.t, r.q, r.sq, r.mf, r.fa, r.ch].join(' ')); rows.push(Object.assign({}, r, { k: dk, hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([r.c, r.n, r.t].join(' ')) }));
+    };
     if (BD && BD.req && Array.isArray(BD.req.rows)) BD.req.rows.forEach(addRow);
     if (ARCH) ARCH.forEach(addRow);
-    rows.sort(function (a, b) { return b.k - a.k; }); Rrows = rows;
+    // 같은 날이면 시트에서 아래 줄(나중에 들어온 문의)이 먼저
+    rows.sort(function (a, b) { return (b.k - a.k) || ((b.src && b.src.row || 0) - (a.src && a.src.row || 0)); }); Rrows = rows;
     Drows = (BD && BD.def && Array.isArray(BD.def.rows) ? BD.def.rows : []).map(function (x) { var hay = norm([x.sku, x.name, x.kind, x.sym, x.found, x.guide, x.note].join(' ')); return Object.assign({}, x, { hay: hay, hayC: squash(hay), hayCho: KBSearch.cho([x.sku, x.name, x.kind, x.sym].join(' ')) }); });
   }
   // 2024·2025 요청시트 사본: 비공개 저장소(cs-content)의 archive-2425.json.gz를 연결 코드로 받음(이 PC에 보관 · 바뀌었을 때만 다시 받음)
