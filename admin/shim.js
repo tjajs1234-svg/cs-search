@@ -35,7 +35,7 @@
     });
   }
   window.KBSheets = {
-    FIELD_KO: { code: '상품코드', date: '인입날짜', inquiry: '고객 문의 내용', name: '제품명', type: '문의 유형', question: '상담 질문', final: '최종 답변', feedback: '매니저 피드백', agent: '담당자', channel: '인입 채널', attach: '사진' },
+    FIELD_KO: { code: '상품코드', date: '인입날짜', dateAlt: '인입날짜', inquiry: '고객 문의 내용', name: '제품명', type: '문의 유형', question: '상담 질문', final: '최종 답변', feedback: '매니저 피드백', agent: '담당자', channel: '인입 채널', attach: '사진' },
     hasAccess: function () { return CSBridge.wait(1500); },
     askAccess: function () { return CSBridge.wait(1500); },
     readRequests: function (s) { return check('req', s); },

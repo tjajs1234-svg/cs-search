@@ -42,7 +42,7 @@
   // 2026-10-21 팀장 [빼기](주인): '날짜|채널:방' → { r: 이유, w: 뺄 때 기다린 분, at } · 이 PC에만 기억 · 두 달 지나면 지움
   var SKIP_KEY = 'kb:team:skip', SKIP_WHY = ['다른 상담사가 마무리함', '인사만 보낸 고객', '기록기 착오', '기타'];
   function skipGet() { var o = {}; try { o = JSON.parse(store(SKIP_KEY) || '{}') || {}; } catch (e) { o = {}; } return typeof o === 'object' ? o : {}; }
-  function skipSet(key, v) { var o = skipGet(), cut = W.addDays(W.dayKey(Date.now()), -62); Object.keys(o).forEach(function (k) { if (k.slice(0, 10) < cut) delete o[k]; }); if (v) o[key] = v; else delete o[key]; store(SKIP_KEY, JSON.stringify(o)); }
+  function skipSet(key, v) { var o = skipGet(), cut = W.addDays(W.dayKey(Date.now()), -62); Object.keys(o).forEach(function (k) { if (k.slice(0, 10) < cut) delete o[k]; }); if (v) o[key] = v; else delete o[key]; store(SKIP_KEY, JSON.stringify(o)); if (window.KBInc) KBInc.pushSkip(key, v); } // 2026-11-01 팀 서버에도(PC를 바꿔도 같게 · 이달의 상담사)
 
   /* ───── 숫자 모으기: 사람마다 고른 기간의 기록 · 채널 · 시간당 · 20분 넘김 · 빈 시간 + 지금 상태 ───── */
   async function collect(r, period, maxAge) {
@@ -115,8 +115,10 @@
       //  다른 날 다시 기록한 건 빼고 따로 보여 줌
       var wkOf = function (d) { return W.addDays(d, -((W.weekday(d) + 6) % 7)); };
       var seenR = {}; o.redup = 0; o.rdK = 0; o.rdN = 0; o.rkAll = {};
-      keys.forEach(function (d) { var wk = wkOf(d); (o.days[d].rk || []).forEach(function (r) { var h = wk + ':' + r; if (seenR[h]) { o.redup++; if (r.charAt(0) === 'k') o.rdK++; else o.rdN++; } else { seenR[h] = 1; o.rkAll[h] = 1; } }); });
+      keys.forEach(function (d) { var wk = wkOf(d); o.days[d].dup = 0; (o.days[d].rk || []).forEach(function (r) { var h = wk + ':' + r; if (seenR[h]) { o.redup++; o.days[d].dup++; if (r.charAt(0) === 'k') o.rdK++; else o.rdN++; } else { seenR[h] = 1; o.rkAll[h] = 1; } }); });
       if (o.redup) { o.rec = Math.max(0, o.rec - o.redup); o.k = Math.max(0, o.k - o.rdK); o.nv = Math.max(0, o.nv - o.rdN); }
+      // 2026-11-01 시간당 완료 기록도 같은 고객 다시 기록을 뺀 숫자로 나눔(팀 기록 칸 · 상담사 [팀 기록] 탭 · teamstats.js와 같음)
+      if (o.redup && o.on != null) { o.onRec = 0; keys.forEach(function (d) { var v3 = o.days[d]; if (v3.on != null) o.onRec += Math.max(0, v3.rec - (v3.dup || 0)); }); }
       // 답한 고객도 기간에 한 번(다른 날 다시 온 같은 고객은 빼고 · 답한 횟수는 그대로 참고)
       var seenA = {}; o.ansN = 0; o.reAns = 0; o.akAll = {};
       keys.forEach(function (d) { var v2 = o.days[d], wk = wkOf(d); o.ansN += v2.ansN || 0; (v2.akl || []).forEach(function (h) { h = wk + ':' + h; if (seenA[h]) { if (v2.ans) o.reAns++; } else { seenA[h] = 1; o.akAll[h] = 1; } }); });
@@ -524,6 +526,8 @@
     var pcs = mean(M.people.filter(function (p) { return p !== o; }).map(function (p) { return p.perCust; }));
     card('길게 주고받는 고객이 많았어요', o.perCust == null || pcs == null ? '비교할 만큼 답한 기록이 아직 없어요.' : '고객 1명당 답한 횟수 ' + f1(o.perCust) + '번 · 다른 사람 ' + f1(pcs) + '번이라 ' + (o.perCust >= pcs * 1.3 ? '길게 주고받은 고객이 많았어요. 참작할 만해요.' : '비슷해요.'), o.perCust != null && pcs != null && o.perCust >= pcs * 1.3 ? 'ok' : '');
     op.append(grid); box.append(op);
+    // 2026-11-01 공지 확인 한 줄(그 기간 공지 중 확인한 것 · 안 한 것, 확인 시각)
+    var np = mk('div', 'tpanel tnotice'); np.hidden = true; box.append(np); if (T2() && T2().noticeLine) T2().noticeLine(who, M.keys, np);
     // 참고: 완료 기록
     box.append(mk('p', 'tivref', '참고 · 완료 기록 ' + (multi ? '하루 ' + n0(o.perDay) : String(o.rec)) + '건 (다른 사람 평균 ' + (cR ? numOf(cR, cR.avg) : '–') + '). 기록은 상담이 끝나야 늘어서 비교에 쓰지 않아요.' + (o.missN ? ' 답했는데 기록 안 한 상담이 지금 ' + o.missN + '건 있어요.' : '')));
     // 예전 면담 화면은 접어 둠
@@ -851,5 +855,5 @@
     }
     return st.mode === 'now' ? nowView(M, ctx) : st.mode === 'num' ? numView(M, ctx) : fbView(M, ctx);
   }
-  window.KBTeam3 = { render: render, vs: vs, rank: rank };
+  window.KBTeam3 = { render: render, vs: vs, rank: rank, collect: collect }; // 2026-11-01 collect: 이달의 상담사(admin-inc.js)가 같은 숫자를 씀
 })();

@@ -36,7 +36,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.15';
+var TEAM_VERSION = '1.3.16';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -84,6 +84,9 @@ function handle_(req) {
   if (a === 'ot.cancel') return withLock_(function () { return otCancel_(req); });
   if (a === 'ot.decide') return withLock_(function () { return otDecide_(req); });
   if (a === 'notice.read') return withLock_(function () { return noticeRead_(req); });
+  // 1.3.16 이달의 상담사(인센티브): 팀장 입력 · 배점 · 확정 · [빼기] — 관리자 열쇠가 있어야 읽고 씀(상담사에게 안 보임)
+  if (a === 'inc.get') return isAdmin_(req.adminToken) ? { ok: true, inc: incOut_(readJson_('inc.json', {})) } : { ok: false, error: '관리자만 볼 수 있어요' };
+  if (a === 'inc.set') return withLock_(function () { return incSet_(req); });
   if (a === 'notice.reads') return { ok: true, reads: readJson_('reads.json', {}) || {} };
   return { ok: false, error: '모르는 요청이에요: ' + a };
 }
@@ -275,6 +278,9 @@ function holdList_(v) { return Array.isArray(v) ? v.slice(0, 10).filter(function
 function topList_(v) { return Array.isArray(v) ? v.slice(0, 5).filter(function (x) { return x && x.id; }).map(function (x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), n: text_(x.n, 20), p: text_(x.p, 60).replace(/\s+/g, ' '), w: num_(x.w), u: okUrl_(x.u) }; if (x.r) o.r = 1; return o; }) : []; }
 function pwList_(v) { return Array.isArray(v) ? v.slice(0, 200).filter(function (x) { return x && x.k; }).map(function (x) { return { k: caseText_(x.k), w: num_(x.w) }; }) : []; }
 function rrList_(v, max) { return Array.isArray(v) ? v.slice(0, max || 200).filter(function (x) { return x && /^(kakao|naver):.{1,100}$/.test(String(x.k || '')); }).map(function (x) { var o = { k: String(x.k), t: ms_(x.t) }; var c = text_(x.c, 20); if (c) o.c = c; return o; }) : []; }
+// 1.3.16 게시판 글 목록(사이트+글 지문 · 내용 없음) · 어려운 상담 표본(상담 주소 · 분류 · 시각)
+function brList_(v) { return Array.isArray(v) ? v.slice(0, 300).filter(function (x) { return x && /^board:.{1,118}$/.test(String(x.k || '')); }).map(function (x) { return { k: String(x.k), t: ms_(x.t) }; }) : []; }
+function hsList_(v) { return Array.isArray(v) ? v.slice(0, 30).filter(function (x) { return x && /^https:\/\/[a-z0-9.-]+\//i.test(String(x.u || '')); }).map(function (x) { return { u: String(x.u).slice(0, 300), c: text_(x.c, 20), t: ms_(x.t) }; }) : []; }
 function byKey_(lists, keyOf, pick) { var m = {}; lists.forEach(function (l) { (l || []).forEach(function (x) { var k = keyOf(x); m[k] = m[k] ? pick(m[k], x) : x; }); }); return Object.keys(m).map(function (k) { return m[k]; }); }
 function chKey_(x) { return x.ch + ':' + x.id; }
 
@@ -306,7 +312,7 @@ function teamBeat_(req) {
   if (cs && !req.fresh) cache.put('holdk:' + who, JSON.stringify({ at: now, list: cs.hold }), 21600);
   // PC마다 받아 둠
   var put = {}; put['p:live:' + who + ':' + pc] = JSON.stringify(row);
-  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, sd: qa.sd, day: day });
+  if (qa) put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, miss: qa.miss, lh: qa.lh, rt: qa.rt, late: qa.late, rr: qa.rr, ar: qa.ar, sd: qa.sd, br: qa.br, hs: qa.hs, day: day });
   if (cs) put['p:cases:' + who + ':' + pc] = JSON.stringify(cs);
   if (st) put['p:st:' + who + ':' + pc] = JSON.stringify(st);
   cache.putAll(put, 21600);
@@ -335,11 +341,12 @@ function teamBeat_(req) {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
       var d = t[day] || (t[day] = {}), old = d[who];
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
+      ['nk', 'bh', 'ho'].forEach(function (k) { if (ms[k]) d[who][k] = ms[k]; }); // 1.3.16 인센티브 재료(기록기 2.4.26)
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
       dayKeep_(d[who], carryGet_(cache, who, day, old), old);
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}), qold = qd[who]; qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); qaKeep_(qd[who], qold); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}), qold = qd[who]; qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); var bk = roomHash_(mq.br, /^board:/); if (bk.length) qd[who].bk = bk; if (mq.hs.length) qd[who].hs = mq.hs; if (pc !== 'x') qd[who].pc = [pc]; qaKeep_(qd[who], qold); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
@@ -357,7 +364,7 @@ function tagsSave_(who, tags, cache) {
   cache.put('tagsig:' + who, sig, 21600);
 }
 // 1.3.14 다시 깐 PC가 이어 붙일 숫자(그날 · 사람마다): 캐시 + 하루 파일(d[이름].carry)에 같이 둠
-var CARRY_KEYS = ['answered', 'waitSum', 'over20', 'holds', 'records', 'kakao', 'naver'], CARRY_MAPS = ['sites', 'cats', 'ach'], KEEP_MAX = ['answered', 'holds', 'records', 'kakao', 'naver'];
+var CARRY_KEYS = ['answered', 'waitSum', 'over20', 'holds', 'records', 'kakao', 'naver'], CARRY_MAPS = ['sites', 'cats', 'ach'], KEEP_MAX = ['answered', 'holds', 'records', 'kakao', 'naver', 'nk', 'bh', 'ho'];
 function carryAdd_(cache, who, day, p) {
   var c = jget_(cache, 'carry:' + who + ':' + day);
   if (!c) { var t = readJson_('team.json', {}), row = t && t[day] && t[day][who]; c = row && row.carry && typeof row.carry === 'object' ? row.carry : {}; }
@@ -409,6 +416,10 @@ function qaKeep_(cur, old) {
   var uni = function (a, b) { var seen = {}, out = []; (a || []).concat(b || []).forEach(function (h) { if (!seen[h]) { seen[h] = 1; out.push(h); } }); return out.slice(0, 600); };
   if (Array.isArray(old.rk) && old.rk.length) cur.rk = uni(cur.rk, old.rk);
   if (Array.isArray(old.ak)) cur.ak = uni(cur.ak, old.ak);
+  // 1.3.16 게시판 글 · 어려운 상담 표본 · 보낸 PC도 그날 것은 줄이지 않음
+  if (Array.isArray(old.bk) && old.bk.length) cur.bk = uni(cur.bk, old.bk);
+  if (Array.isArray(old.pc)) cur.pc = uni(cur.pc, old.pc).slice(0, 10);
+  if (Array.isArray(old.hs) && old.hs.length) { var hu = {}; cur.hs = (cur.hs || []).concat(old.hs).filter(function (x) { if (!x || hu[x.u]) return false; hu[x.u] = 1; return true; }).slice(0, 30); }
   if (old.sd && typeof old.sd === 'object') { var sd = cur.sd || (cur.sd = {}); Object.keys(old.sd).forEach(function (h) { var o = old.sd[h], c = sd[h]; if (!Array.isArray(o)) return; sd[h] = c ? [Math.min(c[0], o[0]), Math.max(c[1], o[1])] : o; }); }
 }
 function sdPack_(list, day) {
@@ -454,10 +465,10 @@ function onlineAdd_(cache, who, day, now) {
   v.l = now; cache.put(k, JSON.stringify(v), 21600);
   return Math.round(v.m * 10) / 10;
 }
-function roomHash_(rr) {
+function roomHash_(rr, re) {
   var seen = {}, out = [];
   (rr || []).forEach(function (x) {
-    var k = String(x && x.k || ''), h = 2166136261; if (!/^(kakao|naver):/.test(k)) return;
+    var k = String(x && x.k || ''), h = 2166136261; if (!(re || /^(kakao|naver):/).test(k)) return;
     for (var i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
     var v = k.charAt(0) + h.toString(36); if (!seen[v]) { seen[v] = 1; out.push(v); }
   });
@@ -481,7 +492,7 @@ function prevFill_(who, p, today, cache) {
   });
   cache.put(key, '1', 21600);
 }
-function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null }; }
+function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null }; }
 // 기록 겹침: 같은 날 같은 방을 두 PC가 다 기록했으면 1건
 function recOverlap_(qas, ch) { var all = 0, uniq = {}; qas.forEach(function (q) { (q.rr || []).forEach(function (x) { if (ch && String(x.k).indexOf(ch + ':') !== 0) return; all++; uniq[x.k] = 1; }); }); return all - Object.keys(uniq).length; }
 function mergeQa_(qas) {
@@ -494,6 +505,8 @@ function mergeQa_(qas) {
     rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
     ar: byKey_(qas.map(function (q) { return q.ar; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }), hasAr: qas.some(function (q) { return Array.isArray(q.ar); }),
     sd: [].concat.apply([], qas.map(function (q) { return q.sd || []; })), hasSd: qas.some(function (q) { return Array.isArray(q.sd); }),
+    br: byKey_(qas.map(function (q) { return q.br; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
+    hs: byKey_(qas.map(function (q) { return q.hs; }), function (x) { return x.u; }, function (a) { return a; }).slice(0, 30),
     overlap: recOverlap_(qas), overK: recOverlap_(qas, 'kakao'), overN: recOverlap_(qas, 'naver')
   };
 }
@@ -537,7 +550,8 @@ function mergeStats_(sts, mrow, mq) {
   var ir = null; sts.forEach(function (x) { if (x.ir && (!ir || (x.ir.n || 0) > (ir.n || 0))) ir = x.ir; });
   return { answered: top.answered, waitSum: top.waitSum, over20: top.over20, holds: top.holds, maxWait: Math.max.apply(null, sts.map(function (x) { return x.maxWait || 0; })),
     records: sts.length > 1 ? (mrow.records || 0) : top.records, sending: sts.reduce(function (s, x) { return s + (x.sending || 0); }, 0), sites: sites, cats: cats, ir: ir,
-    kakao: Math.max(0, sumOf('kakao') - (sts.length > 1 && mq ? mq.overK || 0 : 0)), naver: Math.max(0, sumOf('naver') - (sts.length > 1 && mq ? mq.overN || 0 : 0)), ach: sts.length > 1 ? ach : (top.ach || {}) };
+    kakao: Math.max(0, sumOf('kakao') - (sts.length > 1 && mq ? mq.overK || 0 : 0)), naver: Math.max(0, sumOf('naver') - (sts.length > 1 && mq ? mq.overN || 0 : 0)), ach: sts.length > 1 ? ach : (top.ach || {}),
+    nk: sumOf('nk'), bh: sumOf('bh'), ho: sumOf('ho') };
 }
 // 1.3.7 오늘 팀이 기록한 방(누가 열든 기록 창에 "이미 오늘 기록된 상담" 알림) — 방 열쇠 · 시각 · 기록한 사람(명단의 성 포함 이름) · 분류
 //  팀장 PC가 기록한 건 이름 없이(상담사 화면에 '팀장'을 쓰지 않음)
@@ -586,7 +600,7 @@ function qaPlain_(x) { var o = {}; Object.keys(x).forEach(function (k) { if (k !
 function qaClean_(q, withNames) {
   var list = function (v, n, f) { return Array.isArray(v) ? v.slice(0, n).filter(function (x) { return x && x.id; }).map(f || qaItem_) : []; };
   var rt = Array.isArray(q.rt) ? q.rt.slice(0, 400).map(function (v) { return Math.max(0, Math.min(1439, Math.floor(Number(v) || 0))); }) : [];
-  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr), ar: Array.isArray(q.ar) ? rrList_(q.ar, 300) : null, sd: Array.isArray(q.sd) ? sdList_(q.sd) : null };
+  return { rt: rt, late: list(q.late, 100), miss: list(q.miss, 80, withNames ? qaMissItem_ : qaItem_), lh: list(q.lh, 80), rr: rrList_(q.rr), ar: Array.isArray(q.ar) ? rrList_(q.ar, 300) : null, sd: Array.isArray(q.sd) ? sdList_(q.sd) : null, br: brList_(q.br), hs: hsList_(q.hs) };
 }
 function qaDays_(days) { var q = readJson_('qa.json', {}), out = {}, from = dayKey_(Date.now() - (Math.min(days, KEEP_DAYS) - 1) * 864e5); Object.keys(q || {}).forEach(function (k) { if (k >= from) out[k] = q[k]; }); return out; }
 function qaLive_() {
@@ -614,6 +628,31 @@ function qaOk_(req) {
   var ok = readJson_('qaok.json', {}) || {}, now = Date.now(); ok[k] = now;
   Object.keys(ok).forEach(function (x) { if (now - ok[x] > 7 * 864e5) delete ok[x]; });
   writeJson_('qaok.json', ok); return { ok: true };
+}
+
+/* ── 1.3.16 이달의 상담사(인센티브) ──
+   inc.json = { cfg: 배점·감점·제외 기준, months: { 'YYYY-MM': { people: { 이름: 팀장 입력 }, final: 확정한 점수표 } }, skip: 팀장 [빼기] }
+   배점 숫자는 코드(공개 저장소)에 안 남기고 여기에만 둠 · 관리자 열쇠가 있어야 읽고 씀 */
+var INC_NUM = ['er', 'cl', 'nt', 'lt', 'pr', 'off'];
+function incOut_(v) { v = v && typeof v === 'object' ? v : {}; return { cfg: v.cfg && typeof v.cfg === 'object' ? v.cfg : {}, months: v.months && typeof v.months === 'object' ? v.months : {}, skip: v.skip && typeof v.skip === 'object' ? v.skip : {} }; }
+function incPerson_(x) {
+  var o = {}; x = x && typeof x === 'object' ? x : {};
+  INC_NUM.forEach(function (k) { var n = Number(x[k]); if (isFinite(n) && n > 0) o[k] = Math.min(999, Math.round(n * 10) / 10); });
+  if (dateOk_(x.start)) o.start = x.start; var m = text_(x.memo, 200); if (m) o.memo = m; return o;
+}
+function incSet_(req) {
+  if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 바꿀 수 있어요' };
+  var v = incOut_(readJson_('inc.json', {})), mon = /^\d{4}-\d{2}$/.test(String(req.month || '')) ? String(req.month) : '';
+  if (req.cfg && typeof req.cfg === 'object') { var c = {}; Object.keys(req.cfg).slice(0, 40).forEach(function (k) { var n = Number(req.cfg[k]); if (/^[a-zA-Z]{1,12}$/.test(k) && isFinite(n)) c[k] = Math.max(-100, Math.min(100, n)); }); v.cfg = c; }
+  if (mon && req.people && typeof req.people === 'object') { var m = v.months[mon] || (v.months[mon] = {}), pp = {}; Object.keys(req.people).slice(0, 60).forEach(function (n) { var nm = person_(n); if (nm) pp[nm] = incPerson_(req.people[n]); }); m.people = pp; }
+  if (mon && req.final !== undefined) { var m2 = v.months[mon] || (v.months[mon] = {}); if (req.final && Array.isArray(req.final.rows)) m2.final = { at: Date.now(), rows: JSON.parse(JSON.stringify(req.final.rows.slice(0, 60))), note: text_(req.final.note, 300) }; else delete m2.final; }
+  if (req.skip && typeof req.skip === 'object' && /^\d{4}-\d{2}-\d{2}\|(kakao|naver):.{1,100}$/.test(String(req.skip.key || ''))) {
+    if (req.skip.v && typeof req.skip.v === 'object') v.skip[req.skip.key] = { r: text_(req.skip.v.r, 30) || '팀장이 뺌', w: num_(req.skip.v.w), at: Date.now() }; else delete v.skip[req.skip.key];
+    var cut = dayKey_(Date.now() - 62 * 864e5); Object.keys(v.skip).forEach(function (k) { if (k.slice(0, 10) < cut) delete v.skip[k]; });
+  }
+  // 오래된 달은 2년만
+  var keep = dayKey_(Date.now() - 730 * 864e5).slice(0, 7); Object.keys(v.months).forEach(function (k) { if (k < keep) delete v.months[k]; });
+  writeJson_('inc.json', v); return { ok: true, inc: v };
 }
 
 /* ── 1.3.0 근무 설정: 비수기 · 공휴일(기본값은 기록기 workclock.js에) · 상담사 명단(입사·퇴사일) ── */

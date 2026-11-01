@@ -65,6 +65,7 @@
   function periodKeys(period) {
     var td = today(), out = [];
     if (/^d:\d{4}-\d{2}-\d{2}$/.test(period || '')) return [period.slice(2)]; // 2.4.14 날짜 하나 고르기
+    if (period === 'lmonth' || /^r:/.test(period || '')) return KBTeamStats.periodKeys(period); // 2026-11-01 지난달 · 날짜 범위
     if (period === 'yday') { var y = W.addDays(td, -1); while (!W.day(y, {}) && out.length < 1 && y > W.addDays(td, -10)) y = W.addDays(y, -1); return [y]; }
     // 2026-10-20 지난주(월~일) — 피드백은 주로 지난주를 봄
     if (period === 'lweek') { var dw = (W.weekday(td) + 6) % 7, mon = W.addDays(td, -dw - 7); for (var j = 0; j < 7; j++) out.push(W.addDays(mon, j)); return out; }
@@ -126,21 +127,64 @@
     return table(['상담사'].concat(cols, ['합계']), rows, 'tsite');
   }
 
-  /* ───── 공지 확인(예전 '확인할 상담' 아래에 있던 것 → 공지 화면 아래로): 누가 [확인했어요]를 눌렀는지 ───── */
-  async function noticeReads(w) {
-    if (!(await T().ensureUrl())) return;
-    var got; try { got = await Promise.all([CSTeam.get('notice.reads', {}), getCfg().catch(function () { return null; }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; })]); } catch (e) { return; }
+  /* ───── 공지 확인(공지 화면 아래): 누가 [읽고 이해했어요]를 언제 체크했는지 · 2026-11-01 공지마다 펼쳐서 사람별 시각(초까지) ───── */
+  function fullTime(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (v) { return String(v).padStart(2, '0'); }).join(':'); }
+  function dayTxt(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
+  // 지금 관리 공지(cs-content) + 서버에 확인이 남은 족보 공지 → [{ id, title, at, from, rev }]
+  function noticeList(reads, admin) {
+    var out = [], have = {};
+    (admin || []).forEach(function (n) { var id = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); have[id] = 1; out.push({ id: id, title: n.title, at: Math.max(n.at || 0, n.rev ? n.ed || 0 : 0), ed: n.rev ? n.ed || 0 : 0, from: '관리자' }); });
+    Object.keys(reads).forEach(function (id) {
+      if (have[id]) return; if (admin && /^a:/.test(id)) return; // 지운 공지 · 고치기 전 판은 뺌
+      out.push({ id: id, title: reads[id].title, at: reads[id].first || 0, from: /^s:/.test(id) ? '족보' : '관리자' });
+    });
+    return out.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+  }
+  async function noticeData() {
+    var got = await Promise.all([CSTeam.get('notice.reads', {}), getCfg().catch(function () { return null; }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; }),
+      window.KBAdmin ? KBAdmin.latest().then(function (c) { return c.parsed ? c.parsed.notices : null; }).catch(function () { return null; }) : Promise.resolve(null)]);
     var reads = got[0].reads || {}, cfg = got[1], P = T().person;
     var team = activeNames(cfg && cfg.roster, today(), (got[2].live || []).map(function (x) { return P(x.name); })).filter(function (n) { return n !== '팀장'; });
-    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [확인했어요]를 누른 공지(이름은 기록기 태그로 자동)'));
-    var ids = Object.keys(reads).sort(function (a, b) { return (reads[b].first || 0) - (reads[a].first || 0); }).slice(0, 20);
-    if (!ids.length) p4.append(mk('div', 'empty', '아직 확인한 공지가 없어요.'));
-    else p4.append(table(['공지', '확인함', '아직'], ids.map(function (id) {
-      var o = reads[id], who = Object.keys(o.reads || {}).map(P), not = team.filter(function (n) { return who.indexOf(n) < 0; });
-      return { cells: [{ text: o.title || '(제목 없음)', title: id.indexOf('s:') === 0 ? '족보 Daily 공지' : '관리자 공지' }, { text: who.join(' · ') || '–' }, { text: not.join(' · ') || '모두 확인', cls: not.length ? 'warnc' : '' }] };
-    }), 'tread'));
-    if (!(cfg && cfg.roster && cfg.roster.length)) p4.append(mk('p', 'muted', '‘아직’ 칸은 근무 달력의 상담사 명단으로 셈 — 명단이 비어 있으면 팀 현황에 신호를 보낸 사람으로 셈'));
+    return { reads: reads, team: team, list: noticeList(reads, got[3]), roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
+  }
+  function whoRead(D, id) { var o = (D.reads[id] || {}).reads || {}, m = {}; Object.keys(o).forEach(function (k) { var n = D.P(k); if (!m[n] || o[k] > m[n]) m[n] = o[k]; }); return m; }
+  async function noticeReads(w) {
+    if (!(await T().ensureUrl())) return;
+    var D; try { D = await noticeData(); } catch (e) { return; }
+    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [읽고 이해했어요]를 체크하고 [예]를 누른 시각(이름은 기록기 태그로 자동) · 공지를 누르면 사람마다 보여요'));
+    var rows = D.list.slice(0, 30);
+    if (!rows.length) p4.append(mk('div', 'empty', '아직 공지가 없어요.'));
+    var box = mk('div', 'nrl');
+    rows.forEach(function (n) {
+      var m = whoRead(D, n.id), done = D.team.filter(function (x) { return m[x]; }), not = D.team.filter(function (x) { return !m[x]; });
+      var extra = Object.keys(m).filter(function (x) { return D.team.indexOf(x) < 0; });
+      var det = mk('details', 'nrd'), sm = mk('summary', 'nrs');
+      var tt = mk('span', 'nrt'); tt.append(mk('b', null, n.title || '(제목 없음)')); if (n.ed) tt.append(mk('span', 'ntag', dayTxt(n.ed) + ' 고침')); if (n.from === '족보') tt.append(mk('span', 'ntag g', '족보'));
+      sm.append(tt, mk('span', 'muted nrdt', n.at ? dayTxt(n.at) : ''), mk('span', 'nrc', '확인 ' + done.length + ' / ' + D.team.length), mk('span', 'nrn ' + (not.length ? 'warnc' : 'okc'), not.length ? (not.length === D.team.length && D.team.length > 1 ? D.team.length + '명 모두 아직' : '아직: ' + not.join(' · ')) : '모두 확인'));
+      det.append(sm);
+      var ul = mk('div', 'nrp');
+      D.team.concat(extra).forEach(function (x) { var r = mk('div', 'nrpr'); r.append(mk('span', null, x), m[x] ? mk('b', 'okc', fullTime(m[x]) + ' 확인') : mk('b', 'warnc', '아직')); ul.append(r); });
+      det.append(ul); box.append(det);
+      w.querySelectorAll('.rcnt').forEach(function (e) { if (e.dataset.nid === n.id) e.textContent = '확인 ' + done.length + '/' + D.team.length; });
+    });
+    p4.append(box);
+    if (!D.roster) p4.append(mk('p', 'muted', '‘아직’은 근무 달력의 상담사 명단으로 셈 — 명단이 비어 있으면 팀 현황에 신호를 보낸 사람으로 셈'));
     if (w.isConnected) { var old = w.querySelector('.nreads'); if (old) old.remove(); w.append(p4); }
+  }
+  /* 면담 화면 한 줄: 그 기간에 올라온(고친) 공지 중 이 사람이 확인한 것 · 안 한 것 */
+  async function noticeLine(who, keys, el) {
+    try {
+      if (!CSTeam.ready()) return;
+      var D = await noticeData(), from = Date.parse(keys[0] + 'T00:00:00+09:00'), to = Date.parse(keys[keys.length - 1] + 'T23:59:59+09:00');
+      var P = D.P(who), list = D.list.filter(function (n) { return n.at >= from && n.at <= to; });
+      el.replaceChildren(); el.hidden = false;
+      var hh = mk('div', 'tph'); hh.append(mk('b', null, '공지 확인'), mk('span', 'muted', '검색기에서 [읽고 이해했어요]를 체크한 시각 · 공지 내용을 잘못 안내했을 때 근거')); el.append(hh);
+      if (!list.length) { el.append(mk('div', 'pnone', '이 기간에 올라온 공지가 없어요.')); return; }
+      var done = [], not = [];
+      list.forEach(function (n) { var t = whoRead(D, n.id)[P]; if (t) done.push({ n: n, t: t }); else not.push(n); });
+      el.append(mk('div', 'tnl' + (not.length ? ' r' : ''), '공지 ' + list.length + '개 중 ' + done.length + '개 확인' + (not.length ? ' · 확인 안 한 공지: ' + not.map(function (n) { return '‘' + (n.title || '') + '’'; }).join(', ') : ' ✓')));
+      done.forEach(function (x) { var r = mk('div', 'nrpr'); r.append(mk('span', null, x.n.title || '(제목 없음)'), mk('b', 'okc', fullTime(x.t) + ' 확인')); el.append(r); });
+    } catch (e) { /* 공지 줄은 없어도 됨 */ }
   }
 
   /* ───── 근무 달력: 야근 신청 승인 · 공휴일 · 명단 · 비수기 ───── */
@@ -264,5 +308,5 @@
     var toTeam = function (w) { return KBAdminExtra.views.team(w); };
     Object.assign(KBAdminExtra.views, { flow: toTeam, sites: toTeam, qa: toTeam, cal: cal }); };
   add();
-  window.KBTeam2 = { flowOf: flowOf, teamNames: teamNames, sanity: sanity, periodKeys: periodKeys, getCfg: getCfg, connsOf: connsOf, pill: pill, missStatus: missStatus, CONN_LABEL: CONN_LABEL, table: table, chanCsv: chanCsv, siteTable: siteTable, noticeReads: noticeReads };
+  window.KBTeam2 = { flowOf: flowOf, teamNames: teamNames, sanity: sanity, periodKeys: periodKeys, getCfg: getCfg, connsOf: connsOf, pill: pill, missStatus: missStatus, CONN_LABEL: CONN_LABEL, table: table, chanCsv: chanCsv, siteTable: siteTable, noticeReads: noticeReads, noticeLine: noticeLine, fullTime: fullTime };
 })();

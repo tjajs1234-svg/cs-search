@@ -132,7 +132,7 @@
     showOnboard(false);
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
-    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork();
+    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); $('rankTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work' || curView === 'rank')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork(); if (CSTeam.ready() && curView === 'rank') KBTeamRec.show();
     trackChanges(); rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
@@ -141,7 +141,7 @@
   }
 
   /* ───── 화면 전환 ───── */
-  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work'];
+  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work', 'rank'];
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts'; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
@@ -153,6 +153,7 @@
     if (v === 'notice') renderNotices();
     if (v === 'board') loadBoard(true); else freshNow.clear();
     if (v === 'work') { renderWork(); loadWork(); }
+    if (v === 'rank') KBTeamRec.show(); else KBTeamRec.hide(); // 2026-11-01 팀 기록(오늘만)
     if (focus !== false) { var input = v === 'scripts' ? $('q') : v === 'req' ? $('rq') : v === 'defect' ? $('dq') : null; if (input) setTimeout(function () { input.focus(); }, 0); }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { setView(t.dataset.v); }); });
@@ -731,7 +732,8 @@
   function allNotices() {
     var out = [];
     var since = firstUse() - 14 * 864e5;
-    (C && C.notices || []).forEach(function (n) { out.push({ id: 'a:' + n.id, title: n.title, body: n.body, by: n.by, at: n.at, pin: n.pin, important: n.important, media: [], links: [], from: '관리자', fresh: (n.at || 0) >= since }); });
+    // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
+    (C && C.notices || []).forEach(function (n) { var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, pin: n.pin, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: Math.max(n.at || 0, ed) >= since }); });
     (BD && BD.notice && BD.notice.items || []).forEach(function (n) { out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
     out.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
     return out;
@@ -739,10 +741,36 @@
   // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
   function firstUse() { var v = Number(S.get('csx:firstUse') || 0); if (!v) { v = Date.now(); S.set('csx:firstUse', String(v)); S.mirrorSoon(); } return v; }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
-  function markSeen(ids) { ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); if (curView === 'notice') renderNotices();  syncReads(); tellSeen(); }
+  // 2026-11-01 확인한 시각(공지 번호 → ms): 카드에 '11월 1일 14:20 확인'으로 남김
+  var SEEN_AT = 'csx:seenAt';
+  function seenAt() { var o = S.json(SEEN_AT, {}); return o && typeof o === 'object' ? o : {}; }
+  function markSeen(ids, at) {
+    var sa = seenAt(), t = at || Date.now();
+    ids.forEach(function (id) { if (M.seen.indexOf(id) < 0) M.seen.push(id); if (!sa[id]) sa[id] = t; });
+    M.seen = M.seen.slice(-500); S.put(K.seen, M.seen);
+    var keep = {}; M.seen.forEach(function (id) { if (sa[id]) keep[id] = sa[id]; }); S.put(SEEN_AT, keep);
+    renderBadges(); if (curView === 'notice') renderNotices(); syncReads(); tellSeen();
+  }
+  /* [☐ 읽고 이해했어요] → "정말 제대로 읽고 이해했나요?" [예]일 때만 확인으로 남김(되돌리기 없음) */
+  function askUnderstood(n, box) {
+    var bg = el('div', 'nask'), d = el('div', 'naskd'); bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
+    var no = btn('아니오, 다시 읽을게요', 'ghost', null, function () { close(false); }), yes = btn('예, 이해했어요', 'primary', null, function () { close(true); });
+    function close(ok) { document.removeEventListener('keydown', key, true); bg.remove(); if (ok) markSeen([n.id]); else { box.checked = false; box.focus(); } }
+    function key(e) { if (e.key === 'Escape') { e.preventDefault(); close(false); } }
+    var a = el('div', 'acts'); a.append(no, yes);
+    d.append(el('h4', null, '정말 제대로 읽고 이해했나요?'), el('p', 'q', '‘' + (n.title || '(제목 없음)') + '’'), el('p', null, '[예]를 누르면 확인한 시각이 남아요. 이 공지 내용대로 상담해 주세요.'), a);
+    bg.append(d); bg.addEventListener('click', function (e) { if (e.target === bg) close(false); });
+    document.addEventListener('keydown', key, true); document.body.append(bg); no.focus();
+  }
+  function whenFull(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   // 2026-10-21 확장 아이콘의 새 공지 수: [확인했어요] 누른 족보 공지를 확장에도 알려 줌(확장이 읽어 온 족보 공지로 셈)
   function sheetSeen() { return M.seen.filter(function (id) { return /^s:/.test(id); }).slice(-300); }
-  function tellSeen() { if (CSBridge.ready && !extLost) CSBridge.call('notice.seen', { ids: sheetSeen() }, 10000).catch(function () {}); }
+  // 2026-11-01 관리 공지 중 아직 확인 안 한 수도 함께(검색기 연결 1.0.7부터 아이콘 숫자에 더함 · 예전 판은 무시)
+  var toldAdm = -1;
+  function adminUnread() { return unreadNotices().filter(function (n) { return /^a:/.test(n.id); }).length; }
+  // 잠깐 모아서 마지막 값만 보냄(먼저 보낸 옛 숫자가 나중 것을 덮지 않게)
+  var tellT = 0;
+  function tellSeen() { if (!CSBridge.ready || extLost) return; toldAdm = adminUnread(); clearTimeout(tellT); tellT = setTimeout(function () { if (CSBridge.ready && !extLost) CSBridge.call('notice.seen', { ids: sheetSeen(), admin: adminUnread() }, 10000).catch(function () {}); }, 400); }
   function linkify(node, text, terms) {
     var re = /https?:\/\/[^\s<>"']+/g, s = String(text || ''), i = 0, m;
     var put = function (t) { if (terms && terms.length) markText(node, t, terms); else node.append(t); };
@@ -769,13 +797,14 @@
     var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
     if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
     // 공지마다 읽고 [확인했어요] — 한꺼번에 확인 처리는 없음(팀장 화면의 '누가 읽었나'가 정확하게)
-    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [확인했어요]'));
+    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [읽고 이해했어요] 체크'));
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
     f.rows.forEach(function (n) {
       var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '')), h = el('div', 'nh');
       if (isNew) h.append(el('span', 'ptag new', '새 공지'));
+      if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
       if (n.pin) h.append(el('span', 'ptag', '맨 위 고정'));
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
@@ -784,11 +813,20 @@
       c.append(h);
       if (n.body) c.append(linkify(el('p', 'nb'), n.body, f.toks));
       var items = CSMedia.itemsOf({ media: n.media, at: (n.links || []).join(' ') }), st = CSMedia.strip(items, n.title, true); if (st) c.append(st);
-      if (isNew) { var a = el('div', 'acts'); a.append(btn('확인했어요', 'primary', null, function () { markSeen([n.id]); })); c.append(a); }
+      var done = M.seen.indexOf(n.id) >= 0;
+      if (isNew || (done && n.fresh)) {
+        var lb = el(done ? 'div' : 'label', 'nchk' + (done ? ' done' : '')), cb = el('input'); cb.type = 'checkbox';
+        lb.append(done ? el('span', 'nbox', '✓') : cb, el('span', null, '읽고 이해했어요'));
+        if (done) { var t = seenAt()[n.id]; if (t) lb.append(el('small', null, whenFull(t) + ' 확인')); }
+        else cb.addEventListener('change', function () { if (cb.checked) askUnderstood(n, cb); });
+        c.append(lb);
+      }
       list.append(c);
     });
   }
   function renderBadges() {
+    setTimeout(pullReads, 0);
+    if (CSBridge.ready && toldAdm !== adminUnread()) tellSeen();
     var n = unreadNotices().length, b = $('noticeBadge'); b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
     var opened = Number(S.get('csx:defOpened') || 0), d = Drows.filter(function (x) { return isNewDef(x) && BD.seenDef[x.key] > opened; }).length, db = $('defBadge');
     db.hidden = !d; db.textContent = d > 9 ? '9+' : String(d);
@@ -840,7 +878,7 @@
     boardBadge(); if (curView === 'board') renderBoard();
   }
   setInterval(function () { if (!document.hidden && CSTeam.ready() && (curView === 'board' || Date.now() - board.at > 5 * 60000)) loadBoard(false); }, 60000);
-  CSWho.on(function () { if (curView === 'board') renderBoard(); if (curView === 'work') renderWork(); boardBadge(); syncReads(); });
+  CSWho.on(function () { if (curView === 'board') renderBoard(); if (curView === 'work') renderWork(); if (curView === 'rank') KBTeamRec.render(); boardBadge(); syncReads(); });
   // 이름: 기록기가 알려 주면 그 이름. 없으면(기록기 없는 PC) 한 번만 적게 함
   function nameBox(onSet) {
     var me = myName(), w = el('span', 'who');
@@ -903,7 +941,18 @@
   }
 
   /* ───── 공지 확인: [확인했어요]를 누른 공지 번호·제목을 팀 서버에(관리 화면에서 누가 읽었는지 봄) ───── */
-  var RSENT = 'csx:readSent', readT = 0;
+  var RSENT = 'csx:readSent', readT = 0, pullAt = 0;
+  // 2026-11-01 서버에 남은 내 확인을 불러옴(크롬 기록을 지웠거나 PC를 바꿔도 다시 안 물음 · 확인 시각도 서버 것)
+  function personKey(v) { var s = String(v || '').replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; }
+  async function pullReads() {
+    if (!CSTeam.ready() || Date.now() - pullAt < 60000) return; var me = personKey(myName()); if (!me) return; pullAt = Date.now();
+    var r; try { r = await CSTeam.get('notice.reads', {}, 30000); } catch (e) { return; }
+    var reads = r && r.reads || {}, ids = [], ats = {}, sa = seenAt(), fix = false;
+    Object.keys(reads).forEach(function (id) { var o = reads[id] && reads[id].reads || {}, t = 0; Object.keys(o).forEach(function (k) { if (personKey(k) === me) t = Number(o[k]) || t; }); if (!t) return; if (M.seen.indexOf(id) < 0) ids.push(id); if (sa[id] !== t) { ats[id] = t; fix = true; } });
+    if (fix) { Object.keys(ats).forEach(function (id) { sa[id] = ats[id]; }); S.put(SEEN_AT, sa); }
+    if (ids.length) { var sent = S.json(RSENT, []); if (!Array.isArray(sent)) sent = []; S.put(RSENT, sent.concat(ids.map(function (id) { return myName() + '|' + id; })).slice(-600)); ids.forEach(function (id) { M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); tellSeen(); }
+    if ((ids.length || fix) && curView === 'notice') renderNotices();
+  }
   function syncReads() {
     clearTimeout(readT);
     readT = setTimeout(async function () {

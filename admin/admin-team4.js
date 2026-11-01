@@ -1,0 +1,56 @@
+/* 팀 현황 넷째 칸 [팀 기록](2026-11-01 주인) — 상담사 화면 [팀 기록] 탭과 같은 숫자(js/teamstats.js) · 기간은 여기서만 고름
+   · 시간당 기록(기록 ÷ 기록기가 켜져 있던 업무시간) 순 · 등수 · 기록 · 하루 평균 · 근무일 · 일한 시간 · 1등과 차이
+   · 문의 분류: 사람 × 카테고리 + 어려운 상담 비율(교환/반품 · 고장/불량 · A/S · 불만) — 이 비율은 관리 화면에만(상담사 화면엔 없음)
+   · 같은 고객(상담방)은 고른 기간 안에서 한 주(월~금)에 1건 · 기록한 방 자료(qa)는 62일만 남아 그보다 앞선 날은 그대로 셈 */
+(function () {
+  'use strict';
+  function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  var S = function () { return window.KBTeamStats; }, T2 = function () { return window.KBTeam2; }, W = window.WorkClock, WD = ['일', '월', '화', '수', '목', '금', '토'];
+  function f1(v) { return v == null ? '–' : (Math.round(v * 10) / 10).toFixed(1); }
+  function md(k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)) + '(' + WD[W.weekday(k)] + ')'; }
+  function hm(m) { m = Math.round(m); var h = Math.floor(m / 60), r = m % 60; return (h ? h + '시간' : '') + (r ? (h ? ' ' : '') + r + '분' : h ? '' : '0분'); }
+  function pct(v) { return v == null ? '–' : Math.round(v * 100) + '%'; }
+  var NAME = { today: '오늘', yday: '어제', week: '이번 주', lweek: '지난주', month: '이번 달', lmonth: '지난달' };
+  function label(period, keys) {
+    if (NAME[period]) return NAME[period] + (keys.length > 1 ? ' ' + md(keys[0]) + '~' + md(keys[keys.length - 1]) : ' ' + md(keys[0]));
+    return keys.length > 1 ? md(keys[0]) + '~' + md(keys[keys.length - 1]) : md(keys[0]);
+  }
+  async function render(r, st) {
+    var keys = S().periodKeys(st.period), back = Math.min(62, S().daysBack(keys));
+    var got = await Promise.all([CSTeam.get('qa.get', { days: Math.max(14, back) }, st.maxAge || 0).catch(function () { return null; }), CSTeam.get('cfg.get', {}).catch(function () { return null; })]);
+    var R = S().compute(r, got[0], keys, { roster: (got[1] || {}).roster }), wrap = mk('div', 'tview trec');
+    var nWork = 0; keys.forEach(function (d) { if (W.day(d, (got[1] || {}).cfg || {})) nWork++; });
+    // 시간당 기록
+    var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 많은 순 · 일한 시간 = 기록기가 켜져 있던 업무시간(점심·퇴근 뒤 빼고)')); p1.append(h1);
+    if (!R.people.length) p1.append(mk('div', 'pnone', '이 기간 기록이 없어요'));
+    else {
+      var best = R.best, rows = R.people.map(function (o) {
+        var gap = best && o.ph != null && o !== best ? '−' + f1(best.ph - o.ph) + '건 (' + Math.round((best.ph - o.ph) / best.ph * 100) + '%)' : '–';
+        return { cells: [{ text: o.rank ? o.rank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', { text: gap, cls: 'z2' }] };
+      });
+      p1.append(T2().table(['등수', '이름', '시간당 기록', '기록', '하루 평균', '근무일', '일한 시간', '1등과 차이'], rows, 'trk-t1'));
+      var notes = [];
+      if (R.people.some(function (o) { return o.ph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날(팀 서버 1.3.12 전)');
+      var rd = R.people.reduce(function (s, o) { return s + o.redup; }, 0); if (rd) notes.push('같은 주에 같은 고객을 다시 기록한 ' + rd + '건은 빼고 셌어요');
+      if (R.noQa.length) notes.push(md(R.noQa[0]) + (R.noQa.length > 1 ? ' 등 ' + R.noQa.length + '일' : '') + '은 기록한 방 자료가 없어(두 달 지남) 같은 고객 합치기 없이 셌어요');
+      notes.forEach(function (t) { p1.append(mk('p', 'muted tfoot', t)); });
+    }
+    wrap.append(p1);
+    // 문의 분류(관리 화면은 어려운 상담 비율도)
+    var p2 = mk('div', 'tpanel'), h2 = mk('div', 'tph'); h2.append(mk('b', null, '문의 분류 · ' + label(st.period, keys)), mk('span', 'muted', '주황 = 어려운 상담(교환/반품 · 고장/불량 · A/S · 불만) · 이 비율은 상담사 화면에 안 나와요')); p2.append(h2);
+    var ppl = R.people.filter(function (o) { return o.catN > 0; });
+    if (!ppl.length) p2.append(mk('div', 'pnone', '카테고리가 남은 기록이 없어요(기록기 2.4.15부터 모여요)'));
+    else {
+      var head = ['이름'].concat(R.catOrder, ['합계', '어려운 상담']);
+      var rows2 = ppl.map(function (o) { return { cells: [{ text: o.full, cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: o.cats[c] ? String(o.cats[c]) : '·', cls: S().isHard(c) && o.cats[c] ? 'thard' : '' }; }), [{ text: String(o.catN), cls: 'trk-b' }, pct(o.hardPct)]) }; });
+      rows2.push({ cls: 'trk-sum', cells: [{ text: '팀 합계', cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: String(R.cats[c]), cls: 'trk-b' }; }), [{ text: String(R.total.catN), cls: 'trk-b' }, pct(R.total.hardPct)]) });
+      var tb = T2().table(head, rows2, 'tcatt trk-t2');
+      tb.querySelectorAll('td.thard').forEach(function (td) { var b = mk('b', null, td.textContent); td.textContent = ''; td.append(b); });
+      p2.append(tb);
+    }
+    wrap.append(p2);
+    wrap.append(mk('p', 'muted tfoot', '상담사 화면 [팀 기록] 탭은 오늘만 · 이름 · 시간당 기록 · 오늘 기록 · 카테고리 건수만 보여요(등수 · 1등과 차이 · 어려운 상담은 이 화면에만).'));
+    return wrap;
+  }
+  window.KBTeam4 = { render: render };
+})();
