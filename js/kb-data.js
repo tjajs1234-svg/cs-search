@@ -117,7 +117,9 @@
         .map(function (n) { return { id: str(n.id), title: clean(n.title).slice(0, 120), body: cleanMulti(n.body).slice(0, 20000), at: Number(n.at) || 0, by: clean(n.by).slice(0, 30), pin: !!n.pin, important: !!n.important,
           // 2026-11-01 사진·영상(드라이브 주소) · 다시 확인 받기(rev) · 고친 때(ed)
           links: (Array.isArray(n.links) ? n.links : []).map(function (u) { return str(u).trim(); }).filter(function (u) { return /^https:\/\/\S+$/.test(u); }).slice(0, 10).map(function (u) { return u.slice(0, 500); }),
-          rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0 }; });
+          rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0,
+          // 2026-11-02 숨김: 상담사 화면에서만 안 보임(관리 화면 '숨긴 공지'에서 되돌림)
+          hidden: !!n.hidden, hid: n.hidden ? Number(n.hid) || 0 : 0 }; });
       var s = obj.sources && typeof obj.sources === 'object' ? obj.sources : {};
       out.sources.requests = (Array.isArray(s.requests) ? s.requests : []).map(function (x) { return x && sheetRef(x.url) ? { url: str(x.url).trim(), label: clean(x.label).slice(0, 40) } : null; }).filter(Boolean).slice(0, 10);
       out.sources.defects = s.defects && sheetRef(s.defects.url) ? { url: str(s.defects.url).trim(), label: clean(s.defects.label).slice(0, 40) } : null;

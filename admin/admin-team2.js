@@ -133,7 +133,7 @@
   // 지금 관리 공지(cs-content) + 서버에 확인이 남은 족보 공지 → [{ id, title, at, from, rev }]
   function noticeList(reads, admin) {
     var out = [], have = {};
-    (admin || []).forEach(function (n) { var id = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); have[id] = 1; out.push({ id: id, title: n.title, at: Math.max(n.at || 0, n.rev ? n.ed || 0 : 0), ed: n.rev ? n.ed || 0 : 0, from: '관리자' }); });
+    (admin || []).forEach(function (n) { var id = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); have[id] = 1; out.push({ id: id, title: n.title, at: Math.max(n.at || 0, n.rev ? n.ed || 0 : 0), ed: n.rev ? n.ed || 0 : 0, from: '관리자', hidden: !!n.hidden }); });
     Object.keys(reads).forEach(function (id) {
       if (have[id]) return; if (admin && /^a:/.test(id)) return; // 지운 공지 · 고치기 전 판은 뺌
       out.push({ id: id, title: reads[id].title, at: reads[id].first || 0, from: /^s:/.test(id) ? '족보' : '관리자' });
@@ -159,7 +159,7 @@
       var m = whoRead(D, n.id), done = D.team.filter(function (x) { return m[x]; }), not = D.team.filter(function (x) { return !m[x]; });
       var extra = Object.keys(m).filter(function (x) { return D.team.indexOf(x) < 0; });
       var det = mk('details', 'nrd'), sm = mk('summary', 'nrs');
-      var tt = mk('span', 'nrt'); tt.append(mk('b', null, n.title || '(제목 없음)')); if (n.ed) tt.append(mk('span', 'ntag', dayTxt(n.ed) + ' 고침')); if (n.from === '족보') tt.append(mk('span', 'ntag g', '족보'));
+      var tt = mk('span', 'nrt'); tt.append(mk('b', null, n.title || '(제목 없음)')); if (n.ed) tt.append(mk('span', 'ntag', dayTxt(n.ed) + ' 고침')); if (n.from === '족보') tt.append(mk('span', 'ntag g', '족보')); if (n.hidden) tt.append(mk('span', 'ntag g', '숨김'));
       sm.append(tt, mk('span', 'muted nrdt', n.at ? dayTxt(n.at) : ''), mk('span', 'nrc', '확인 ' + done.length + ' / ' + D.team.length), mk('span', 'nrn ' + (not.length ? 'warnc' : 'okc'), not.length ? (not.length === D.team.length && D.team.length > 1 ? D.team.length + '명 모두 아직' : '아직: ' + not.join(' · ')) : '모두 확인'));
       det.append(sm);
       var ul = mk('div', 'nrp');
@@ -181,7 +181,8 @@
       var hh = mk('div', 'tph'); hh.append(mk('b', null, '공지 확인'), mk('span', 'muted', '검색기에서 [읽고 이해했어요]를 체크한 시각 · 공지 내용을 잘못 안내했을 때 근거')); el.append(hh);
       if (!list.length) { el.append(mk('div', 'pnone', '이 기간에 올라온 공지가 없어요.')); return; }
       var done = [], not = [];
-      list.forEach(function (n) { var t = whoRead(D, n.id)[P]; if (t) done.push({ n: n, t: t }); else not.push(n); });
+      list.forEach(function (n) { var t = whoRead(D, n.id)[P]; if (t) done.push({ n: n, t: t }); else if (!n.hidden) not.push(n); }); // 숨긴 공지는 안 읽어도 탓하지 않음
+      list = list.filter(function (n) { return !n.hidden || whoRead(D, n.id)[P]; }); if (!list.length) { el.append(mk('div', 'pnone', '이 기간에 올라온 공지가 없어요.')); return; }
       el.append(mk('div', 'tnl' + (not.length ? ' r' : ''), '공지 ' + list.length + '개 중 ' + done.length + '개 확인' + (not.length ? ' · 확인 안 한 공지: ' + not.map(function (n) { return '‘' + (n.title || '') + '’'; }).join(', ') : ' ✓')));
       done.forEach(function (x) { var r = mk('div', 'nrpr'); r.append(mk('span', null, x.n.title || '(제목 없음)'), mk('b', 'okc', fullTime(x.t) + ' 확인')); el.append(r); });
     } catch (e) { /* 공지 줄은 없어도 됨 */ }

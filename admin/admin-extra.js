@@ -45,7 +45,7 @@
       if (links.length > 10) { say('사진·영상 주소는 10개까지예요', 'err'); lk.focus(); return; }
       var re = !!(editing && again.checked);
       var item = { id: editing ? editing.id : rid(), title: title, body: body, important: imp.checked, pin: pin.checked, at: editing ? editing.at : Date.now(), by: '', links: links,
-        rev: editing ? (editing.rev || 0) + (re ? 1 : 0) : 0, ed: re ? Date.now() : (editing && editing.ed) || 0 };
+        rev: editing ? (editing.rev || 0) + (re ? 1 : 0) : 0, ed: re ? Date.now() : (editing && editing.ed) || 0, hidden: !!(editing && editing.hidden), hid: (editing && editing.hid) || 0 };
       try {
         await KBAdmin.saveNotices(function (ns) {
           var i = ns.findIndex(function (n) { return n.id === item.id; });
@@ -59,23 +59,38 @@
     acts.append(go);
     form.append(lab(editing ? '공지 고치기' : '새 공지'), t, b, lk, opts, acts);
     p.append(form);
-    p.append(mk('div', 'colhd', '올린 공지 ' + list.length + '개'));
-    if (!list.length) p.append(mk('div', 'empty', '아직 올린 공지가 없어요.'));
-    list.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); }).forEach(function (n) {
-      var r = mk('div', 'hrow'); r.style.gridTemplateColumns = '96px minmax(0,1fr) auto auto auto';
-      var tags = [n.pin ? '고정' : '', n.important ? '중요' : '', n.links && n.links.length ? '사진·영상 ' + n.links.length : '', n.rev ? when(n.ed) + ' 다시 확인' : ''].filter(Boolean).join(' · ');
+    // 2026-11-02 숨기기: 상담사 화면에서만 빠지고 여기 '숨긴 공지'에 남음 · [되돌리기]로 다시 보임(확인 기록은 그대로)
+    function setHidden(n, h) {
+      return KBAdmin.saveNotices(function (ns) { return ns.map(function (x) { return x.id === n.id ? Object.assign({}, x, { hidden: h, hid: h ? Date.now() : 0 }) : x; }); }, (h ? '공지 숨김: ' : '공지 되돌림: ') + n.title)
+        .then(function () { say(h ? '숨겼어요. 상담사 화면에서 안 보여요(아래 ‘숨긴 공지’에서 되돌릴 수 있어요)' : '되돌렸어요. 2분 안에 상담사 화면에 다시 보여요', 'ok'); if (editing && editing.id === n.id) editing = null; notices(w); })
+        .catch(function (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); });
+    }
+    function row(n) {
+      var r = mk('div', 'hrow' + (n.hidden ? ' nhid' : '')); r.style.gridTemplateColumns = '96px minmax(0,1fr) auto auto auto auto';
+      var tags = [n.pin ? '고정' : '', n.important ? '중요' : '', n.links && n.links.length ? '사진·영상 ' + n.links.length : '', n.rev ? when(n.ed) + ' 다시 확인' : '', n.hidden && n.hid ? when(n.hid) + ' 숨김' : ''].filter(Boolean).join(' · ');
       r.append(mk('span', 'muted', when(n.at)));
       var tt = mk('span', 'note'); tt.append(mk('b', null, n.title)); if (tags) tt.append(mk('span', 'muted', '  ' + tags)); tt.title = n.body || '';
       r.append(tt);
       var rc = mk('span', 'muted rcnt', ''); rc.dataset.nid = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); r.append(rc);
       r.append(btn('고치기', 'ghost sm', function () { editing = n; notices(w); w.scrollTop = 0; }));
+      r.append(n.hidden ? btn('되돌리기', 'ghost sm nunhide', function () { setHidden(n, false); }) : btn('숨기기', 'ghost sm nhide', function () { setHidden(n, true); }));
       r.append(btn('지우기', 'danger-ghost sm', async function () {
-        if (!(await A().confirmDlg('이 공지를 지울까요?', '‘' + n.title + '’ 공지가 상담사 화면에서 사라져요. (깃허브 이전 판에는 남아 있어요)', '지우기', true))) return;
+        if (!(await A().confirmDlg('이 공지를 지울까요?', '‘' + n.title + '’ 공지가 아예 사라져요. 잠깐 안 보이게만 하려면 [숨기기]를 쓰세요. (깃허브 이전 판에는 남아 있어요)', '지우기', true))) return;
         try { await KBAdmin.saveNotices(function (ns) { return ns.filter(function (x) { return x.id !== n.id; }); }, '공지 지움: ' + n.title); say('지웠어요', 'ok'); notices(w); }
         catch (e) { say(e.message || '지우지 못했어요', 'err'); }
       }));
-      p.append(r);
-    });
+      return r;
+    }
+    list.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
+    var shown = list.filter(function (n) { return !n.hidden; }), hid = list.filter(function (n) { return n.hidden; });
+    p.append(mk('div', 'colhd', '올린 공지 ' + shown.length + '개'));
+    if (!shown.length) p.append(mk('div', 'empty', hid.length ? '상담사 화면에 보이는 공지가 없어요.' : '아직 올린 공지가 없어요.'));
+    shown.forEach(function (n) { p.append(row(n)); });
+    if (hid.length) {
+      var hd = mk('details', 'nhidbox'); hd.append(mk('summary', 'colhd', '숨긴 공지 ' + hid.length + '개 · 상담사 화면에 안 보여요'));
+      hid.sort(function (a, b) { return (b.hid || 0) - (a.hid || 0); }).forEach(function (n) { hd.append(row(n)); });
+      p.append(hd);
+    }
     w.append(p);
     // 공지 확인(누가 [확인했어요]를 눌렀는지 · 예전 '확인할 상담' 화면에서 옮김)
     if (window.KBTeam2 && KBTeam2.noticeReads) KBTeam2.noticeReads(w);

@@ -319,3 +319,7 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .nrpr{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13.5px;font-variant-numeric:tabular-nums}
 .nrpr:last-child{border-bottom:0}
 .tnl{font-size:14px;font-weight:700}
+/* 2026-11-02 숨긴 공지 */
+.nhidbox{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+.nhidbox>summary{cursor:pointer;list-style:revert}
+.hrow.nhid .note b{color:var(--muted,#888);font-weight:600}

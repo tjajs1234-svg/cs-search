@@ -733,7 +733,7 @@
     var out = [];
     var since = firstUse() - 14 * 864e5;
     // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
-    (C && C.notices || []).forEach(function (n) { var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, pin: n.pin, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: Math.max(n.at || 0, ed) >= since }); });
+    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, pin: n.pin, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: Math.max(n.at || 0, ed) >= since }); });
     (BD && BD.notice && BD.notice.items || []).forEach(function (n) { out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
     out.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
     return out;
@@ -1187,7 +1187,7 @@
       b.append(ic('warn'), el('span', 't', '최신 문안을 확인하지 못했어요 · ' + (st.message || '') + ' · 마지막으로 받은 문안으로 검색 중'));
       var d = el('button', null, '자세히'); d.type = 'button'; d.addEventListener('click', openSettings); b.append(d); b.hidden = false; return;
     }
-    var pins = (C && C.notices || []).filter(function (n) { return n.pin && n.title; });
+    var pins = (C && C.notices || []).filter(function (n) { return n.pin && n.title && !n.hidden; });
     if (pins.length) { b.className = 'banner pin'; b.append(ic('pin'), el('span', 't', '공지 · ' + pins.slice(0, 3).map(function (n) { return n.title; }).join('  ·  '))); b.onclick = function () { setView('notice'); }; b.hidden = false; return; }
     b.hidden = true;
   }
