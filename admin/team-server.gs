@@ -36,7 +36,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.17';
+var TEAM_VERSION = '1.3.18';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -334,13 +334,14 @@ function teamBeat_(req) {
   // 하루 합계는 5분에 한 번만 파일에 남김(파일 쓰기를 줄임) · 이름·말은 빼고
   // 1.3.8 기록 수(채널별)가 바뀌면 5분을 안 기다리고 바로 씀 — 퇴근하며 크롬을 꺼도 마지막 기록까지 남게
   // 1.3.12 기록기가 켜져 있던 업무시간(분) — 면담 화면 '시간당'을 이 시간으로 나눔
-  var onMin = onlineAdd_(cache, who, day, now);
+  var onl = onlineAdd_(cache, who, day, now), onMin = onl.m;
   var ms = st ? mergeStats_(parts.st, mrow, mq) : null, rsig = ms ? [ms.records, ms.kakao, ms.naver, JSON.stringify(ms.sites), JSON.stringify(ms.cats || {})].join('|') : '';
   if (ms && (!cache.get('dayw:' + who + ':' + day) || cache.get('dayr:' + who + ':' + day) !== rsig)) {
     withLock_(function () {
       var t = readJson_('team.json', {}); if (!t || typeof t !== 'object') t = {};
       var d = t[day] || (t[day] = {}), old = d[who];
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
+      if (onl.a) d[who].oa = onl.a;
       ['nk', 'bh', 'ho'].forEach(function (k) { if (ms[k]) d[who][k] = ms[k]; }); // 1.3.16 인센티브 재료(기록기 2.4.26)
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
@@ -386,6 +387,7 @@ function dayKeep_(r, carry, old) {
   KEEP_MAX.forEach(function (k) { if (num_(old[k]) > (r[k] || 0)) r[k] = num_(old[k]); });
   CARRY_MAPS.forEach(function (m) { var src = old[m] && typeof old[m] === 'object' ? old[m] : {}, o = r[m] || (r[m] = {}); Object.keys(src).forEach(function (k) { if (num_(src[k]) > (o[k] || 0)) o[k] = num_(src[k]); }); });
   if (num_(old.on) > (r.on || 0)) r.on = old.on;
+  if (num_(old.oa) > (r.oa || 0)) r.oa = old.oa;
   return r;
 }
 // 1.3.14 내 보류 목록(상담 번호 · 마지막 메시지 번호 · 보류한 시각만 — 이름·내용 없음): 다시 깐 PC가 되살림
@@ -458,12 +460,18 @@ function bizMin_(a, b) {
   var ov = function (x0, x1) { return Math.max(0, Math.min(m1, x1) - Math.max(m0, x0)); };
   return Math.max(0, ov(600, end) - ov(750, 840));
 }
+// 1.3.18 정시(19:00) 뒤 켜져 있던 분(평일) — 야근한 날 시간당에 더함(검색기가 OT 퇴근 시각·마지막 기록까지만 씀)
+function lateMin_(a, b) {
+  var KST = 9 * 3600e3, d0 = Math.floor((a + KST) / 864e5), wd = new Date(d0 * 864e5).getUTCDay(); if (wd === 0 || wd === 6) return 0;
+  var base = d0 * 864e5 - KST, m0 = (a - base) / 60000, m1 = Math.min((b - base) / 60000, 1440);
+  return Math.max(0, m1 - Math.max(m0, 19 * 60));
+}
 function onlineAdd_(cache, who, day, now) {
   var k = 'onl:' + who + ':' + day, v = jget_(cache, k);
-  if (!v || typeof v !== 'object') { var t = readJson_('team.json', {}), row = t && t[day] && t[day][who]; v = { l: 0, m: Number(row && row.on) || 0 }; }
-  if (v.l && now > v.l && now - v.l <= 180000) v.m += bizMin_(v.l, now);
+  if (!v || typeof v !== 'object') { var t = readJson_('team.json', {}), row = t && t[day] && t[day][who]; v = { l: 0, m: Number(row && row.on) || 0, a: Number(row && row.oa) || 0 }; }
+  if (v.l && now > v.l && now - v.l <= 180000) { v.m += bizMin_(v.l, now); v.a = (v.a || 0) + lateMin_(v.l, now); }
   v.l = now; cache.put(k, JSON.stringify(v), 21600);
-  return Math.round(v.m * 10) / 10;
+  return { m: Math.round(v.m * 10) / 10, a: Math.round((v.a || 0) * 10) / 10 };
 }
 function roomHash_(rr, re) {
   var seen = {}, out = [];

@@ -18,9 +18,9 @@
     if (!CSTeam.ready()) return;
     var keys = KBTeamStats.periodKeys('today');
     try {
-      var got = await Promise.all([CSTeam.get('team.get', { days: 2 }, 50000), CSTeam.get('qa.get', { days: 1 }, 50000).catch(function () { return null; }), CSTeam.get('cfg.get', {}, 600000).catch(function () { return null; })]);
+      var got = await Promise.all([CSTeam.get('team.get', { days: 2 }, 50000), CSTeam.get('qa.get', { days: 1 }, 50000).catch(function () { return null; }), CSTeam.get('cfg.get', {}, 600000).catch(function () { return null; }), CSTeam.get('ot.list', { from: keys[0], to: keys[keys.length - 1] }, 50000).catch(function () { return null; })]);
       if (my !== gen) return;
-      last = { R: KBTeamStats.compute(got[0], got[1], keys, { roster: (got[2] || {}).roster }), at: Date.now() }; err = '';
+      last = { R: KBTeamStats.compute(got[0], got[1], keys, { roster: (got[2] || {}).roster, ot: (got[3] || {}).items || [] }), at: Date.now() }; err = '';
     } catch (e) { if (my !== gen) return; err = e.message || '불러오지 못했어요'; }
     render();
   }
@@ -54,20 +54,29 @@
     var b2 = el('div', 'trk-box'); b2.append(el('h3', null, '문의 분류'), el('p', 'trk-sub', '오늘 기록 창에서 고른 카테고리별 건수'));
     if (!R.catOrder.length) b2.append(el('div', 'empty', '아직 카테고리가 고른 기록이 없어요.'));
     else {
-      var sc = el('div', 'trk-scroll'), t2 = el('table', 'trk-t'), h2 = el('tr'); h2.append(el('th', null, '이름')); R.catOrder.forEach(function (c) { h2.append(el('th', 'num', c)); }); h2.append(el('th', 'num', '합계'));
+      var sc = el('div', 'trk-scroll'), t2 = el('table', 'trk-t trk-cat'), h2 = el('tr'); h2.append(el('th', null, '이름')); R.catOrder.forEach(function (c) { var th = el('th', 'num'); th.append(el('span', null, c)); h2.append(th); }); h2.append(el('th', 'num tot', '합계'));
       var th2 = el('thead'); th2.append(h2); t2.append(th2); var tb2 = el('tbody');
       R.people.filter(function (o) { return o.catN > 0; }).forEach(function (o) {
         var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); tr.append(nm);
-        R.catOrder.forEach(function (c) { tr.append(el('td', 'num', o.cats[c] ? String(o.cats[c]) : '·')); });
-        var tt = el('td', 'num'); tt.append(el('b', null, String(o.catN))); tr.append(tt); tb2.append(tr);
+        R.catOrder.forEach(function (c) { tr.append(el('td', 'num' + (o.cats[c] ? '' : ' z'), o.cats[c] ? String(o.cats[c]) : '·')); });
+        var tt = el('td', 'num tot'); tt.append(el('b', null, String(o.catN))); tr.append(tt); tb2.append(tr);
       });
       var sum = el('tr', 'sum'), sn = el('td'); sn.append(el('b', null, '팀 합계')); sum.append(sn);
       R.catOrder.forEach(function (c) { var t = el('td', 'num'); t.append(el('b', null, String(R.cats[c]))); sum.append(t); });
-      var st = el('td', 'num'); st.append(el('b', null, String(R.total.catN))); sum.append(st); tb2.append(sum);
+      var st = el('td', 'num tot'); st.append(el('b', null, String(R.total.catN))); sum.append(st); tb2.append(sum);
       t2.append(tb2); sc.append(t2); b2.append(sc);
     }
     wrap.append(b2);
-    wrap.append(el('p', 'trk-foot', '같은 고객(상담방)은 한 번만 세요 · 시트에 저장된 기록만 세요 · 기록기를 끈 시간과 다른 PC 기록은 안 잡혀요'));
+    // 2026-11-02 누구나 알기 쉬운 세는 규칙(주인)
+    var rb = el('div', 'trk-box trk-rules'); rb.append(el('h3', null, '이렇게 세요'));
+    var ul = el('ul');
+    ['오늘 기록: 시트에 저장된 기록만 세요. 같은 상담방은 하루에 1건만 세요.',
+     '매일 0시에 0건부터 새로 세요. 어제 기록한 고객을 오늘 다시 기록하면 오늘 1건이에요.',
+     '시간당 기록 = 오늘 기록 ÷ 기록기를 켜 둔 근무시간이에요.',
+     '근무시간: 10:00~19:00(목요일은 17:00까지), 점심 12:30~14:00은 빼요.',
+     '야근한 날은 19:00 뒤에 기록기를 켜 둔 시간도 더해요(OT에 적은 퇴근 시각이나 마지막 기록 시각까지).',
+     '기록기를 끈 시간은 근무시간에 안 들어가요. 다른 PC에서 한 기록은 그 PC 기록기로 세요.'].forEach(function (t) { ul.append(el('li', null, t)); });
+    rb.append(ul); wrap.append(rb);
     L.append(wrap);
   }
   function show() { render(); load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 60000); }

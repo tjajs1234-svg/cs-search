@@ -131,31 +131,58 @@
   function fullTime(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (v) { return String(v).padStart(2, '0'); }).join(':'); }
   function dayTxt(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
   // 지금 관리 공지(cs-content) + 서버에 확인이 남은 족보 공지 → [{ id, title, at, from, rev }]
-  function noticeList(reads, admin) {
-    var out = [], have = {};
-    (admin || []).forEach(function (n) { var id = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); have[id] = 1; out.push({ id: id, title: n.title, at: Math.max(n.at || 0, n.rev ? n.ed || 0 : 0), ed: n.rev ? n.ed || 0 : 0, from: '관리자', hidden: !!n.hidden }); });
+  function noticeList(reads, admin, nhide) {
+    var out = [], have = {}; nhide = nhide || [];
+    (admin || []).forEach(function (n) { var id = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); have[id] = 1; out.push({ id: id, title: n.title, at: Math.max(n.at || 0, n.rev ? n.ed || 0 : 0), ed: n.rev ? n.ed || 0 : 0, from: '관리자', hidden: !!n.hidden, raw: n }); });
     Object.keys(reads).forEach(function (id) {
       if (have[id]) return; if (admin && /^a:/.test(id)) return; // 지운 공지 · 고치기 전 판은 뺌
-      out.push({ id: id, title: reads[id].title, at: reads[id].first || 0, from: /^s:/.test(id) ? '족보' : '관리자' });
+      var base = /^s:/.test(id) ? id.replace(/:\d+$/, '') : '';
+      out.push({ id: id, title: reads[id].title, at: reads[id].first || 0, from: base ? '족보' : '관리자', base: base, hidden: !!(base && nhide.indexOf(base) >= 0) });
     });
     return out.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
   }
   async function noticeData() {
     var got = await Promise.all([CSTeam.get('notice.reads', {}), getCfg().catch(function () { return null; }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; }),
-      window.KBAdmin ? KBAdmin.latest().then(function (c) { return c.parsed ? c.parsed.notices : null; }).catch(function () { return null; }) : Promise.resolve(null)]);
+      window.KBAdmin ? KBAdmin.latest().then(function (c) { return c.parsed || null; }).catch(function () { return null; }) : Promise.resolve(null)]);
     var reads = got[0].reads || {}, cfg = got[1], P = T().person;
     var team = activeNames(cfg && cfg.roster, today(), (got[2].live || []).map(function (x) { return P(x.name); })).filter(function (n) { return n !== '팀장'; });
-    return { reads: reads, team: team, list: noticeList(reads, got[3]), roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
+    var cp = got[3];
+    return { reads: reads, team: team, list: noticeList(reads, cp ? cp.notices : null, cp && cp.sources && cp.sources.nhide || []), nhide: cp && cp.sources && cp.sources.nhide || [], hasAdmin: !!cp, roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
   }
   function whoRead(D, id) { var o = (D.reads[id] || {}).reads || {}, m = {}; Object.keys(o).forEach(function (k) { var n = D.P(k); if (!m[n] || o[k] > m[n]) m[n] = o[k]; }); return m; }
   async function noticeReads(w) {
     if (!(await T().ensureUrl())) return;
     var D; try { D = await noticeData(); } catch (e) { return; }
     var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [읽고 이해했어요]를 체크하고 [예]를 누른 시각(이름은 기록기 태그로 자동) · 공지를 누르면 사람마다 보여요'));
-    var rows = D.list.slice(0, 30);
+    // 2026-11-02 공지 확인에서도 [숨기기](족보·관리 공지) · [지우기](관리 공지) — 숨기면 상담사 화면에서 빠지고 아래 '숨긴 공지'에서 되돌림
+    var redraw = function () { if (window.KBAdminExtra && KBAdminExtra.views && KBAdminExtra.views.notices) KBAdminExtra.views.notices(w); else noticeReads(w); };
+    var act = async function (n, what) {
+      try {
+        if (n.from === '족보') {
+          var nh = D.nhide.filter(function (x) { return x !== n.base; }); if (what === 'hide') nh.push(n.base);
+          await KBAdmin.saveSources({ nhide: nh }, (what === 'hide' ? '족보 공지 숨김: ' : '족보 공지 되돌림: ') + (n.title || ''));
+        } else if (what === 'del') {
+          if (!(await window.KBAdminApp.confirmDlg('이 공지를 지울까요?', '‘' + (n.title || '') + '’ 공지가 아예 사라져요. 잠깐 안 보이게만 하려면 [숨기기]를 쓰세요.', '지우기', true))) return;
+          await KBAdmin.saveNotices(function (ns) { return ns.filter(function (x) { return x.id !== n.raw.id; }); }, '공지 지움: ' + (n.title || ''));
+        } else {
+          var h = what === 'hide';
+          await KBAdmin.saveNotices(function (ns) { return ns.map(function (x) { return x.id === n.raw.id ? Object.assign({}, x, { hidden: h, hid: h ? Date.now() : 0 }) : x; }); }, (h ? '공지 숨김: ' : '공지 되돌림: ') + (n.title || ''));
+        }
+        say(what === 'hide' ? '숨겼어요. 2분 안에 상담사 화면에서 빠져요' : what === 'del' ? '지웠어요' : '되돌렸어요. 2분 안에 상담사 화면에 다시 보여요', 'ok'); redraw();
+      } catch (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); }
+    };
+    var acts = function (n) {
+      var a = mk('span', 'nract'); if (!D.hasAdmin || (n.from === '관리자' && !n.raw)) return a;
+      var b = function (label, cls, what) { var x = btn(label, cls, function (e) { e.preventDefault(); e.stopPropagation(); act(n, what); }); x.classList.add('sm'); return x; };
+      if (n.hidden) a.append(b('되돌리기', 'ghost nunhide', 'show')); else a.append(b('숨기기', 'ghost nhide', 'hide'));
+      if (n.from === '관리자') a.append(b('지우기', 'danger-ghost', 'del'));
+      return a;
+    };
+    var shownAll = D.list.filter(function (n) { return !n.hidden; }), hidAll = D.list.filter(function (n) { return n.hidden; });
+    var rows = shownAll.slice(0, 30);
     if (!rows.length) p4.append(mk('div', 'empty', '아직 공지가 없어요.'));
     var box = mk('div', 'nrl');
-    rows.forEach(function (n) {
+    var one = function (n, into) {
       var m = whoRead(D, n.id), done = D.team.filter(function (x) { return m[x]; }), not = D.team.filter(function (x) { return !m[x]; });
       var extra = Object.keys(m).filter(function (x) { return D.team.indexOf(x) < 0; });
       var det = mk('details', 'nrd'), sm = mk('summary', 'nrs');
@@ -164,10 +191,14 @@
       det.append(sm);
       var ul = mk('div', 'nrp');
       D.team.concat(extra).forEach(function (x) { var r = mk('div', 'nrpr'); r.append(mk('span', null, x), m[x] ? mk('b', 'okc', fullTime(m[x]) + ' 확인') : mk('b', 'warnc', '아직')); ul.append(r); });
-      det.append(ul); box.append(det);
+      sm.append(acts(n));
+      det.append(ul); into.append(det);
       w.querySelectorAll('.rcnt').forEach(function (e) { if (e.dataset.nid === n.id) e.textContent = '확인 ' + done.length + '/' + D.team.length; });
-    });
+    };
+    rows.forEach(function (n) { one(n, box); });
     p4.append(box);
+    if (hidAll.length) { var hb = mk('details', 'nrhid'); hb.append(mk('summary', 'colhd', '숨긴 공지 ' + hidAll.length + '개 · 상담사 화면에 안 보여요')); var hl = mk('div', 'nrl'); hidAll.forEach(function (n) { one(n, hl); }); hb.append(hl); p4.append(hb); }
+    p4.append(mk('p', 'muted', '[숨기기]: 상담사 화면에서만 빠지고 확인 기록은 남아요 · 족보 공지는 시트에서 지워야 아예 사라져요(여기선 숨기기만)'));
     if (!D.roster) p4.append(mk('p', 'muted', '‘아직’은 근무 달력의 상담사 명단으로 셈 — 명단이 비어 있으면 팀 현황에 신호를 보낸 사람으로 셈'));
     if (w.isConnected) { var old = w.querySelector('.nreads'); if (old) old.remove(); w.append(p4); }
   }

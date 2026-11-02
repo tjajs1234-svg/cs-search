@@ -132,6 +132,8 @@
         var fee = Number(s.calc.asFee), days = Number(s.calc.returnDays);
         if (rates.length) out.sources.calc = { rates: rates, asFee: isFinite(fee) && fee >= 0 && fee <= 100000 ? Math.round(fee) : 6000, returnDays: isFinite(days) && days >= 1 && days <= 60 ? Math.round(days) : 7 };
       }
+      // 2026-11-02 숨긴 족보 공지(관리 화면 '공지 확인'에서 숨김): 's:번호' 목록 — 상담사 화면에서 빠짐
+      if (Array.isArray(s.nhide)) { var nh = s.nhide.map(function (x) { return str(x).trim(); }).filter(function (x) { return /^s:\S{1,100}$/.test(x); }).slice(0, 300); if (nh.length) out.sources.nhide = nh; }
       out.updatedAt = Number(obj.updatedAt) || 0;
     }
     return out;

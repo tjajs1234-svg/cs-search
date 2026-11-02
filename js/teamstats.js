@@ -1,6 +1,7 @@
 /* 팀 기록 숫자 세기(2026-11-01) — 검색기 [팀 기록] 탭과 관리 화면 팀 현황 [팀 기록] 칸이 같이 씀
    · 오늘 기록 = 시트에 저장된 기록. 같은 고객(상담방)은 고른 기간 안에서 한 주(월~금)에 1건(팀 현황과 같은 규칙)
-   · 시간당 기록 = 기록 ÷ 기록기가 켜져 있던 업무시간(팀 서버 1.3.12부터 남는 하루 on 분)
+   · 시간당 기록 = 기록 ÷ 기록기가 켜져 있던 업무시간(팀 서버 1.3.12부터 남는 하루 on 분: 10~19시, 목 17시, 점심 12:30~14:00 빼고)
+     2026-11-02 야근한 날: 19시 뒤 켜져 있던 분(팀 서버 1.3.18 oa)도 더함 — OT에 적은 퇴근 시각이나 그날 마지막 기록 시각까지만(19시 뒤 기록만 세고 시간은 안 더해 부풀던 것)
      켜진 시간 자료가 있는 날의 기록만 나눔 · 켜진 시간이 합쳐 1시간이 안 되면 시간당은 없음(null)
    · 카테고리 = 기록 창에서 고른 분류(기록기 2.4.15부터)
    · 자료: 팀 서버 team.get(days: 날짜 → 이름 → 하루 숫자 · live: 지금) · qa.get(days: 날짜 → 이름 → rk 그날 기록한 방)
@@ -39,18 +40,21 @@
     keys.forEach(function (d) { Object.keys(days[d] || {}).forEach(function (n) { names[person(n)] = 1; }); });
     if (keys.indexOf(td) >= 0) Object.keys(live).forEach(function (n) { if (now - (live[n].at || 0) <= 3 * 60000 && live[n].records) names[n] = 1; });
     delete names['팀장']; delete names[''];
+    // OT(반려 빼고): 이름 → 날짜 → 야근 분
+    var otm = {}; ((opt.ot) || []).forEach(function (x) { if (!x || x.status === '반려') return; var p = person(x.name), o2 = otm[p] || (otm[p] = {}); o2[x.date] = Math.max(o2[x.date] || 0, Number(x.mins) || 0); });
     var noQa = []; // 기록한 방 자료가 없는 날(두 달 넘은 날 등) — 같은 고객 합치기 없이 셈
     keys.forEach(function (d) { if (!qd[d] && Object.keys(days[d] || {}).length) noQa.push(d); });
     var people = Object.keys(names).map(function (n) {
-      var x = live[n], fresh = !!(x && now - (x.at || 0) <= 3 * 60000), o = { n: n, rec: 0, raw: 0, redup: 0, on: 0, onDays: 0, onRec: 0, work: 0, cats: {}, catN: 0, hardN: 0, k: 0, nv: 0, bd: 0, byDay: {} };
+      var x = live[n], fresh = !!(x && now - (x.at || 0) <= 3 * 60000), o = { n: n, rec: 0, raw: 0, redup: 0, on: 0, late: 0, onDays: 0, onRec: 0, work: 0, cats: {}, catN: 0, hardN: 0, k: 0, nv: 0, bd: 0, byDay: {} };
       var seen = {};
       keys.forEach(function (d) {
-        var dd = days[d] || {}, v = { rec: 0, on: null, ans: 0, k: 0, nv: 0, bd: 0 };
+        var dd = days[d] || {}, v = { rec: 0, on: null, oa: 0, ans: 0, k: 0, nv: 0, bd: 0 };
         Object.keys(dd).forEach(function (k) {
           if (person(k) !== n) return; var s = dd[k] || {};
           v.rec += s.records || 0; v.ans += s.answered || 0; v.k += s.kakao || 0; v.nv += s.naver || 0;
           Object.keys(s.sites || {}).forEach(function (st) { v.bd += s.sites[st] || 0; });
           if (typeof s.on === 'number' && s.on >= 0) v.on = (v.on || 0) + s.on;
+          if (typeof s.oa === 'number' && s.oa > 0) v.oa += s.oa;
           Object.keys(s.cats || {}).forEach(function (c) { var c2 = String(c); o.cats[c2] = (o.cats[c2] || 0) + (s.cats[c] || 0); });
         });
         // 오늘은 하루 파일이 5분마다 남아서, 지금 보내는 기록 수가 더 크면 그걸 씀(관리 화면 팀 현황과 같음)
@@ -60,6 +64,12 @@
         Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) !== n) return; (qd[d][k].rk || []).forEach(function (h) { rks[h] = 1; }); });
         Object.keys(rks).forEach(function (h) { var key = wk + ':' + h; if (seen[key]) dup++; else seen[key] = 1; });
         var rec = Math.max(0, v.rec - dup);
+        // 야근한 날: 19시 뒤 켜져 있던 분을 OT 퇴근 시각 · 그날 마지막 기록 시각 중 늦은 쪽까지만 더함
+        if (v.on != null && v.oa > 0) {
+          var lastRt = -1; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) (qd[d][k].rt || []).forEach(function (t) { if (t > lastRt) lastRt = t; }); });
+          var cap = Math.max((otm[n] || {})[d] || 0, lastRt - 19 * 60, 0), add = Math.min(v.oa, cap);
+          if (add > 0) { v.on += add; o.late += add; }
+        }
         o.rec += rec; o.raw += v.rec; o.redup += Math.min(dup, v.rec); o.k += v.k; o.nv += v.nv; o.bd += v.bd;
         if (v.on != null) { o.on += v.on; o.onDays++; o.onRec += rec; }
         if (rec > 0 || v.ans > 0) o.work++;

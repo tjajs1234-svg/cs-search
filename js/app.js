@@ -734,7 +734,8 @@
     var since = firstUse() - 14 * 864e5;
     // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
     (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, pin: n.pin, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: Math.max(n.at || 0, ed) >= since }); });
-    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
+    var nhide = C && C.sources && C.sources.nhide || [];
+    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
     out.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
     return out;
   }
@@ -764,7 +765,8 @@
   }
   function whenFull(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   // 2026-10-21 확장 아이콘의 새 공지 수: [확인했어요] 누른 족보 공지를 확장에도 알려 줌(확장이 읽어 온 족보 공지로 셈)
-  function sheetSeen() { return M.seen.filter(function (id) { return /^s:/.test(id); }).slice(-300); }
+  // 2026-11-02 숨긴 족보 공지도 '본 것'으로 알려 확장 아이콘 숫자에서 빠지게
+  function sheetSeen() { var nh = C && C.sources && C.sources.nhide || [], hid = []; if (nh.length) (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nh.indexOf('s:' + n.id) >= 0) hid.push('s:' + n.id + ':' + (n.rev || 0)); }); return M.seen.filter(function (id) { return /^s:/.test(id) && hid.indexOf(id) < 0; }).slice(-(300 - Math.min(hid.length, 100))).concat(hid.slice(-100)); }
   // 2026-11-01 관리 공지 중 아직 확인 안 한 수도 함께(검색기 연결 1.0.7부터 아이콘 숫자에 더함 · 예전 판은 무시)
   var toldAdm = -1;
   function adminUnread() { return unreadNotices().filter(function (n) { return /^a:/.test(n.id); }).length; }

@@ -323,3 +323,14 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .nhidbox{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
 .nhidbox>summary{cursor:pointer;list-style:revert}
 .hrow.nhid .note b{color:var(--muted,#888);font-weight:600}
+/* 2026-11-02 관리 [팀 기록] 문의 분류 표도 읽기 쉽게(이름 한 줄 · 이름 칸 고정 · 칸 머리 두 줄까지 · 줄무늬) */
+.ttable.trk-t2 th,.ttable.trk-t2 td{text-align:center}
+.ttable.trk-t2 th{white-space:normal;word-break:keep-all;min-width:44px;max-width:92px;line-height:1.25}
+.ttable.trk-t2 th:first-child,.ttable.trk-t2 td:first-child{text-align:left;white-space:nowrap;position:sticky;left:0;background:var(--surface);z-index:1;border-right:1px solid var(--line)}
+.ttable.trk-t2 tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--muted) 6%,var(--surface))}
+/* 2026-11-02 공지 확인 줄의 [숨기기]·[지우기] */
+.nract{display:inline-flex;gap:6px;margin-left:8px}
+.nract .btn{padding:2px 10px}
+.nrhid{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}.nrhid>summary{cursor:pointer;list-style:revert}
+.nrhid .nrs{opacity:.75}
+.nrs{grid-template-columns:minmax(0,1fr) 72px 84px minmax(120px,auto) auto}

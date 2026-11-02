@@ -17,11 +17,11 @@
   }
   async function render(r, st) {
     var keys = S().periodKeys(st.period), back = Math.min(62, S().daysBack(keys));
-    var got = await Promise.all([CSTeam.get('qa.get', { days: Math.max(14, back) }, st.maxAge || 0).catch(function () { return null; }), CSTeam.get('cfg.get', {}).catch(function () { return null; })]);
-    var R = S().compute(r, got[0], keys, { roster: (got[1] || {}).roster }), wrap = mk('div', 'tview trec');
+    var got = await Promise.all([CSTeam.get('qa.get', { days: Math.max(14, back) }, st.maxAge || 0).catch(function () { return null; }), CSTeam.get('cfg.get', {}).catch(function () { return null; }), CSTeam.get('ot.list', { from: keys[0], to: keys[keys.length - 1] }, st.maxAge || 0).catch(function () { return null; })]);
+    var R = S().compute(r, got[0], keys, { roster: (got[1] || {}).roster, ot: (got[2] || {}).items || [] }), wrap = mk('div', 'tview trec');
     var nWork = 0; keys.forEach(function (d) { if (W.day(d, (got[1] || {}).cfg || {})) nWork++; });
     // 시간당 기록
-    var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 많은 순 · 일한 시간 = 기록기가 켜져 있던 업무시간(점심·퇴근 뒤 빼고)')); p1.append(h1);
+    var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 많은 순 · 일한 시간 = 기록기가 켜져 있던 근무시간(10~19시 · 목 17시 · 점심 12:30~14:00 빼고 · 야근한 날은 19시 뒤 켜 둔 시간도 OT 퇴근·마지막 기록까지)')); p1.append(h1);
     if (!R.people.length) p1.append(mk('div', 'pnone', '이 기간 기록이 없어요'));
     else {
       var best = R.best, rows = R.people.map(function (o) {
