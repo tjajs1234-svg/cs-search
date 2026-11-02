@@ -164,6 +164,7 @@
   /* ───── 팀 서버 코드 새 판 알림: 배포해 둔 서버 판이 이 사이트의 team-server.gs보다 예전이면 고치는 법을 보여 줌 ───── */
   async function gsText() { var t = await (await fetch('admin/team-server.gs', { cache: 'no-store' })).text(); return t; }
   var verCheck = null;
+  function verCmp(a, b) { var x = String(a || '').split('.').map(Number), y = String(b || '').split('.').map(Number); for (var i = 0; i < 3; i++) { var d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; }
   function serverVersion() {
     // 확인에 성공한 결과만 기억(주소를 넣기 전·연결 실패는 다음에 다시 물음)
     if (!verCheck) verCheck = (async function () {
@@ -177,7 +178,7 @@
     return p;
   }
   async function updateBox() {
-    var v = await serverVersion(); if (!v || v.now === v.latest) return null;
+    var v = await serverVersion(); if (!v || v.now === v.latest || verCmp(v.now, v.latest) >= 0) return null; // 2026-11-02 서버가 같거나 더 새 판이면 안 띄움(웹이 늦게 올라간 때)
     var box = mk('div', 'upd');
     box.append(mk('b', null, '팀 서버 코드 새 판(' + v.latest + ')이 있어요 · 지금 ' + (v.now || '예전 판')),
       mk('p', null, '이번 판(1.3.18): 19시 뒤 기록기를 켜 둔 시간을 따로 남겨서, 야근한 날 [팀 기록] 시간당이 부풀지 않아요. 1.3.17: 야근 승인을 없앴어요 — 적으면 바로 야근으로 쌓이고, 팀장은 검색기 OT 화면에서 누구 이름으로든 적고 지울 수 있어요. 1.3.16: 팀 현황 [이달의 상담사] — 팀장 입력 · 배점 · 확정을 팀 서버에 저장하고, 기록기 2.4.26이 보내는 게시판 글 · 방 모르는 기록 · 넘긴 고객 · 어려운 상담 표본을 모아요. [빼기]도 팀 서버에 남아요. 1.3.15: 기록기를 다시 깔아도 그날 ‘답한 고객’이 줄지 않아요(기록기 2.4.25). 1.3.14: 다시 깔아도 그날 숫자가 줄지 않고 보류 목록을 되살려요 · 기록하면 다른 상담사 ‘이미 기록됨’이 바로 떠요. 1.3.13: 기록 창에서 ‘이 고객 지난 기록’(날짜 · 상담사 · 카테고리)을 보여 줘요(기록기 2.4.23). 1.3.12 ‘누가 답했나’ · 기록기 켜진 시간 · 1.3.11 태그 불러오기 · 1.3.10의 같은 고객 한 번 세기(이번 주·이번 달) · 1.3.9 카테고리 · 1.3.8 채널별 건수도 그대로 들어 있어요. 주소는 그대로예요.'),
