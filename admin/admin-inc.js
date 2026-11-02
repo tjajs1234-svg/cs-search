@@ -25,7 +25,7 @@
   function compute(M, ext) {
     ext = ext || {}; var inc = ext.inc || {}, C = cfgOf(inc), month = ext.month || (M.keys[0] || '').slice(0, 7), P = ext.P || function (n) { return n; };
     var input = ((inc.months || {})[month] || {}).people || {}, q = (M.q && M.q.days) || {}, days = M.days || {}, keys = M.keys, wcfg = M.wcfg || {};
-    var otMin = {}; (ext.ot || []).forEach(function (x) { if (x && x.status === '승인' && keys.indexOf(x.date) >= 0) otMin[P(x.name)] = (otMin[P(x.name)] || 0) + num(x.mins); });
+    var otMin = {}; (ext.ot || []).forEach(function (x) { if (x && x.status !== '반려' && keys.indexOf(x.date) >= 0) otMin[P(x.name)] = (otMin[P(x.name)] || 0) + num(x.mins); });
     // 사람마다 그날 보낸 방(sd) · 기록한 방(rk) · 게시판 글(bk) · 표본(hs) · PC
     var Q = {}; keys.forEach(function (d) { var qd = q[d] || {}; Object.keys(qd).forEach(function (k) { var n = P(k), e = qd[k] || {}, o = (Q[n] || (Q[n] = {}))[d] || (Q[n][d] = { sd: {}, rk: [], bk: [], hs: [], pc: [], hasSd: false }); if (e.sd && typeof e.sd === 'object') { o.hasSd = true; Object.keys(e.sd).forEach(function (h) { o.sd[h] = 1; }); } o.rk = o.rk.concat(e.rk || []); o.bk = o.bk.concat(e.bk || []); o.hs = o.hs.concat(e.hs || []); o.pc = o.pc.concat(e.pc || []); }); });
     var qOf = function (n, d) { return (Q[n] || {})[d] || { sd: {}, rk: [], bk: [], hs: [], pc: [], hasSd: false }; };

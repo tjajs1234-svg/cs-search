@@ -36,7 +36,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.16';
+var TEAM_VERSION = '1.3.17';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -671,14 +671,15 @@ function cfgSet_(req) {
   return { ok: true, cfg: cfgOut_(s), roster: s.roster || [] };
 }
 
-/* ── 1.3.0 야근(OT): 상담사가 신청 → 팀장이 승인/반려. 팀장이 적으면 바로 승인 ── */
+/* ── 1.3.0 야근(OT): 상담사가 신청 → 팀장이 승인/반려. 팀장이 적으면 바로 승인 ──
+   1.3.17(주인 11/02): 승인 없앰 — 적으면 바로 야근(승인). 상담사는 자기 것만 적고 지우고, 팀장(관리 열쇠)은 누구 것이든. 예전 '신청'도 승인으로 봄 */
 var OT_STATUS = ['신청', '승인', '반려'];
 function ots_() { var v = readJson_('ot.json', []); return Array.isArray(v) ? v : []; }
 function hm_(v) { var m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '')); if (!m) return -1; var n = Number(m[1]) * 60 + Number(m[2]); return Number(m[1]) <= 30 && Number(m[2]) < 60 ? n : -1; }
 function otList_(req) {
   var from = dateOk_(req.from) ? req.from : '', to = dateOk_(req.to) ? req.to : '9999';
   var who = req.name ? person_(req.name) : '';
-  return ots_().filter(function (x) { return x.date >= from && x.date <= to && (!who || x.name === who); }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.at || 0) - (b.at || 0); });
+  return ots_().filter(function (x) { return x.date >= from && x.date <= to && (!who || x.name === who); }).map(function (x) { return x.status === '신청' ? Object.assign({}, x, { status: '승인' }) : x; }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.at || 0) - (b.at || 0); });
 }
 // 상담사는 그날 퇴근 시각만 적음(정시 19:00 뒤 넘은 시간이 야근) · 같은 날 다시 적으면 고쳐짐
 function otAdd_(req) {
@@ -695,9 +696,9 @@ function otAdd_(req) {
   if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
   var list = ots_(), now = Date.now(), x = null;
   list.forEach(function (o) { if (o.name === name && o.date === date && o.status !== '반려') x = o; });
-  if (x) { if (full) x.full = full; if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = Math.max(0, t - f); x.status = admin ? '승인' : '신청'; x.at = now; } if (req.note != null) x.note = text_(req.note, 200); }
-  else { x = { id: id_(), name: name, full: full, date: date, from: from, to: req.to, mins: Math.max(0, t - f), note: text_(req.note, 200), status: admin ? '승인' : '신청', at: now, by: admin ? '팀장' : name }; list.push(x); }
-  if (admin) x.decidedAt = now;
+  if (x) { if (full) x.full = full; if (x.to !== req.to || admin) { x.from = from; x.to = req.to; x.mins = Math.max(0, t - f); x.status = '승인'; x.at = now; x.by = admin ? '팀장' : name; } if (req.note != null) x.note = text_(req.note, 200); }
+  else { x = { id: id_(), name: name, full: full, date: date, from: from, to: req.to, mins: Math.max(0, t - f), note: text_(req.note, 200), status: '승인', at: now, by: admin ? '팀장' : name }; list.push(x); }
+  x.decidedAt = now;
   var cut = dayKey_(now - TEAM_KEEP_DAYS * 864e5); list = list.filter(function (o) { return o.date >= cut; });
   writeJson_('ot.json', list);
   return { ok: true, item: x };
@@ -705,7 +706,7 @@ function otAdd_(req) {
 function otCancel_(req) {
   var list = ots_(), id = String(req.id || ''), who = person_(req.name), admin = !!req.adminToken && isAdmin_(req.adminToken), x = null;
   list.forEach(function (o) { if (o.id === id) x = o; }); if (!x) return { ok: true };
-  if (!admin && !(who && who === x.name && x.status === '신청')) return { ok: false, error: '승인 전 내 신청만 지울 수 있어요' };
+  if (!admin && !(who && who === x.name)) return { ok: false, error: '내 것만 지울 수 있어요' };
   writeJson_('ot.json', list.filter(function (o) { return o !== x; })); return { ok: true };
 }
 function otDecide_(req) {

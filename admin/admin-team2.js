@@ -193,14 +193,14 @@
   async function cal(w) {
     await (T().syncLead ? T().syncLead() : null);
     var title = '근무 달력';
-    if (!(await ready(w, title, '상담사가 검색기 [근무] 탭에 그날 퇴근 시각을 적으면 여기 쌓여요(정시 19:00 뒤 넘은 시간이 야근). 승인은 이 화면에서만 해요 · 상담사 화면에는 승인 여부가 안 보여요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
+    if (!(await ready(w, title, '상담사가 검색기 [OT] 탭에 그날 퇴근 시각을 적으면 바로 야근으로 쌓여요(정시 19:00 뒤 넘은 시간 · 따로 승인 없음). 팀장은 검색기 [OT] 탭이나 이 화면에서 누구 이름으로든 적고 지울 수 있어요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got;
     try { got = await Promise.all([getCfg(true), CSTeam.get('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.get('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; })]); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
-    var cfgAll = got[0], cfg = cfgAll.cfg || {}, roster = (cfgAll.roster || []).slice(), items = got[1].items || [], qd = got[2].days || {}, P = T().person;
+    var cfgAll = got[0], cfg = cfgAll.cfg || {}, roster = (cfgAll.roster || []).slice(), items = (got[1].items || []).filter(function (x) { return x.status !== '반려'; }), qd = got[2].days || {}, P = T().person;
     var fullOf = {}; roster.forEach(function (x) { fullOf[x.name] = x.full || x.name; }); items.forEach(function (x) { if (x.full && !fullOf[x.name]) fullOf[x.name] = x.full; });
     var nmOf = function (n) { return fullOf[n] || n; };
     items = items.slice().sort(function (a, b) { return (fullOf[a.name] || a.name).localeCompare(fullOf[b.name] || b.name, 'ko') || (a.date < b.date ? -1 : 1); });
@@ -208,30 +208,16 @@
     var hol = W.holidays(cfg);
     var lastRec = function (name, day) { var x = qd[day] || {}, best = -1; Object.keys(x).forEach(function (n) { if (P(n) === name) (x[n].rt || []).forEach(function (v) { best = Math.max(best, v); }); }); return best >= 0 ? hhmm(best) : ''; };
     var tok = await T().adminToken();
-    var decide = async function (x, st) { var rep = ''; try { await CSTeam.call('ot.decide', { id: x.id, status: st, reply: rep || '', adminToken: tok }); say(st === '승인' ? '승인했어요' : '반려했어요(상담사 달력에서도 빠져요)', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } };
     // 달 넘기기 · 내려받기
     var nav = mk('div', 'ins qnav');
     nav.append(btn('◀', '', function () { cMonth = addMonth(m, -1); cal(w); }), mk('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5)) + '월'), btn('▶', '', function () { cMonth = addMonth(m, 1); cal(w); }), btn('이번 달', m === td.slice(0, 7) ? 'on' : '', function () { cMonth = td.slice(0, 7); cal(w); }),
       btn('엑셀(CSV) 내려받기', '', function () {
-        var lines = [['날짜', '요일', '이름', '퇴근', '야근(분)', '야근', '상태', '그날 마지막 기록']].concat(items.map(function (x) { return [x.date, WD[W.weekday(x.date)], x.name, x.to, x.mins, hm(x.mins || 0), x.status, lastRec(x.name, x.date)]; }));
+        var lines = [['날짜', '요일', '이름', '퇴근', '야근(분)', '야근', '적은 사람', '그날 마지막 기록']].concat(items.map(function (x) { return [x.date, WD[W.weekday(x.date)], x.name, x.to, x.mins, hm(x.mins || 0), x.by === '팀장' ? '팀장' : '본인', lastRec(x.name, x.date)]; }));
         var csv = '﻿' + lines.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
         var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = '야근_' + m + '.csv'; document.body.append(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       }));
     Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) { b.className = b.className.replace('btn ghost', '').replace('btn ', '').trim(); });
     w.append(nav);
-    // 승인 기다리는 신청
-    var wait = items.filter(function (x) { return x.status === '신청'; });
-    var p1 = mk('div', 'panel'); p1.style.maxWidth = '980px'; p1.append(mk('h3', 'qh', '승인할 야근 ' + wait.length));
-    if (!wait.length) p1.append(mk('div', 'empty', '이달에 승인할 야근이 없어요.'));
-    wait.forEach(function (x) {
-      var r2 = mk('div', 'qrow ot'), lr = lastRec(x.name, x.date);
-      r2.append(mk('b', null, nmOf(x.name)), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)));
-      if (x.note) r2.append(mk('span', 'muted', x.note));
-      if (lr) r2.append(mk('span', 'chip use', '그날 마지막 기록 ' + lr));
-      r2.append(mk('span', 'sp'), btn('승인', 'primary sm', function () { decide(x, '승인'); }), btn('반려', 'danger-ghost sm', function () { decide(x, '반려'); }));
-      p1.append(r2);
-    });
-    w.append(p1);
     // 달력
     var p2 = mk('div', 'panel'); p2.style.maxWidth = '1100px'; p2.append(mk('h3', 'qh', '달력'));
     // 평일만(토·일 칸은 뺌)
@@ -242,29 +228,28 @@
       var k = m + '-' + String(d).padStart(2, '0'), wd = W.weekday(k); if (wd === 0 || wd === 6) continue;
       var cell = mk('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === td ? ' today' : ''));
       cell.append(mk('span', 'n', String(d))); if (hol[k]) cell.append(mk('span', 'h', hol[k]));
-      items.filter(function (x) { return x.date === k; }).forEach(function (x) { var o = mk('span', 'ot ' + (x.status === '승인' ? 'ok' : x.status === '반려' ? 'no' : 'wait'), nmOf(x.name) + ' ' + x.to); o.title = x.status + ' · 야근 ' + hm(x.mins || 0); cell.append(o); });
+      items.filter(function (x) { return x.date === k; }).forEach(function (x) { var o = mk('span', 'ot ok', nmOf(x.name) + ' ' + x.to); o.title = '야근 ' + hm(x.mins || 0) + (x.by === '팀장' ? ' · 팀장이 적음' : ''); cell.append(o); });
       grid.append(cell);
     }
     p2.append(grid);
-    // 팀장이 바로 적기(바로 승인)
+    // 팀장이 대신 적기
     var names = activeNames(roster, td, liveNames);
     var f = mk('div', 'facts'), sel = mk('select', 'sel'); sel.style.width = '120px'; sel.setAttribute('aria-label', '이름'); names.forEach(function (n) { sel.append(new Option(n, n)); });
     var di = mk('input', 'in'); di.type = 'date'; di.value = td.slice(0, 7) === m ? td : from; di.style.width = '150px';
     var ti = mk('input', 'in'); ti.type = 'time'; ti.value = '20:00'; ti.step = 600; ti.style.width = '120px'; ti.title = '퇴근 시각';
-    f.append(sel, di, ti, btn('바로 적기(승인)', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } }));
-    p2.append(mk('p', 'muted', '팀장이 대신 적기(퇴근 시각 · 바로 승인돼요)'), f);
+    f.append(sel, di, ti, btn('대신 적기', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } }));
+    p2.append(mk('p', 'muted', '팀장이 대신 적기(퇴근 시각 · 같은 날 다시 적으면 고쳐져요)'), f);
     w.append(p2);
     // 이달 합계
     var p3 = mk('div', 'panel'); p3.style.maxWidth = '980px'; p3.append(mk('h3', 'qh', Number(m.slice(5)) + '월 야근 합계'));
-    var sum = {}; names.forEach(function (n) { sum[n] = { ok: 0, okN: 0, wait: 0, no: 0 }; });
-    items.forEach(function (x) { var s2 = sum[x.name] || (sum[x.name] = { ok: 0, okN: 0, wait: 0, no: 0 }); if (x.status === '승인') { s2.ok += x.mins || 0; s2.okN++; } else if (x.status === '신청') s2.wait++; else s2.no++; });
+    var sum = {}; names.forEach(function (n) { sum[n] = { ok: 0, okN: 0 }; });
+    items.forEach(function (x) { var s2 = sum[x.name] || (sum[x.name] = { ok: 0, okN: 0 }); s2.ok += x.mins || 0; s2.okN++; });
     var sn = Object.keys(sum).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
     var all = 0;
-    p3.append(table(['상담사', '승인된 야근', '건수', '승인할 것', '반려'], sn.map(function (n) { var s2 = sum[n]; all += s2.ok; return { cells: [nmOf(n), { text: s2.ok ? hm(s2.ok) : '–' }, String(s2.okN), { text: String(s2.wait), cls: s2.wait ? 'warnc' : '' }, String(s2.no)] }; }).concat([{ cls: 'total', cells: ['합계', hm(all), '', '', ''] }])));
-    var done = items.filter(function (x) { return x.status !== '신청'; });
-    if (done.length) {
-      var det = mk('details', 'qdet'); det.append(mk('summary', null, '처리한 신청 ' + done.length + '건 보기'));
-      done.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('span', 'chip ' + (x.status === '승인' ? 'new' : 'err'), x.status), mk('b', null, nmOf(x.name)), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); cal(w); } catch (e) { say(e.message, 'err'); } })); det.append(r3); });
+    p3.append(table(['상담사', '야근', '일수'], sn.map(function (n) { var s2 = sum[n]; all += s2.ok; return { cells: [nmOf(n), { text: s2.ok ? hm(s2.ok) : '–' }, String(s2.okN)] }; }).concat([{ cls: 'total', cells: ['합계', hm(all), ''] }])));
+    if (items.length) {
+      var det = mk('details', 'qdet'); det.append(mk('summary', null, '적힌 야근 ' + items.length + '건 보기 · 지우기'));
+      items.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('b', null, nmOf(x.name)), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)), mk('span', 'muted', x.by === '팀장' ? '팀장이 적음' : ''), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); cal(w); } catch (e) { say(e.message, 'err'); } })); det.append(r3); });
       p3.append(det);
     }
     w.append(p3);

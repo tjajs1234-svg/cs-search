@@ -993,7 +993,15 @@
     var L = $('wlist'); if (!L) return; L.replaceChildren();
     var head = el('div', 'bhead'); head.append(el('h2', null, 'OT'), el('p', null, '야근한 날 퇴근 시각만 적어 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
     // 퇴근 시각 적기: 숫자 4자리(1940 → 19:40) · 10분 단위 · 17:00부터
-    var w = el('div', 'bwrite wform'), who = nameBox(function () { renderWork(); });
+    // 2026-11-02 승인 없음 · 이 PC에 관리 열쇠가 있으면(관리 화면을 연 PC) 아무 이름으로나 적고 지움 · 아니면 내 것만
+    var adm = (S.json('csx:kbAdmin', null) || {}).token || '';
+    var w = el('div', 'bwrite wform'), who;
+    if (adm) {
+      who = el('span', 'who wany'); var wi = el('input', 'bname wwho'); wi.type = 'text'; wi.maxLength = 20; wi.placeholder = '이름(성까지 · 김수빈)'; wi.value = work.otWho || myName(); wi.setAttribute('aria-label', '누구 OT'); wi.setAttribute('list', 'wwholist');
+      var dl = el('datalist'); dl.id = 'wwholist'; (work.roster || []).forEach(function (x) { if (x && x.name && !x.end) { var o = document.createElement('option'); o.value = x.full || x.name; dl.append(o); } });
+      wi.addEventListener('input', function () { work.otWho = wi.value.trim(); });
+      who.append(el('span', 'muted', '누구'), wi, dl); who._any = wi;
+    } else who = nameBox(function () { renderWork(); });
     // 주말·공휴일은 출근하지 않음(근무 달력의 공휴일 포함) → 그런 날은 고를 수 없음 · [어제]는 직전 근무일
     var dk = kstToday(), yk = prevWorkday(dk), pick = work.pick || (isWorkday(dk) ? dk : yk);
     var days2 = el('div', 'wdays'), d = el('input', 'win wdate'); d.type = 'date'; d.value = pick; d.max = dk; d.setAttribute('aria-label', '날짜');
@@ -1005,12 +1013,13 @@
     var parse = function () { var v = parseClock(t.value); pv.className = 'wprev' + (v.err ? ' bad' : v.hm ? ' ok' : ''); pv.textContent = v.err || (v.hm ? v.hm + ' 퇴근 · 야근 ' + hm(Math.max(0, v.min - 19 * 60)) : ''); return v; };
     t.addEventListener('input', parse);
     var go = btn('적기', 'primary', 'plus', async function () {
-      if (who._input) CSWho.setManual(who._input.value);
-      var name = needName(who); if (!name) return;
+      var name;
+      if (who._any) { name = who._any.value.trim(); if (!name) { toast('이름을 적어 주세요', { warn: true }); who._any.focus(); return; } }
+      else { if (who._input) CSWho.setManual(who._input.value); name = needName(who); if (!name) return; }
       var v = parse(); if (!v.hm) { toast(v.err || '퇴근 시각을 숫자 4자리로 적어 주세요(예: 1940)', { warn: true }); t.focus(); return; }
       if (!isWorkday(d.value || pick)) { toast(offName(d.value || pick) + '은(는) 근무일이 아니라 OT를 적을 수 없어요', { warn: true }); return; }
       go.disabled = true;
-      try { await CSTeam.call('ot.add', { name: name, date: d.value || pick, from: OT_FROM, to: v.hm }, 20000); toast(Number(pick.slice(5, 7)) + '/' + Number(pick.slice(8, 10)) + ' ' + v.hm + ' 퇴근으로 적었어요'); t.value = ''; parse(); work.month = monthOf(d.value || pick); await loadWork(); }
+      try { var q = { name: name, date: d.value || pick, from: OT_FROM, to: v.hm }; if (adm) q.adminToken = adm; await CSTeam.call('ot.add', q, 20000); toast((adm ? name + ' · ' : '') + Number(pick.slice(5, 7)) + '/' + Number(pick.slice(8, 10)) + ' ' + v.hm + ' 퇴근으로 적었어요'); t.value = ''; parse(); work.month = monthOf(d.value || pick); await loadWork(); }
       catch (e) { toast(e.message, { warn: true }); } finally { go.disabled = false; }
     });
     t.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go.click(); } });
@@ -1060,7 +1069,7 @@
       by[n].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (x) {
         var r = el('div', 'wcr');
         r.append(el('span', 'd', Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'), el('span', 't', x.to), el('span', 'grow'), el('span', 'm', hm(x.mins || 0)));
-        if (x.name === me && x.status === '신청') { var del = el('button', 'wdel', '×'); del.type = 'button'; del.title = '이 날 지우기'; del.setAttribute('aria-label', '이 날 지우기'); del.addEventListener('click', async function () { if (!confirm(Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }); r.append(del); }
+        if (adm || x.name === me) { var del = el('button', 'wdel', '×'); del.type = 'button'; del.title = '이 날 지우기'; del.setAttribute('aria-label', '이 날 지우기'); del.addEventListener('click', async function () { if (!confirm((adm ? nm(x.name) + ' ' : '') + Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' 기록을 지울까요?')) return; try { await CSTeam.call('ot.cancel', adm ? { id: x.id, adminToken: adm } : { id: x.id, name: me }); toast('지웠어요'); loadWork(); } catch (e) { toast(e.message, { warn: true }); } }); r.append(del); }
         wl.append(r);
       });
       cards.append(c);
