@@ -42,9 +42,9 @@
     if (!ppl.length) p2.append(mk('div', 'pnone', '카테고리가 남은 기록이 없어요(기록기 2.4.15부터 모여요)'));
     else {
       var head = ['이름'].concat(R.catOrder, ['합계', '어려운 상담']);
-      var rows2 = ppl.map(function (o) { return { cells: [{ text: o.full, cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: o.cats[c] ? String(o.cats[c]) : '·', cls: S().isHard(c) && o.cats[c] ? 'thard' : '' }; }), [{ text: String(o.catN), cls: 'trk-b' }, pct(o.hardPct)]) }; });
+      var rows2 = ppl.map(function (o) { var top = 0; R.catOrder.forEach(function (c) { if ((o.cats[c] || 0) > top) top = o.cats[c]; }); return { cells: [{ text: o.full, cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: o.cats[c] ? String(o.cats[c]) : '·', cls: (S().isHard(c) && o.cats[c] ? 'thard' : '') + (o.cats[c] && o.cats[c] === top ? ' ttop' : '') }; }), [{ text: String(o.catN), cls: 'trk-b' }, pct(o.hardPct)]) }; });
       rows2.push({ cls: 'trk-sum', cells: [{ text: '팀 합계', cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: String(R.cats[c]), cls: 'trk-b' }; }), [{ text: String(R.total.catN), cls: 'trk-b' }, pct(R.total.hardPct)]) });
-      var tb = T2().table(head, rows2, 'tcatt trk-t2');
+      var tb = T2().table(head, rows2, 'tcatt trk-t2' + (R.catOrder.length > 12 ? ' many' : ''));
       tb.querySelectorAll('td.thard').forEach(function (td) { var b = mk('b', null, td.textContent); td.textContent = ''; td.append(b); });
       p2.append(tb);
     }

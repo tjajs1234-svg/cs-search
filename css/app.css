@@ -479,14 +479,18 @@ button.wsr:hover{background:var(--surface2)}
 .naskd p.q{font-weight:700;color:var(--ink)}
 .naskd .acts{justify-content:flex-end;margin-top:14px}
 .ncard .nchk .nbox{width:20px;height:20px;border-radius:5px;background:var(--good);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
-/* 2026-11-02 문의 분류 표 읽기 쉽게: 이름 한 줄 · 이름 칸 고정 · 칸 머리 두 줄까지 · 줄무늬 · 빈칸은 흐리게 */
-.trk-cat{width:auto;min-width:100%}
-.trk-cat th,.trk-cat td,.trk-cat .num{text-align:center;padding:8px 10px}
-.trk-cat th:first-child,.trk-cat td:first-child,.trk-cat .num:first-child{text-align:left;white-space:nowrap;position:sticky;left:0;background:var(--surface);z-index:1;padding-right:16px;border-right:1px solid var(--line)}
-.trk-cat th span{display:inline-block;min-width:44px;max-width:92px;white-space:normal;word-break:keep-all;line-height:1.25}
+/* 2026-11-02 문의 분류 표: 가로 스크롤 없이 칸 수만큼 나눔(분류가 늘면 칸이 좁아지고 글자도 조금 작아짐) · 이름 한 줄 · 사람마다 가장 많은 분류 강조 */
+.trk:has(.trk-cat){max-width:min(1400px,100%)}
+.trk-cat{width:100%;table-layout:fixed}
+.trk-cat th,.trk-cat td,.trk-cat .num{text-align:center;padding:8px 4px}
+.trk-cat th:first-child,.trk-cat td:first-child{width:76px;text-align:left;white-space:nowrap;padding-left:8px;border-right:1px solid var(--line)}
+.trk-cat th.tot,.trk-cat td.tot{width:56px}
+.trk-cat th{white-space:normal;vertical-align:bottom}
+.trk-cat th span{display:block;word-break:keep-all;overflow-wrap:anywhere;line-height:1.25}
+.trk-cat.many{font-size:13px}.trk-cat.many th{font-size:11.5px}
 .trk-cat tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink3) 5%,var(--surface))}
-.trk-cat tr.me td,.trk-cat tr.me td:first-child{background:var(--accent-soft)}
+.trk-cat tr.me td{background:var(--accent-soft)}
 .trk-cat td.z{color:color-mix(in srgb,var(--ink3) 45%,transparent)}
+.trk-cat td.ctop b{display:inline-block;min-width:26px;padding:1px 6px;border-radius:999px;background:var(--accent);color:#fff;font-weight:800}
 .trk-cat .tot{border-left:1px solid var(--line);font-weight:700}
 .trk-cat tr.sum td{border-top:2px solid var(--line);background:var(--surface)}
-.trk-rules ul{margin:4px 0 0;padding-left:20px;color:var(--ink2,var(--ink));font-size:14px;line-height:1.7}

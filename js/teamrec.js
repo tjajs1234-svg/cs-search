@@ -54,11 +54,12 @@
     var b2 = el('div', 'trk-box'); b2.append(el('h3', null, '문의 분류'), el('p', 'trk-sub', '오늘 기록 창에서 고른 카테고리별 건수'));
     if (!R.catOrder.length) b2.append(el('div', 'empty', '아직 카테고리가 고른 기록이 없어요.'));
     else {
-      var sc = el('div', 'trk-scroll'), t2 = el('table', 'trk-t trk-cat'), h2 = el('tr'); h2.append(el('th', null, '이름')); R.catOrder.forEach(function (c) { var th = el('th', 'num'); th.append(el('span', null, c)); h2.append(th); }); h2.append(el('th', 'num tot', '합계'));
+      var sc = el('div', 'trk-scroll'), t2 = el('table', 'trk-t trk-cat' + (R.catOrder.length > 12 ? ' many' : '')), h2 = el('tr'); h2.append(el('th', null, '이름')); R.catOrder.forEach(function (c) { var th = el('th', 'num'); th.append(el('span', null, c.replace(/\//g, '/\u200b'))); th.title = c; h2.append(th); }); // 2026-11-02 칸 수만큼 나눠 가로 스크롤 없게 · '/' 뒤에서 줄바꿈 h2.append(el('th', 'num tot', '합계'));
       var th2 = el('thead'); th2.append(h2); t2.append(th2); var tb2 = el('tbody');
       R.people.filter(function (o) { return o.catN > 0; }).forEach(function (o) {
         var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); tr.append(nm);
-        R.catOrder.forEach(function (c) { tr.append(el('td', 'num' + (o.cats[c] ? '' : ' z'), o.cats[c] ? String(o.cats[c]) : '·')); });
+        var top = 0; R.catOrder.forEach(function (c) { if ((o.cats[c] || 0) > top) top = o.cats[c]; }); // 2026-11-02 사람마다 가장 많은 분류 강조
+        R.catOrder.forEach(function (c) { var v = o.cats[c] || 0, td = el('td', 'num' + (v ? (v === top ? ' ctop' : '') : ' z')); if (v === top && v) td.append(el('b', null, String(v))); else td.textContent = v ? String(v) : '·'; if (v === top && v) td.title = '가장 많은 분류'; tr.append(td); });
         var tt = el('td', 'num tot'); tt.append(el('b', null, String(o.catN))); tr.append(tt); tb2.append(tr);
       });
       var sum = el('tr', 'sum'), sn = el('td'); sn.append(el('b', null, '팀 합계')); sum.append(sn);
@@ -67,16 +68,6 @@
       t2.append(tb2); sc.append(t2); b2.append(sc);
     }
     wrap.append(b2);
-    // 2026-11-02 누구나 알기 쉬운 세는 규칙(주인)
-    var rb = el('div', 'trk-box trk-rules'); rb.append(el('h3', null, '이렇게 세요'));
-    var ul = el('ul');
-    ['오늘 기록: 시트에 저장된 기록만 세요. 같은 상담방은 하루에 1건만 세요.',
-     '매일 0시에 0건부터 새로 세요. 어제 기록한 고객을 오늘 다시 기록하면 오늘 1건이에요.',
-     '시간당 기록 = 오늘 기록 ÷ 기록기를 켜 둔 근무시간이에요.',
-     '근무시간: 10:00~19:00(목요일은 17:00까지), 점심 12:30~14:00은 빼요.',
-     '야근한 날은 19:00 뒤에 기록기를 켜 둔 시간도 더해요(OT에 적은 퇴근 시각이나 마지막 기록 시각까지).',
-     '기록기를 끈 시간은 근무시간에 안 들어가요. 다른 PC에서 한 기록은 그 PC 기록기로 세요.'].forEach(function (t) { ul.append(el('li', null, t)); });
-    rb.append(ul); wrap.append(rb);
     L.append(wrap);
   }
   function show() { render(); load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 60000); }
