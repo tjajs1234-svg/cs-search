@@ -1185,7 +1185,9 @@
   }
   function sheetToOpen() { var s = C && C.sources || {}; var u = (s.requests && s.requests[0] && s.requests[0].url) || (s.defects && s.defects.url) || (s.notice && s.notice.url) || ''; return /^https:\/\/docs\.google\.com\//.test(u) ? u : 'https://docs.google.com/spreadsheets/'; }
   // 2026-11-03 띠 표시(주인 C안): 띠 켠 관리 공지 중 이 상담사가 아직 [읽고 이해했어요] 안 한 것 → 맨 위 경고 테이프 띠 + [복사] 위 빨간 상자
-  function bandUnread() { return allNotices().filter(function (n) { return n.band && n.title && M.seen.indexOf(n.id) < 0; }); }
+  // 2026-11-03 [다시 확인 받기]로 고친 관리 공지도 띠에 [변경 사항]으로(주인) — 띠 표시 안 켠 공지라도
+  function bandUnread() { return allNotices().filter(function (n) { return n.title && /^a:/.test(n.id) && M.seen.indexOf(n.id) < 0 && (n.band || (n.rev && n.fresh)); }); }
+  function bandTag(n) { return n.rev ? '변경 사항' : '신규 공지'; }
   function goNotice(id) {
     setView('notice');
     setTimeout(function () { var c = Array.prototype.find.call(document.querySelectorAll('#nlist .ncard'), function (x) { return x.dataset.nid === id; }); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('flash'); setTimeout(function () { c.classList.remove('flash'); }, 2400); } }, 60);
@@ -1193,9 +1195,9 @@
   function renderBandBox(bs) {
     var box = $('bandBox'); if (!box) return;
     box.replaceChildren(); box.hidden = !bs.length; if (!bs.length) return;
-    var hd = el('div', 'bh'); hd.append(ic('warn'), el('span', null, '아직 안 읽은 꼭 읽을 공지 ' + bs.length + '개'));
+    var hd = el('div', 'bh'); var kinds = bs.map(bandTag).filter(function (k, i, a) { return a.indexOf(k) === i; }); hd.append(ic('warn'), el('span', null, '아직 안 읽은 ' + (kinds.length === 1 ? kinds[0] : '공지') + ' ' + bs.length + '개'));
     box.append(hd);
-    bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });
+    bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', '[' + bandTag(n) + '] ' + n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });
     box.append(el('div', 'bm', '눌러서 읽고 [읽고 이해했어요]를 체크하면 사라져요'));
   }
   function renderBanner() {
@@ -1216,7 +1218,7 @@
     }
     if (bs.length) {
       b.className = 'banner tape'; var inr = el('div', 'tin');
-      inr.append(ic('warn'), el('span', 'tg', '꼭 읽기'), el('span', 't', bs.slice(0, 2).map(function (n) { return n.title; }).join('  ·  ') + (bs.length > 2 ? '  외 ' + (bs.length - 2) + '개' : '')));
+      inr.append(ic('warn'), el('span', 'tg', bandTag(bs[0])), el('span', 't', bs.slice(0, 2).map(function (n) { return n.title; }).join('  ·  ') + (bs.length > 2 ? '  외 ' + (bs.length - 2) + '개' : '')));
       var go = el('button', null, '지금 읽기 →'); go.type = 'button'; inr.append(go);
       b.append(inr); b.onclick = function () { goNotice(bs[0].id); }; b.hidden = false; return;
     }

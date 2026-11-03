@@ -31,7 +31,7 @@
     imp.checked = !!(editing && editing.important); band.checked = !!(editing && editing.band);
     var l1 = mk('label'), l2 = mk('label'); l1.append(imp, ' 중요(빨간 표시)'); l2.append(band, ' 띠 표시 · 상담사 스크립트 화면에 경고 띠 + [복사] 위 빨간 상자 (읽고 체크할 때까지)'); // 2026-11-03 '맨 위에 고정' 없앰(주인)
     opts.append(l1, l2);
-    if (editing) { var l3 = mk('label'); l3.append(again, ' 다시 확인 받기 (내용이 바뀌었으면 · 모든 상담사가 다시 체크)'); opts.append(l3); }
+    if (editing) { var l3 = mk('label'); l3.append(again, ' 다시 확인 받기 (내용이 바뀌었으면 · 모든 상담사가 다시 체크 · 띠에 [변경 사항]으로 떠요)'); opts.append(l3); }
     var acts = mk('div', 'facts');
     if (editing) acts.append(btn('고치기 취소', 'ghost', function () { editing = null; notices(w); }));
     acts.append(mk('span', 'sp'));
