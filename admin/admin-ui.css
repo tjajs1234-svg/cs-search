@@ -351,4 +351,4 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .btn.nflag.on{background:#c0392b;color:#fff}
 
 /* 2026-11-03.5 관리 [팀 기록] 한줄평 칸 */
-.ttable td.trk-rvc{min-width:260px;white-space:normal;text-align:left}.trk-rv span{display:block;line-height:1.4}.trk-rv .good{color:var(--success);font-weight:700}.trk-rv .fix{font-weight:700}.trk-rv .gray{color:var(--muted);font-size:12px;margin-top:2px}
+.ttable td.trk-rvc{min-width:260px;white-space:normal;text-align:left}.trk-rv span{display:block;line-height:1.4}.trk-rv .good{color:var(--success);font-weight:700}.trk-rv .fix{font-weight:700}.trk-rv .strong{color:var(--danger)}.trk-rv .gray{color:var(--muted);font-size:12px;margin-top:2px}

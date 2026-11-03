@@ -31,8 +31,8 @@
       var isToday = keys.length === 1 && keys[0] === S().periodKeys('today')[0], pw = isToday ? S().prevWorkday(keys[0]) : null, prev = {};
       if (pw && r && r.days && r.days[pw.key]) S().compute(r, got[0], [pw.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { if (o.ph != null) prev[o.n] = { ph: o.ph, label: pw.label }; });
       var rvCell = function (o) {
-        var ln = S().oneLine(R, o, { prev: prev[o.n] }), box = mk('div', 'trk-rv');
-        if (ln.dash) box.append(mk('span', 'z2', '–')); else { if (ln.good) box.append(mk('span', 'good', ln.good)); if (ln.fix) box.append(mk('span', 'fix', ln.fix)); }
+        var ln = S().oneLine(R, o, { prev: prev[o.n], off: !!((got[1] || {}).cfg || {}).offseason }), box = mk('div', 'trk-rv');
+        if (ln.dash) box.append(mk('span', 'z2', '–')); else { if (ln.good) box.append(mk('span', 'good', ln.good)); (ln.fixes || []).forEach(function (f) { box.append(mk('span', 'fix' + (f.strong ? ' strong' : ''), f.t)); }); }
         var oth = R.people.filter(function (x) { return x !== o && !x.board && x.ph != null; }), avg = oth.length ? oth.reduce(function (a, x) { return a + x.ph; }, 0) / oth.length : null, g = [];
         if (o.board) g.push('게시판 ' + o.bd + '건 · 채팅 응대 ' + o.resp + '명');
         else if (avg && o.ph != null) { var d = Math.round((o.ph - avg) / avg * 100); g.push(Math.abs(d) < 5 ? '기록 팀 평균과 비슷' : '팀 평균보다 기록 ' + Math.abs(d) + '% ' + (d > 0 ? '많음' : '적음')); }
