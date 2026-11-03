@@ -346,3 +346,6 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .tinc .ilong{font-size:12px;margin-top:3px}.tinc .ilong a{font-weight:700;margin-right:6px}
 .tinc .chk .ibody{line-height:1.6}
 .tinc .ifin .btn[disabled]{opacity:.55;cursor:default}
+/* 2026-11-03 공지 줄 [중요]·[띠] 켜고 끄기 */
+.btn.nflag{border:2px solid #c0392b;color:#c0392b;background:var(--card);font-weight:700}
+.btn.nflag.on{background:#c0392b;color:#fff}

@@ -114,7 +114,7 @@
     var out = { scripts: validScripts(sc) ? sc : null, notices: [], sources: { requests: [], defects: null, notice: null } };
     if (obj.format === FILE_FORMAT) {
       out.notices = (Array.isArray(obj.notices) ? obj.notices : []).filter(function (n) { return n && n.id && (clean(n.title) || clean(n.body)); }).slice(0, 200)
-        .map(function (n) { return { id: str(n.id), title: clean(n.title).slice(0, 120), body: cleanMulti(n.body).slice(0, 20000), at: Number(n.at) || 0, by: clean(n.by).slice(0, 30), pin: !!n.pin, important: !!n.important,
+        .map(function (n) { return { id: str(n.id), title: clean(n.title).slice(0, 120), body: cleanMulti(n.body).slice(0, 20000), at: Number(n.at) || 0, by: clean(n.by).slice(0, 30), band: !!n.band, important: !!n.important,
           // 2026-11-01 사진·영상(드라이브 주소) · 다시 확인 받기(rev) · 고친 때(ed)
           links: (Array.isArray(n.links) ? n.links : []).map(function (u) { return str(u).trim(); }).filter(function (u) { return /^https:\/\/\S+$/.test(u); }).slice(0, 10).map(function (u) { return u.slice(0, 500); }),
           rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0,

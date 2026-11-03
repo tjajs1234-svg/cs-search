@@ -733,10 +733,11 @@
     var out = [];
     var since = firstUse() - 14 * 864e5;
     // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
-    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, pin: n.pin, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: Math.max(n.at || 0, ed) >= since }); });
+    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, band: !!n.band, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: !!n.band || Math.max(n.at || 0, ed) >= since }); });
     var nhide = C && C.sources && C.sources.nhide || [];
-    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, pin: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
-    out.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
+    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, band: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
+    // 2026-11-03 '맨 위에 고정' 없앰(주인) → 최신 공지가 맨 위 · 띠 공지는 오래돼도 체크 받음(fresh)
+    out.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
     return out;
   }
   // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
@@ -804,11 +805,11 @@
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
     f.rows.forEach(function (n) {
-      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '')), h = el('div', 'nh');
+      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '') + (n.band && isNew ? ' band' : '')), h = el('div', 'nh'); c.dataset.nid = n.id;
       if (isNew) h.append(el('span', 'ptag new', '새 공지'));
       if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
-      if (n.pin) h.append(el('span', 'ptag', '맨 위 고정'));
+      if (n.band) h.append(el('span', 'ptag band', '꼭 읽기'));
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));
@@ -1183,8 +1184,23 @@
     return (BD.req && BD.req.sources || []).some(function (s) { return s.kind === 'login'; }) || !!(BD.def && BD.def.kind === 'login') || !!(BD.notice && BD.notice.kind === 'login');
   }
   function sheetToOpen() { var s = C && C.sources || {}; var u = (s.requests && s.requests[0] && s.requests[0].url) || (s.defects && s.defects.url) || (s.notice && s.notice.url) || ''; return /^https:\/\/docs\.google\.com\//.test(u) ? u : 'https://docs.google.com/spreadsheets/'; }
+  // 2026-11-03 띠 표시(주인 C안): 띠 켠 관리 공지 중 이 상담사가 아직 [읽고 이해했어요] 안 한 것 → 맨 위 경고 테이프 띠 + [복사] 위 빨간 상자
+  function bandUnread() { return allNotices().filter(function (n) { return n.band && n.title && M.seen.indexOf(n.id) < 0; }); }
+  function goNotice(id) {
+    setView('notice');
+    setTimeout(function () { var c = Array.prototype.find.call(document.querySelectorAll('#nlist .ncard'), function (x) { return x.dataset.nid === id; }); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('flash'); setTimeout(function () { c.classList.remove('flash'); }, 2400); } }, 60);
+  }
+  function renderBandBox(bs) {
+    var box = $('bandBox'); if (!box) return;
+    box.replaceChildren(); box.hidden = !bs.length; if (!bs.length) return;
+    var hd = el('div', 'bh'); hd.append(ic('warn'), el('span', null, '아직 안 읽은 꼭 읽을 공지 ' + bs.length + '개'));
+    box.append(hd);
+    bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });
+    box.append(el('div', 'bm', '눌러서 읽고 [읽고 이해했어요]를 체크하면 사라져요'));
+  }
   function renderBanner() {
     var b = $('banner'), st = CSContent.status(); b.replaceChildren(); b.className = 'banner'; b.onclick = null;
+    var bs = bandUnread(); renderBandBox(bs);
     if (extLost) {
       b.append(ic('warn'), el('span', 't', '검색기 연결 확장이 새 판으로 바뀌었어요 · 새로고침하면 문의 검색·불량가이드·공지·사진이 다시 새로워져요'));
       var rl = el('button', null, '새로고침'); rl.type = 'button'; rl.addEventListener('click', saveReload); b.append(rl); b.hidden = false; return;
@@ -1198,8 +1214,12 @@
       b.append(ic('warn'), el('span', 't', '최신 문안을 확인하지 못했어요 · ' + (st.message || '') + ' · 마지막으로 받은 문안으로 검색 중'));
       var d = el('button', null, '자세히'); d.type = 'button'; d.addEventListener('click', openSettings); b.append(d); b.hidden = false; return;
     }
-    var pins = (C && C.notices || []).filter(function (n) { return n.pin && n.title && !n.hidden; });
-    if (pins.length) { b.className = 'banner pin'; b.append(ic('pin'), el('span', 't', '공지 · ' + pins.slice(0, 3).map(function (n) { return n.title; }).join('  ·  '))); b.onclick = function () { setView('notice'); }; b.hidden = false; return; }
+    if (bs.length) {
+      b.className = 'banner tape'; var inr = el('div', 'tin');
+      inr.append(ic('warn'), el('span', 'tg', '꼭 읽기'), el('span', 't', bs.slice(0, 2).map(function (n) { return n.title; }).join('  ·  ') + (bs.length > 2 ? '  외 ' + (bs.length - 2) + '개' : '')));
+      var go = el('button', null, '지금 읽기 →'); go.type = 'button'; inr.append(go);
+      b.append(inr); b.onclick = function () { goNotice(bs[0].id); }; b.hidden = false; return;
+    }
     b.hidden = true;
   }
 

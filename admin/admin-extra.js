@@ -27,9 +27,9 @@
     var b = mk('textarea', 'ta'); b.value = editing ? editing.body : ''; b.placeholder = '내용 · 주소(https://…)는 상담사 화면에서 눌러서 열 수 있어요'; b.style.minHeight = '140px';
     // 2026-11-01 사진·영상: 구글 드라이브 주소를 한 줄에 하나(상담사 공지 카드에 작은 사진·영상으로 보임)
     var lk = mk('textarea', 'ta'); lk.value = editing && editing.links ? editing.links.join('\n') : ''; lk.placeholder = '사진·영상 (구글 드라이브 주소, 한 줄에 하나 · 없으면 비워 두기)'; lk.style.minHeight = '64px'; lk.className += ' nlinks';
-    var opts = mk('div', 'ins'), imp = mk('input'), pin = mk('input'), again = mk('input'); imp.type = pin.type = again.type = 'checkbox'; again.className = 'nagain';
-    imp.checked = !!(editing && editing.important); pin.checked = !!(editing && editing.pin);
-    var l1 = mk('label'), l2 = mk('label'); l1.append(imp, ' 중요(빨간 표시)'); l2.append(pin, ' 맨 위에 고정 · 스크립트 화면 위 띠에도 보임');
+    var opts = mk('div', 'ins'), imp = mk('input'), band = mk('input'), again = mk('input'); imp.type = band.type = again.type = 'checkbox'; band.className = 'nband'; again.className = 'nagain';
+    imp.checked = !!(editing && editing.important); band.checked = !!(editing && editing.band);
+    var l1 = mk('label'), l2 = mk('label'); l1.append(imp, ' 중요(빨간 표시)'); l2.append(band, ' 띠 표시 · 상담사 스크립트 화면에 경고 띠 + [복사] 위 빨간 상자 (읽고 체크할 때까지)'); // 2026-11-03 '맨 위에 고정' 없앰(주인)
     opts.append(l1, l2);
     if (editing) { var l3 = mk('label'); l3.append(again, ' 다시 확인 받기 (내용이 바뀌었으면 · 모든 상담사가 다시 체크)'); opts.append(l3); }
     var acts = mk('div', 'facts');
@@ -44,7 +44,7 @@
       if (bad.length) { say('사진·영상 칸에는 https:// 로 시작하는 주소만 넣어 주세요: ' + bad[0].slice(0, 40), 'err'); lk.focus(); return; }
       if (links.length > 10) { say('사진·영상 주소는 10개까지예요', 'err'); lk.focus(); return; }
       var re = !!(editing && again.checked);
-      var item = { id: editing ? editing.id : rid(), title: title, body: body, important: imp.checked, pin: pin.checked, at: editing ? editing.at : Date.now(), by: '', links: links,
+      var item = { id: editing ? editing.id : rid(), title: title, body: body, important: imp.checked, band: band.checked, at: editing ? editing.at : Date.now(), by: '', links: links,
         rev: editing ? (editing.rev || 0) + (re ? 1 : 0) : 0, ed: re ? Date.now() : (editing && editing.ed) || 0, hidden: !!(editing && editing.hidden), hid: (editing && editing.hid) || 0 };
       try {
         await KBAdmin.saveNotices(function (ns) {
@@ -65,13 +65,21 @@
         .then(function () { say(h ? '숨겼어요. 상담사 화면에서 안 보여요(아래 ‘숨긴 공지’에서 되돌릴 수 있어요)' : '되돌렸어요. 2분 안에 상담사 화면에 다시 보여요', 'ok'); if (editing && editing.id === n.id) editing = null; notices(w); })
         .catch(function (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); });
     }
+    function setFlag(n, k, v) {
+      return KBAdmin.saveNotices(function (ns) { return ns.map(function (x) { if (x.id !== n.id) return x; var o = Object.assign({}, x); o[k] = v; delete o.pin; return o; }); }, (k === 'band' ? (v ? '띠 켬: ' : '띠 끔: ') : (v ? '중요 켬: ' : '중요 끔: ')) + n.title)
+        .then(function () { say(k === 'band' ? (v ? '띠를 켰어요. 2분 안에 아직 안 읽은 상담사 화면에 떠요' : '띠를 껐어요') : (v ? '중요 표시를 켰어요' : '중요 표시를 껐어요'), 'ok'); if (editing && editing.id === n.id) editing = null; notices(w); })
+        .catch(function (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); });
+    }
     function row(n) {
-      var r = mk('div', 'hrow' + (n.hidden ? ' nhid' : '')); r.style.gridTemplateColumns = '96px minmax(0,1fr) auto auto auto auto';
-      var tags = [n.pin ? '고정' : '', n.important ? '중요' : '', n.links && n.links.length ? '사진·영상 ' + n.links.length : '', n.rev ? when(n.ed) + ' 다시 확인' : '', n.hidden && n.hid ? when(n.hid) + ' 숨김' : ''].filter(Boolean).join(' · ');
+      var r = mk('div', 'hrow' + (n.hidden ? ' nhid' : '')); r.style.gridTemplateColumns = '96px minmax(0,1fr) auto auto auto auto auto auto';
+      var tags = [n.band ? '띠' : '', n.important ? '중요' : '', n.links && n.links.length ? '사진·영상 ' + n.links.length : '', n.rev ? when(n.ed) + ' 다시 확인' : '', n.hidden && n.hid ? when(n.hid) + ' 숨김' : ''].filter(Boolean).join(' · ');
       r.append(mk('span', 'muted', when(n.at)));
       var tt = mk('span', 'note'); tt.append(mk('b', null, n.title)); if (tags) tt.append(mk('span', 'muted', '  ' + tags)); tt.title = n.body || '';
       r.append(tt);
       var rc = mk('span', 'muted rcnt', ''); rc.dataset.nid = 'a:' + n.id + (n.rev ? ':' + n.rev : ''); r.append(rc);
+      // 2026-11-03 이미 올린 공지도 [중요]·[띠]를 한 번에 켜고 끄기(주인) — 확인 기록·다시 확인(rev)은 그대로
+      r.append(btn(n.important ? '중요 끄기' : '중요 켜기', 'sm ' + (n.important ? 'nflag on' : 'ghost nflag'), function () { setFlag(n, 'important', !n.important); }));
+      r.append(btn(n.band ? '띠 끄기' : '띠 켜기', 'sm nbandbtn ' + (n.band ? 'nflag on' : 'ghost nflag'), function () { setFlag(n, 'band', !n.band); }));
       r.append(btn('고치기', 'ghost sm', function () { editing = n; notices(w); w.scrollTop = 0; }));
       r.append(n.hidden ? btn('되돌리기', 'ghost sm nunhide', function () { setHidden(n, false); }) : btn('숨기기', 'ghost sm nhide', function () { setHidden(n, true); }));
       r.append(btn('지우기', 'danger-ghost sm', async function () {
@@ -81,7 +89,7 @@
       }));
       return r;
     }
-    list.sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.at || 0) - (a.at || 0); });
+    list.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
     var shown = list.filter(function (n) { return !n.hidden; }), hid = list.filter(function (n) { return n.hidden; });
     p.append(mk('div', 'colhd', '올린 공지 ' + shown.length + '개'));
     if (!shown.length) p.append(mk('div', 'empty', hid.length ? '상담사 화면에 보이는 공지가 없어요.' : '아직 올린 공지가 없어요.'));
