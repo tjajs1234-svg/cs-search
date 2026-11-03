@@ -480,10 +480,13 @@ button.wsr:hover{background:var(--surface2)}
 .trk-t .num{text-align:right;font-variant-numeric:tabular-nums}
 .trk-t td.big{font-size:17px;font-weight:700}
 .trk-mine{color:var(--ink3);font-weight:400}
-/* 2026-11-03 응대 · 기록을 한 표에: 위 머리로 묶음 · 응대는 파란 글씨 */
+/* 2026-11-03 응대 · 기록을 한 표에: 위 머리로 묶음 · 2026-11-03.5 응대(진행)·기록(완료) 같은 모양(파란색 없앰, 주인) + 한줄평 칸 */
 .trk-rr tr.grp th{text-align:center;font-size:12px;padding:4px 8px;border-bottom:2px solid var(--line2);white-space:normal}
-.trk-rr tr.grp th.g-resp{color:var(--accent);border-bottom-color:var(--accent)}
-.trk-rr td.rsp{color:var(--accent)}
+.trk-rr tr.grp th.g-rv{text-align:left;border-left:1px solid var(--line)}
+.trk-rvh{font-weight:400;color:var(--ink3)}
+.trk-rr th.rv,.trk-rr td.rv{border-left:1px solid var(--line);text-align:left;width:38%;min-width:240px}
+.trk-rr td.rv{font-size:14px;font-weight:600;line-height:1.45;white-space:normal}
+.trk-rr td.rv span{display:block}.trk-rr td.rv .good{color:var(--good)}.trk-rr td.rv .z{color:var(--ink3);font-weight:400}
 .trk-rr th:nth-child(4),.trk-rr td:nth-child(4){border-left:1px solid var(--line)}
 .trk-rr tr.grp th.g-rec{border-left:1px solid var(--line)}
 .trk-note,.trk-foot{margin:6px 0 0;color:var(--ink3);font-size:12.5px}

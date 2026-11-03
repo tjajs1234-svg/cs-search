@@ -54,7 +54,7 @@
         var dd = days[d] || {}, v = { rec: 0, on: null, oa: 0, as: 0, ans: 0, k: 0, nv: 0, bd: 0, rh: {}, wh: {}, ah: {} };
         Object.keys(dd).forEach(function (k) {
           if (person(k) !== n) return; var s = dd[k] || {};
-          v.rec += s.records || 0; v.ans += s.answered || 0; v.k += s.kakao || 0; v.nv += s.naver || 0;
+          v.rec += s.records || 0; v.ans += s.answered || 0; if (typeof s.maxWait === 'number') v.mw = Math.max(v.mw || 0, s.maxWait); v.k += s.kakao || 0; v.nv += s.naver || 0;
           Object.keys(s.sites || {}).forEach(function (st) { v.bd += s.sites[st] || 0; });
           if (typeof s.on === 'number' && s.on >= 0) v.on = (v.on || 0) + s.on;
           if (typeof s.oa === 'number' && s.oa > 0) v.oa += s.oa;
@@ -82,7 +82,7 @@
         if (v.on != null && v.as > 0) { var cut = Math.min(v.as, v.on); v.on -= cut; o.as += cut; }
         o.rec += rec; o.raw += v.rec; o.redup += Math.min(dup, v.rec); o.k += v.k; o.nv += v.nv; o.bd += v.bd;
         if (v.on != null) { o.on += v.on; o.onDays++; o.onRec += rec; o.onResp += resp; }
-        o.resp += resp; if (keys.length === 1) { o.rh = v.rh; o.wh = v.wh; o.ah = v.ah; }
+        o.resp += resp; if (keys.length === 1) { o.rh = v.rh; o.wh = v.wh; o.ah = v.ah; o.maxW = v.mw == null ? null : v.mw; o.rkN = qd[d] ? Object.keys(rks).length : null; var rts = []; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) rts = rts.concat(qd[d][k].rt || []); }); o.rt = rts; }
         if (rec > 0 || v.ans > 0 || resp > 0) o.work++;
         o.byDay[d] = { rec: rec, on: v.on, resp: resp, as: v.as };
       });
@@ -92,6 +92,8 @@
       o.perDay = o.work ? o.rec / o.work : null;
       o.hardPct = o.catN >= 3 ? o.hardN / o.catN : null;
       o.full = full[n] || n; // 화면에는 명단의 성 포함 이름(강유미)
+      // 2026-11-03 게시판 위주(그날 기록의 절반 이상이 게시판): 맨 위 · 시간당 응대·한줄평 없음(게시판은 채팅 없이 한 번에 끝나 기록만 봄)
+      o.board = o.bd > 0 && o.bd * 2 >= Math.max(o.raw, o.k + o.nv + o.bd);
       return o;
     }).filter(function (o) { return o.rec > 0 || o.catN > 0 || o.on > 0 || o.resp > 0; });
     // 시간당 많은 순(없으면 기록 많은 순) · 같으면 이름순
@@ -115,7 +117,54 @@
     for (var h = lo; h <= hi; h++) { if (h === 12 || h === 13 || (ah[h] || 0) >= 20) continue; var n = rh[h] || 0; if (!best || n < best.n) best = { h: h, n: n, wait: (o.wh || {})[h] || 0 }; }
     return best;
   }
-  var api = { lowHour: lowHour, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
+
+  /* 2026-11-03 한줄평(주인): 오늘 하루 · 칭찬 한 문장(good) + 피드백 한 문장(fix) · 정시마다 바꿔 보여 줌(화면 쪽에서 붙잡아 둠)
+     · 상담사 화면에도 나오므로 다른 사람 이름·등수·'평균'·어려운 상담 말은 문장에 넣지 않음(느린지 비교는 안에서만)
+     · 게시판 위주이거나 켠 지 1시간 전이면 dash
+     · opt.now · opt.prev: 지난 근무일 { ph, label('어제'|'금요일') } */
+  var ONE = { multi: '다른 문의 1~2건도 팝업으로 동시에 진행해 주세요.' };
+  function minOfDay(now) { var d = new Date(now + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
+  function oneLine(R, o, opt) {
+    opt = opt || {};
+    if (!o || o.board || o.ph == null) return { dash: true };
+    var now = opt.now == null ? Date.now() : opt.now, nm = minOfDay(now), H = Math.floor(nm / 60);
+    var td = (R && R.today) || today(now), endH = W && W.weekday(td) === 4 ? 17 : 19;
+    var rt = o.rt || [], rh = o.rh || {}, ah = o.ah || {}, recH = {};
+    rt.forEach(function (t) { var h = Math.floor(t / 60); if (h < H) recH[h] = (recH[h] || 0) + 1; });
+    var cnt = function (a, b) { return rt.filter(function (t) { return t >= a && t < b; }).length; };
+    // 오전 = 10:00~12:30 기록 ÷ 2.5시간(그 사이 답한 고객이나 기록이 있을 때만)
+    var mN = cnt(600, 750), mRate = nm >= 750 && (mN > 0 || (rh[10] || 0) > 0 || (rh[11] || 0) > 0) ? mN / 2.5 : null;
+    var chat = Math.max((o.k || 0) + (o.nv || 0), (o.raw || 0) - (o.bd || 0)), good = '', fix = ''; // 채널 숫자가 없는 판에서 온 날도 기록 − 게시판으로
+    // 칭찬
+    var bestH = null; Object.keys(recH).forEach(function (h) { h = Number(h); if (recH[h] >= 10 && (bestH == null || recH[h] > recH[bestH] || (recH[h] === recH[bestH] && h > bestH))) bestH = h; });
+    var aEnd = Math.min(nm, endH * 60), aHrs = aEnd > 840 ? (aEnd - 840) / 60 : 0, aAs = 0;
+    Object.keys(ah).forEach(function (h) { if (Number(h) >= 14 && Number(h) < endH && Number(h) * 60 < aEnd) aAs += Math.min(60, ah[h] || 0); });
+    aHrs -= aAs / 60; var aRate = aHrs >= 1 ? cnt(840, aEnd) / aHrs : null;
+    var prev = opt.prev, pUp = prev && prev.ph != null ? Math.round(o.ph - prev.ph) : 0;
+    if (o.ph >= 10) good = '시간당 10건 넘게 끝내고 있어요. 지금처럼 가요.';
+    else if (bestH != null) good = bestH + '시~' + (bestH + 1) + '시엔 ' + recH[bestH] + '건 끝냈어요.';
+    else if (o.rph != null && o.rph >= 10) good = '여러 고객을 동시에 잘 진행하고 있어요.';
+    else if (o.resp >= 10 && o.maxW != null && o.maxW <= 10) good = '오늘 10분 넘게 기다린 고객이 없어요.';
+    else if (mRate != null && aRate != null && Math.round(aRate - mRate) >= 1) good = '오전보다 시간당 ' + Math.round(aRate - mRate) + '건 더 끝내고 있어요.';
+    else if (pUp >= 1) good = (prev.label || '어제') + '보다 시간당 ' + pUp + '건 늘었어요.';
+    // 피드백
+    var wv = []; ((R && R.people) || []).forEach(function (x) { Object.keys(x.wh || {}).forEach(function (h) { wv.push(Number(x.wh[h]) || 0); }); });
+    var quiet = wv.length >= 2 && Math.max.apply(null, wv) < 1;
+    var others = ((R && R.people) || []).filter(function (x) { return x !== o && !x.board && x.ph != null; }), avg = others.length >= 2 ? others.reduce(function (a, x) { return a + x.ph; }, 0) / others.length : null;
+    var lastH = H - 1, lastN = recH[lastH] || 0, slowLast = H >= 15 && lastH < endH && mRate != null && Math.round(mRate - lastN) >= 1;
+    if (o.resp - chat >= 10) fix = '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.';
+    else if (o.maxW != null && o.maxW >= 15) fix = '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요.';
+    else if (quiet) fix = '오늘은 들어온 문의가 적어요.';
+    else if (slowLast) fix = '지난 1시간은 오전보다 ' + Math.round(mRate - lastN) + '건 덜 끝냈어요.' + ((ah[lastH] || 0) >= 10 ? ' A/S 작업 중이었던 것 같아요.' : '');
+    else if (chat >= 3 && o.resp > 0 && o.resp / chat <= 1.2) fix = '한 명씩만 진행하고 있어요. ' + ONE.multi;
+    else if (avg != null && o.ph < avg * 0.8) fix = ONE.multi;
+    else if (o.rkN != null && chat - o.rkN >= 3) fix = '같은 고객을 다시 기록한 게 ' + (chat - o.rkN) + '건 있어요. 한 상담은 한 번만 기록해 주세요.';
+    if (!good && !fix) fix = '지금 시간당 ' + (Math.round(o.ph * 10) / 10).toFixed(1) + '건 끝내고 있어요.';
+    return { good: good, fix: fix };
+  }
+  // 지난 근무일(오늘 앞 · 쉬는 날 건너뜀, 10일 안) · 이름표('어제' 또는 요일)
+  function prevWorkday(td) { var y = W.addDays(td, -1); while (!W.day(y, {}) && y > W.addDays(td, -10)) y = W.addDays(y, -1); return { key: y, label: y === W.addDays(td, -1) ? '어제' : '일월화수목금토'[W.weekday(y)] + '요일' }; }
+  var api = { lowHour: lowHour, oneLine: oneLine, prevWorkday: prevWorkday, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
   root.KBTeamStats = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

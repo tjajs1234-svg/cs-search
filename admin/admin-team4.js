@@ -2,6 +2,7 @@
    · 시간당 기록(기록 ÷ 기록기가 켜져 있던 업무시간) 순 · 등수 · 기록 · 하루 평균 · 근무일 · 일한 시간 · 1등과 차이
    · 2026-11-03 응대(답한 고객 · 기록 상관없음)를 같은 표에: 시간당 응대 많은 순 · 응대 등수와 기록 등수 둘 다 · AS 시트 본 시간은 일한 시간에서 뺌
    · 문의 분류: 사람 × 카테고리 + 어려운 상담 비율(교환/반품 · 고장/불량 · A/S · 불만) — 이 비율은 관리 화면에만(상담사 화면엔 없음)
+   · 2026-11-03.5 오늘을 볼 때만 끝에 '한줄평'(상담사 화면과 같은 문장) + 회색 줄(팀 평균과 차이 · 어려운 분류 %) — 이 회색 줄은 관리 화면에만
    · 같은 고객(상담방)은 고른 기간 안에서 한 주(월~금)에 1건 · 기록한 방 자료(qa)는 62일만 남아 그보다 앞선 날은 그대로 셈 */
 (function () {
   'use strict';
@@ -27,11 +28,23 @@
     else {
       var byR = S().byResp(R.people), bestR = byR.filter(function (o) { return o.rph != null; })[0] || null, rr = 0, lastR = null;
       byR.forEach(function (o, i) { if (o.rph == null) { o.rrank = null; return; } var k = Math.round(o.rph * 10); if (k !== lastR) { rr = i + 1; lastR = k; } o.rrank = rr; });
+      var isToday = keys.length === 1 && keys[0] === S().periodKeys('today')[0], pw = isToday ? S().prevWorkday(keys[0]) : null, prev = {};
+      if (pw && r && r.days && r.days[pw.key]) S().compute(r, got[0], [pw.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { if (o.ph != null) prev[o.n] = { ph: o.ph, label: pw.label }; });
+      var rvCell = function (o) {
+        var ln = S().oneLine(R, o, { prev: prev[o.n] }), box = mk('div', 'trk-rv');
+        if (ln.dash) box.append(mk('span', 'z2', '–')); else { if (ln.good) box.append(mk('span', 'good', ln.good)); if (ln.fix) box.append(mk('span', 'fix', ln.fix)); }
+        var oth = R.people.filter(function (x) { return x !== o && !x.board && x.ph != null; }), avg = oth.length ? oth.reduce(function (a, x) { return a + x.ph; }, 0) / oth.length : null, g = [];
+        if (o.board) g.push('게시판 ' + o.bd + '건 · 채팅 응대 ' + o.resp + '명');
+        else if (avg && o.ph != null) { var d = Math.round((o.ph - avg) / avg * 100); g.push(Math.abs(d) < 5 ? '기록 팀 평균과 비슷' : '팀 평균보다 기록 ' + Math.abs(d) + '% ' + (d > 0 ? '많음' : '적음')); }
+        if (o.hardPct != null) g.push('어려운 분류 ' + pct(o.hardPct)); if (o.as) g.push('AS로 뺀 시간 ' + hm(o.as));
+        if (g.length) box.append(mk('span', 'gray', g.join(' · ')));
+        return { node: box, cls: 'trk-rvc' };
+      };
       var rows = byR.map(function (o) {
         var gap = bestR && o.rph != null && o !== bestR && bestR.rph > 0 ? '−' + f1(bestR.rph - o.rph) + '명 (' + Math.round((bestR.rph - o.rph) / bestR.rph * 100) + '%)' : '–';
-        return { cells: [{ text: o.rrank ? o.rrank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.rph == null ? '–' : f1(o.rph) + '명', cls: 'trk-big trk-rsp' }, o.resp + '명', { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rank ? o.rank + '등' : '–', o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', o.as ? hm(o.as) : '–', { text: gap, cls: 'z2' }] };
+        return { cells: [{ text: o.rrank ? o.rrank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.rph == null ? '–' : f1(o.rph) + '명', cls: 'trk-big trk-rsp' }, o.resp + '명', { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rank ? o.rank + '등' : '–', o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', o.as ? hm(o.as) : '–', { text: gap, cls: 'z2' }].concat(isToday ? [rvCell(o)] : []) };
       });
-      p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'], rows, 'trk-t1'));
+      p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'].concat(isToday ? ['한줄평(상담사 화면과 같음 · 회색 줄은 여기만)'] : []), rows, 'trk-t1'));
       var notes = [];
       if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날(팀 서버 1.3.12 전)');
       var rd = R.people.reduce(function (s, o) { return s + o.redup; }, 0); if (rd) notes.push('같은 주에 같은 고객을 다시 기록한 ' + rd + '건은 빼고 셌어요');
