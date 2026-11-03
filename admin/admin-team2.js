@@ -291,6 +291,13 @@
     cb.addEventListener('change', function () { save({ offseason: cb.checked }, cb.checked ? '비수기: 18시 뒤 새 문의도 셈' : '평소대로: 18시 뒤 새 문의는 다음 날 10시부터'); });
     sw.append(cb, mk('span', null, '비수기 — 18시(목 16시) 뒤에 들어온 새 문의도 바로 기다린 시간으로 셈'));
     p4.append(sw, mk('p', 'muted', '평소: 진행 중 상담(답한 상담에 고객이 다시 보냄)은 19시(목 17시)까지, 새 문의는 18시(목 16시)까지 셈 · 점심 12:30~14:00 · 주말·공휴일은 셈하지 않음'));
+    // 2026-11-03 AS 시트 주소(시트 번호만 저장) · 기록기 2.4.27이 이 시트를 월~금 14~17시에 5분 넘게 앞에 두고 답을 안 보내면 그 시간을 시간당 숫자에서 빼고, 회신 대기 알림도 쉼
+    var asw = mk('div', 'qas'), asIn = mk('input', 'in'); asIn.type = 'text'; asIn.placeholder = 'AS 시트 주소 붙여 넣기 (https://docs.google.com/spreadsheets/d/…)'; asIn.style.width = '420px'; asIn.autocomplete = 'off';
+    var asNow = cfg.asSheet ? '저장됨 (시트 번호 끝 ' + String(cfg.asSheet).slice(-4) + ')' : '아직 없음';
+    asw.append(mk('b', null, 'AS 시트 '), mk('span', 'muted', asNow + ' '), asIn,
+      btn('저장', 'sm', function () { var v = asIn.value.trim(); if (!v) { say('주소를 붙여 넣어 주세요', 'err'); return; } save({ asSheet: v }, 'AS 시트를 저장했어요'); }),
+      cfg.asSheet ? btn('지우기', 'danger-ghost sm', function () { save({ asSheet: '' }, 'AS 시트를 지웠어요'); }) : '');
+    p4.append(asw, mk('p', 'muted', '상담사 PC에서 이 시트가 앞에 떠 있으면 회신 대기 알림이 쉬어요. 월~금 14~17시에 5분 넘게 보고 그동안 답을 하나도 안 보냈으면 그 시간은 시간당 기록·응대에서 빼요. 잠깐 보거나 보면서 답하면 상담 시간이에요. 시트 내용은 읽지 않아요.'));
     // 공휴일(이 달과 다음 달)
     var hp = mk('div', 'qhol'), custom = Object.assign({}, cfg.holidays || {}), removed = (cfg.removed || []).slice();
     var range = Object.keys(hol).filter(function (k) { return k >= from && k <= monthEnd(addMonth(m, 1)); }).sort();

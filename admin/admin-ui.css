@@ -281,7 +281,7 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 /* 2026-11-01 팀 기록 칸 */
 .trec{display:flex;flex-direction:column;gap:12px;max-width:1280px}
 .ttable td.trk-nm,.ttable td.trk-rk{text-align:left;font-weight:700}.ttable.trk-t1 th:nth-child(-n+2){text-align:left}
-.ttable td.trk-big{font-size:15px;font-weight:800}.ttable td.trk-b{font-weight:800}.ttable tr.trk-sum td{background:var(--surface-2,transparent)}
+.ttable td.trk-big{font-size:15px;font-weight:800}.ttable td.trk-rsp{color:var(--accent)}.ttable td.trk-b{font-weight:800}.ttable tr.trk-sum td{background:var(--surface-2,transparent)}
 .bper .muted.trk-til{margin-left:0}
 /* 2026-11-01 이달의 상담사(인센티브) */
 .ihero{background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);padding:16px 20px;box-shadow:var(--shadow-1);margin-bottom:12px;display:flex;gap:22px;align-items:center}

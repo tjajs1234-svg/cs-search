@@ -1,5 +1,6 @@
 /* 검색기 [팀 기록] 탭(2026-11-01 주인): 누구나 봄 · 늘 오늘만
    · 시간당 기록(시간당 많은 순) · 오늘 기록 · 문의 분류(카테고리별 건수)
+   · 2026-11-03 주인: 응대(답한 고객 · 기록 상관없음)를 같은 표에 나란히 — 시간당 응대 많은 순
    · 주인 결정: 등수·'1등'·팀 평균과 차이·일한 시간 칸 없음, '어려운 상담' 말·비율·색 없음(기록할 때 카테고리를 일부러 고르지 않게)
    · 기간 고르기는 관리 화면 팀 현황 [팀 기록]에서만 · 숫자 세기는 teamstats.js(관리 화면과 같음)
    · 자료: 팀 서버 team.get · qa.get(읽기만) · 고객 이름·내용은 안 다룸 */
@@ -36,19 +37,22 @@
     var mo = R.people.filter(function (o) { return o.n === mine; })[0];
     if (mo) {
       var ml = el('div', 'trk-me'); ml.append(mine + ' 님 오늘 ');
-      if (mo.ph != null) { ml.append('시간당 ', el('b', null, f1(mo.ph) + '건'), ' 기록했어요. '); }
-      ml.append('지금까지 ', el('b', null, mo.rec + '건'), '이에요.'); wrap.append(ml);
+      if (mo.rph != null) ml.append('시간당 ', el('b', null, '응대 ' + f1(mo.rph) + '명'), mo.ph != null ? ' · 기록 ' + f1(mo.ph) + '건이에요. ' : '이에요. ');
+      else if (mo.ph != null) { ml.append('시간당 ', el('b', null, f1(mo.ph) + '건'), ' 기록했어요. '); }
+      ml.append('지금까지 응대 ', el('b', null, mo.resp + '명'), ' · 기록 ', el('b', null, mo.rec + '건'), '이에요.'); wrap.append(ml);
     }
     // 시간당 기록
-    var b1 = el('div', 'trk-box'); b1.append(el('h3', null, '시간당 기록'));
-    var t1 = el('table', 'trk-t'), h1 = el('tr'); [['이름', ''], ['시간당 기록', 'num'], ['오늘 기록', 'num']].forEach(function (h) { h1.append(el('th', h[1], h[0])); });
-    var th1 = el('thead'); th1.append(h1); t1.append(th1); var tb1 = el('tbody');
-    R.people.forEach(function (o) {
+    var b1 = el('div', 'trk-box'); b1.append(el('h3', null, '시간당 응대 · 기록'));
+    var t1 = el('table', 'trk-t trk-rr'), g1 = el('tr', 'grp'), h1 = el('tr');
+    g1.append(el('th')); var ga = el('th', 'g-resp', '응대 · 답한 고객(기록 상관없음)'), gb = el('th', 'g-rec', '기록 · 상담 끝나고 남긴 것'); ga.colSpan = 2; gb.colSpan = 2; g1.append(ga, gb);
+    [['이름', ''], ['시간당 응대', 'num'], ['오늘 응대', 'num'], ['시간당 기록', 'num'], ['오늘 기록', 'num']].forEach(function (h) { h1.append(el('th', h[1], h[0])); });
+    var th1 = el('thead'); th1.append(g1, h1); t1.append(th1); var tb1 = el('tbody');
+    KBTeamStats.byResp(R.people).forEach(function (o) {
       var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); if (o.n === mine) nm.append(el('span', 'trk-mine', ' (나)'));
-      tr.append(nm, el('td', 'num big', o.ph == null ? '–' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건')); tb1.append(tr);
+      tr.append(nm, el('td', 'num big rsp', o.rph == null ? '–' : f1(o.rph) + '명'), el('td', 'num', o.resp + '명'), el('td', 'num', o.ph == null ? '–' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건')); tb1.append(tr);
     });
     t1.append(tb1); b1.append(t1);
-    if (R.people.some(function (o) { return o.ph == null; })) b1.append(el('p', 'trk-note', '– = 기록기를 켠 지 1시간이 안 됐어요'));
+    if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) b1.append(el('p', 'trk-note', '– = 기록기를 켠 지 1시간이 안 됐거나 아직 답한 고객이 없어요'));
     wrap.append(b1);
     // 문의 분류(카테고리별 건수만)
     var b2 = el('div', 'trk-box'); b2.append(el('h3', null, '문의 분류'), el('p', 'trk-sub', '오늘 기록 창에서 고른 카테고리별 건수'));

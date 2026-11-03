@@ -33,10 +33,12 @@
             · 그 방이 오늘 팀에서 기록됐는지 바로 물어봄(rec.get) — 기록 창 '이미 기록된 상담' 알림을 1분 기다리지 않게
    · 1.3.15: (기록기 2.4.25와 함께) 다시 깐 PC — 그날 기록한 방 · 답한 고객 · 보낸 방 목록도 줄이지 않고 앞서 남긴 것과 합침
             (답한 상담 숫자는 이어 붙였는데 고객 목록이 비어 팀 현황이 숫자를 깎던 것)
+   · 1.3.19: (기록기 2.4.27과 함께) AS 시트 보던 분(as · 월~금 14~17시) · 시간대별 답한 고객 수(rh) · 시간대별 톡톡 대기 평균(wh) · 시간대별 AS 분(ah)을
+            하루 칸에 남김(같은 날 줄이지 않음) · 근무 설정에 AS 시트 번호(asSheet)를 받아 기록기에 돌려줌(시트 내용은 안 읽음)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.18';
+var TEAM_VERSION = '1.3.19';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -343,6 +345,7 @@ function teamBeat_(req) {
       d[who] = { answered: ms.answered, waitSum: ms.waitSum, over20: ms.over20, maxWait: ms.maxWait, holds: ms.holds, records: ms.records, sites: ms.sites, cats: ms.cats || {}, kakao: ms.kakao, naver: ms.naver, ach: ms.ach, on: onMin, at: now };
       if (onl.a) d[who].oa = onl.a;
       ['nk', 'bh', 'ho'].forEach(function (k) { if (ms[k]) d[who][k] = ms[k]; }); // 1.3.16 인센티브 재료(기록기 2.4.26)
+      if (ms.as) d[who].as = ms.as; if (Object.keys(ms.rh || {}).length) d[who].rh = ms.rh; if (Object.keys(ms.wh || {}).length) d[who].wh = ms.wh; if (Object.keys(ms.ah || {}).length) d[who].ah = ms.ah; // 1.3.19
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
       dayKeep_(d[who], carryGet_(cache, who, day, old), old);
@@ -388,6 +391,9 @@ function dayKeep_(r, carry, old) {
   CARRY_MAPS.forEach(function (m) { var src = old[m] && typeof old[m] === 'object' ? old[m] : {}, o = r[m] || (r[m] = {}); Object.keys(src).forEach(function (k) { if (num_(src[k]) > (o[k] || 0)) o[k] = num_(src[k]); }); });
   if (num_(old.on) > (r.on || 0)) r.on = old.on;
   if (num_(old.oa) > (r.oa || 0)) r.oa = old.oa;
+  // 1.3.19 AS 분 · 시간대별 숫자도 같은 날 줄이지 않음
+  if (num_(old.as) > (r.as || 0)) r.as = num_(old.as);
+  ['rh', 'wh', 'ah'].forEach(function (k) { if (old[k] && typeof old[k] === 'object') { var m = hourMax_(r[k], old[k]); if (Object.keys(m).length) r[k] = m; } });
   return r;
 }
 // 1.3.14 내 보류 목록(상담 번호 · 마지막 메시지 번호 · 보류한 시각만 — 이름·내용 없음): 다시 깐 PC가 되살림
@@ -500,7 +506,10 @@ function prevFill_(who, p, today, cache) {
   });
   cache.put(key, '1', 21600);
 }
-function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null }; }
+function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null, as: Math.min(num_(st.as), 600), rh: hourMap_(st.rh), wh: hourMap_(st.wh), ah: hourMap_(st.ah) }; }
+// 1.3.19 시간대별 숫자(0~23시 → 0 이상 정수) · 이상한 키·값은 버림
+function hourMap_(o) { var out = {}; if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).slice(0, 24).forEach(function (k) { if (!/^(\d|1\d|2[0-3])$/.test(k)) return; var n = Math.min(num_(o[k]), 9999); if (n) out[k] = n; }); return out; }
+function hourMax_(a, b) { var o = {}; [a, b].forEach(function (m) { Object.keys(m || {}).forEach(function (k) { var n = num_(m[k]); if (n > (o[k] || 0)) o[k] = n; }); }); return o; }
 // 기록 겹침: 같은 날 같은 방을 두 PC가 다 기록했으면 1건
 function recOverlap_(qas, ch) { var all = 0, uniq = {}; qas.forEach(function (q) { (q.rr || []).forEach(function (x) { if (ch && String(x.k).indexOf(ch + ':') !== 0) return; all++; uniq[x.k] = 1; }); }); return all - Object.keys(uniq).length; }
 function mergeQa_(qas) {
@@ -559,7 +568,9 @@ function mergeStats_(sts, mrow, mq) {
   return { answered: top.answered, waitSum: top.waitSum, over20: top.over20, holds: top.holds, maxWait: Math.max.apply(null, sts.map(function (x) { return x.maxWait || 0; })),
     records: sts.length > 1 ? (mrow.records || 0) : top.records, sending: sts.reduce(function (s, x) { return s + (x.sending || 0); }, 0), sites: sites, cats: cats, ir: ir,
     kakao: Math.max(0, sumOf('kakao') - (sts.length > 1 && mq ? mq.overK || 0 : 0)), naver: Math.max(0, sumOf('naver') - (sts.length > 1 && mq ? mq.overN || 0 : 0)), ach: sts.length > 1 ? ach : (top.ach || {}),
-    nk: sumOf('nk'), bh: sumOf('bh'), ho: sumOf('ho') };
+    nk: sumOf('nk'), bh: sumOf('bh'), ho: sumOf('ho'),
+    // 1.3.19 AS 분 · 시간대별 숫자: 같은 이름 PC가 여러 대면 큰 쪽
+    as: Math.max.apply(null, [0].concat(sts.map(function (x) { return x.as || 0; }))), rh: sts.reduce(function (m, x) { return hourMax_(m, x.rh); }, {}), wh: sts.reduce(function (m, x) { return hourMax_(m, x.wh); }, {}), ah: sts.reduce(function (m, x) { return hourMax_(m, x.ah); }, {}) };
 }
 // 1.3.7 오늘 팀이 기록한 방(누가 열든 기록 창에 "이미 오늘 기록된 상담" 알림) — 방 열쇠 · 시각 · 기록한 사람(명단의 성 포함 이름) · 분류
 //  팀장 PC가 기록한 건 이름 없이(상담사 화면에 '팀장'을 쓰지 않음)
@@ -665,7 +676,9 @@ function incSet_(req) {
 
 /* ── 1.3.0 근무 설정: 비수기 · 공휴일(기본값은 기록기 workclock.js에) · 상담사 명단(입사·퇴사일) ── */
 function settings_() { var s = readJson_('settings.json', {}); return s && typeof s === 'object' ? s : {}; }
-function cfgOut_(s) { return { offseason: !!s.offseason, holidays: s.holidays && typeof s.holidays === 'object' ? s.holidays : {}, removed: Array.isArray(s.removed) ? s.removed : [] }; }
+function cfgOut_(s) { var o = { offseason: !!s.offseason, holidays: s.holidays && typeof s.holidays === 'object' ? s.holidays : {}, removed: Array.isArray(s.removed) ? s.removed : [] }; if (s.asSheet) o.asSheet = s.asSheet; return o; }
+// 1.3.19 AS 시트: 주소를 붙여 넣어도 시트 번호만 남김(빈 글이면 지움)
+function sheetId_(v) { var t = String(v == null ? '' : v).trim(), m = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,100})/.exec(t); if (m) return m[1]; return /^[A-Za-z0-9_-]{20,100}$/.test(t) ? t : ''; }
 function dateOk_(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')); }
 function cfgSet_(req) {
   if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 바꿀 수 있어요' };
@@ -673,6 +686,7 @@ function cfgSet_(req) {
   if (typeof req.offseason === 'boolean') s.offseason = req.offseason;
   if (req.holidays && typeof req.holidays === 'object') { var h = {}; Object.keys(req.holidays).slice(0, 200).forEach(function (k) { if (dateOk_(k)) h[k] = text_(req.holidays[k], 20) || '휴일'; }); s.holidays = h; }
   if (Array.isArray(req.removed)) s.removed = req.removed.filter(dateOk_).slice(0, 200);
+  if (typeof req.asSheet === 'string') { var sid = sheetId_(req.asSheet); if (sid) s.asSheet = sid; else if (!req.asSheet.trim()) delete s.asSheet; else return { ok: false, error: 'AS 시트 주소를 알아보지 못했어요' }; }
   // 명단: 성까지 적으면(김수빈) 이름은 성 뺀 이름(수빈) · 순서는 성까지 넣은 이름 가나다순
   if (Array.isArray(req.roster)) s.roster = req.roster.slice(0, 60).map(function (r) { var raw = name_(r && r.name).replace(/\s+/g, ''), full = /^[가-힣]{3}$/.test(raw) ? raw : name_(r && r.full).replace(/\s+/g, ''); return { name: person_(raw), full: /^[가-힣]{3}$/.test(full) ? full : '', start: dateOk_(r && r.start) ? r.start : '', end: dateOk_(r && r.end) ? r.end : '' }; }).filter(function (r) { return r.name; }).sort(function (a, b) { return (a.full || a.name).localeCompare(b.full || b.name, 'ko'); });
   writeJson_('settings.json', s);

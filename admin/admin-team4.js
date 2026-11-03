@@ -1,5 +1,6 @@
 /* 팀 현황 넷째 칸 [팀 기록](2026-11-01 주인) — 상담사 화면 [팀 기록] 탭과 같은 숫자(js/teamstats.js) · 기간은 여기서만 고름
    · 시간당 기록(기록 ÷ 기록기가 켜져 있던 업무시간) 순 · 등수 · 기록 · 하루 평균 · 근무일 · 일한 시간 · 1등과 차이
+   · 2026-11-03 응대(답한 고객 · 기록 상관없음)를 같은 표에: 시간당 응대 많은 순 · 응대 등수와 기록 등수 둘 다 · AS 시트 본 시간은 일한 시간에서 뺌
    · 문의 분류: 사람 × 카테고리 + 어려운 상담 비율(교환/반품 · 고장/불량 · A/S · 불만) — 이 비율은 관리 화면에만(상담사 화면엔 없음)
    · 같은 고객(상담방)은 고른 기간 안에서 한 주(월~금)에 1건 · 기록한 방 자료(qa)는 62일만 남아 그보다 앞선 날은 그대로 셈 */
 (function () {
@@ -20,17 +21,19 @@
     var got = await Promise.all([CSTeam.get('qa.get', { days: Math.max(14, back) }, st.maxAge || 0).catch(function () { return null; }), CSTeam.get('cfg.get', {}).catch(function () { return null; }), CSTeam.get('ot.list', { from: keys[0], to: keys[keys.length - 1] }, st.maxAge || 0).catch(function () { return null; })]);
     var R = S().compute(r, got[0], keys, { roster: (got[1] || {}).roster, ot: (got[2] || {}).items || [] }), wrap = mk('div', 'tview trec');
     var nWork = 0; keys.forEach(function (d) { if (W.day(d, (got[1] || {}).cfg || {})) nWork++; });
-    // 시간당 기록
-    var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 많은 순 · 일한 시간 = 기록기가 켜져 있던 근무시간(10~19시 · 목 17시 · 점심 12:30~14:00 빼고 · 야근한 날은 19시 뒤 켜 둔 시간도 OT 퇴근·마지막 기록까지)')); p1.append(h1);
+    // 시간당 응대 · 기록(한 표 · 시간당 응대 많은 순)
+    var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 응대 · 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 응대 많은 순 · 응대 = 답을 보낸 서로 다른 고객(기록 상관없음, 한 주에 같은 고객 1명) · 일한 시간 = 기록기가 켜져 있던 근무시간(10~19시 · 목 17시 · 점심 12:30~14:00 빼고 · 야근한 날은 19시 뒤 켜 둔 시간도 OT 퇴근·마지막 기록까지 · AS 시트 본 시간은 뺌)'));
     if (!R.people.length) p1.append(mk('div', 'pnone', '이 기간 기록이 없어요'));
     else {
-      var best = R.best, rows = R.people.map(function (o) {
-        var gap = best && o.ph != null && o !== best ? '−' + f1(best.ph - o.ph) + '건 (' + Math.round((best.ph - o.ph) / best.ph * 100) + '%)' : '–';
-        return { cells: [{ text: o.rank ? o.rank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', { text: gap, cls: 'z2' }] };
+      var byR = S().byResp(R.people), bestR = byR.filter(function (o) { return o.rph != null; })[0] || null, rr = 0, lastR = null;
+      byR.forEach(function (o, i) { if (o.rph == null) { o.rrank = null; return; } var k = Math.round(o.rph * 10); if (k !== lastR) { rr = i + 1; lastR = k; } o.rrank = rr; });
+      var rows = byR.map(function (o) {
+        var gap = bestR && o.rph != null && o !== bestR && bestR.rph > 0 ? '−' + f1(bestR.rph - o.rph) + '명 (' + Math.round((bestR.rph - o.rph) / bestR.rph * 100) + '%)' : '–';
+        return { cells: [{ text: o.rrank ? o.rrank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.rph == null ? '–' : f1(o.rph) + '명', cls: 'trk-big trk-rsp' }, o.resp + '명', { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rank ? o.rank + '등' : '–', o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', o.as ? hm(o.as) : '–', { text: gap, cls: 'z2' }] };
       });
-      p1.append(T2().table(['등수', '이름', '시간당 기록', '기록', '하루 평균', '근무일', '일한 시간', '1등과 차이'], rows, 'trk-t1'));
+      p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'], rows, 'trk-t1'));
       var notes = [];
-      if (R.people.some(function (o) { return o.ph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날(팀 서버 1.3.12 전)');
+      if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날(팀 서버 1.3.12 전)');
       var rd = R.people.reduce(function (s, o) { return s + o.redup; }, 0); if (rd) notes.push('같은 주에 같은 고객을 다시 기록한 ' + rd + '건은 빼고 셌어요');
       if (R.noQa.length) notes.push(md(R.noQa[0]) + (R.noQa.length > 1 ? ' 등 ' + R.noQa.length + '일' : '') + '은 기록한 방 자료가 없어(두 달 지남) 같은 고객 합치기 없이 셌어요');
       notes.forEach(function (t) { p1.append(mk('p', 'muted tfoot', t)); });
@@ -49,7 +52,7 @@
       p2.append(tb);
     }
     wrap.append(p2);
-    wrap.append(mk('p', 'muted tfoot', '상담사 화면 [팀 기록] 탭은 오늘만 · 이름 · 시간당 기록 · 오늘 기록 · 카테고리 건수만 보여요(등수 · 1등과 차이 · 어려운 상담은 이 화면에만).'));
+    wrap.append(mk('p', 'muted tfoot', '상담사 화면 [팀 기록] 탭은 오늘만 · 이름 · 시간당 응대 · 오늘 응대 · 시간당 기록 · 오늘 기록 · 카테고리 건수만 보여요(등수 · 1등과 차이 · AS로 뺀 시간 · 어려운 상담은 이 화면에만).'));
     return wrap;
   }
   window.KBTeam4 = { render: render };
