@@ -35,10 +35,12 @@
             (답한 상담 숫자는 이어 붙였는데 고객 목록이 비어 팀 현황이 숫자를 깎던 것)
    · 1.3.19: (기록기 2.4.27과 함께) AS 시트 보던 분(as · 월~금 14~17시) · 시간대별 답한 고객 수(rh) · 시간대별 톡톡 대기 평균(wh) · 시간대별 AS 분(ah)을
             하루 칸에 남김(같은 날 줄이지 않음) · 근무 설정에 AS 시트 번호(asSheet)를 받아 기록기에 돌려줌(시트 내용은 안 읽음)
+   · 1.3.20: 오래 남은 상담(마지막 대화 뒤 영업일 2일 넘게 진행 중인 내 상담)을 날마다 qa.json에 남김 — 상담 번호는 짧은 숫자로,
+            상담 링크 · 마지막 대화 시각 · 보류 탭 여부만(이름·내용 없음) · 62일 · [이달의 상담사] '확인할 것'에서 언제부터 언제까지 남았는지 봄
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.19';
+var TEAM_VERSION = '1.3.20';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -350,7 +352,7 @@ function teamBeat_(req) {
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
       dayKeep_(d[who], carryGet_(cache, who, day, old), old);
       pruneDays_(t, TEAM_KEEP_DAYS); writeJson_('team.json', t);
-      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}), qold = qd[who]; qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); var bk = roomHash_(mq.br, /^board:/); if (bk.length) qd[who].bk = bk; if (mq.hs.length) qd[who].hs = mq.hs; if (pc !== 'x') qd[who].pc = [pc]; qaKeep_(qd[who], qold); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
+      if (parts.qa.length) { var q = readJson_('qa.json', {}); if (!q || typeof q !== 'object') q = {}; var qd = q[day] || (q[day] = {}), qold = qd[who]; qd[who] = { rt: mq.rt, late: mq.late, miss: mq.miss.map(qaPlain_), at: now }; var irl = irList_(ms.ir); if (irl.length) qd[who].irv = irl; var rk = roomHash_(mq.rr); if (rk.length) qd[who].rk = rk; if (mq.hasAr) qd[who].ak = roomHash_(mq.ar); if (mq.hasSd) qd[who].sd = sdPack_(mq.sd, day); var bk = roomHash_(mq.br, /^board:/); if (bk.length) qd[who].bk = bk; if (mq.hs.length) qd[who].hs = mq.hs; var lhk = lhPack_(mq.lh); if (lhk.length) qd[who].lh = lhk; if (pc !== 'x') qd[who].pc = [pc]; qaKeep_(qd[who], qold); pruneDays_(q, KEEP_DAYS); writeJson_('qa.json', q); histAdd_(mq.rr, who, day); }
       return { ok: true };
     });
     cache.put('dayw:' + who + ':' + day, '1', 300); cache.put('dayr:' + who + ':' + day, rsig, 21600);
@@ -428,7 +430,15 @@ function qaKeep_(cur, old) {
   if (Array.isArray(old.bk) && old.bk.length) cur.bk = uni(cur.bk, old.bk);
   if (Array.isArray(old.pc)) cur.pc = uni(cur.pc, old.pc).slice(0, 10);
   if (Array.isArray(old.hs) && old.hs.length) { var hu = {}; cur.hs = (cur.hs || []).concat(old.hs).filter(function (x) { if (!x || hu[x.u]) return false; hu[x.u] = 1; return true; }).slice(0, 30); }
+  // 1.3.20 오래 남은 상담도 그날 것은 줄이지 않음(같은 상담은 마지막 대화가 늦은 쪽)
+  if (Array.isArray(old.lh) && old.lh.length) { var lm = {}; (cur.lh || []).concat(old.lh).forEach(function (x) { if (x && x.k && (!lm[x.k] || (x.last || 0) > (lm[x.k].last || 0))) lm[x.k] = x; }); cur.lh = Object.keys(lm).map(function (k) { return lm[k]; }).slice(0, 60); }
   if (old.sd && typeof old.sd === 'object') { var sd = cur.sd || (cur.sd = {}); Object.keys(old.sd).forEach(function (h) { var o = old.sd[h], c = sd[h]; if (!Array.isArray(o)) return; sd[h] = c ? [Math.min(c[0], o[0]), Math.max(c[1], o[1])] : o; }); }
+}
+// 1.3.20 오래 남은 상담: 상담 번호는 짧은 숫자(k)로 · 링크 · 마지막 대화 시각 · 보류 탭(h)만
+function lhPack_(list) {
+  var seen = {}, out = [];
+  (list || []).forEach(function (x) { if (!x || !x.id || out.length >= 60) return; var k = hash1_(String(x.ch) + ':' + String(x.id)); if (seen[k]) return; seen[k] = 1; var o = { k: k, ch: x.ch === 'naver' ? 'naver' : 'kakao', last: ms_(x.last) }; var u = okUrl_(x.u); if (u) o.u = u; if (x.h) o.h = 1; out.push(o); });
+  return out;
 }
 function sdPack_(list, day) {
   var out = {}, n = 0, start = Date.parse(day + 'T00:00:00+09:00');

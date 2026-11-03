@@ -145,7 +145,7 @@
       return o;
     });
     // 2026-11-03 응대(답한 고객 · 기록 상관없음) · 시간당 응대 · 시간대별(정시) 응대와 톡톡 대기 — [팀 기록]·상담사 탭과 같은 계산(teamstats.js)
-    try { var TS = window.KBTeamStats; if (TS) { var R2 = TS.compute(r, q, keys, { now: now, ot: (got[3] || {}).items || [] }), byN = {}; R2.people.forEach(function (p2) { byN[p2.n] = p2; }); people.forEach(function (o) { var p2 = byN[o.n]; o.resp = p2 ? p2.resp : 0; o.respPH = p2 ? p2.rph : null; o.rhH = p2 && p2.rh ? p2.rh : {}; o.whH = p2 && p2.wh ? p2.wh : {}; o.asMin = p2 ? p2.as : 0; o.lowH = p2 && keys.length === 1 ? TS.lowHour(p2) : null; }); } } catch (e) {}
+    try { var TS = window.KBTeamStats; if (TS) { var R2 = TS.compute(r, q, keys, { now: now, ot: (got[3] || {}).items || [] }), byN = {}; R2.people.forEach(function (p2) { byN[p2.n] = p2; }); people.forEach(function (o) { var p2 = byN[o.n]; o.resp = p2 ? p2.resp : 0; o.respDay = p2 ? p2.byDay : {}; o.respPH = p2 ? p2.rph : null; o.rhH = p2 && p2.rh ? p2.rh : {}; o.whH = p2 && p2.wh ? p2.wh : {}; o.asMin = p2 ? p2.as : 0; o.lowH = p2 && keys.length === 1 ? TS.lowHour(p2) : null; }); } } catch (e) {}
     var on = people.filter(function (o) { return o.perDay != null; });
     var team = { perDay: mean(on.map(function (o) { return o.perDay; })), ph: mean(on.map(function (o) { return o.ph; })), late: mean(on.map(function (o) { return o.lateN; })), ansDay: mean(on.map(function (o) { return o.ans ? o.ansDay : null; })), wait: mean(on.map(function (o) { return o.wait; })), ans: 0, wsum: 0, miss: mean(people.filter(function (o) { return o.fresh || o.hasQ; }).map(function (o) { return o.missN; })), rec: 0, k: 0, nv: 0, bd: 0 };
     team.catN = 0; team.hardN = 0; team.cats = {};

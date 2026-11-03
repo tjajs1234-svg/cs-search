@@ -337,3 +337,12 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .nrhid{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}.nrhid>summary{cursor:pointer;list-style:revert}
 .nrhid .nrs{opacity:.75}
 .nrs{grid-template-columns:minmax(0,1fr) 72px 84px minmax(120px,auto) auto}
+/* 2026-11-03 이달의 상담사 11월판: 진행 중 표시 · 점수표 작은 글씨 · 확인할 것 링크 · 문장 한 줄씩 */
+.tinc .prog{font-size:12px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 9px}
+.tinc .warn{font-size:13px;color:var(--warning);font-weight:700}
+.tinc .note{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6}
+.tinc .iscore td small{display:block;font-size:11px;color:var(--muted);font-weight:600}.tinc .iscore td small.g{color:var(--success)}
+.tinc .ihero .why > div + div{margin-top:2px}
+.tinc .ilong{font-size:12px;margin-top:3px}.tinc .ilong a{font-weight:700;margin-right:6px}
+.tinc .chk .ibody{line-height:1.6}
+.tinc .ifin .btn[disabled]{opacity:.55;cursor:default}
