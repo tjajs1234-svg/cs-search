@@ -37,10 +37,13 @@
             하루 칸에 남김(같은 날 줄이지 않음) · 근무 설정에 AS 시트 번호(asSheet)를 받아 기록기에 돌려줌(시트 내용은 안 읽음)
    · 1.3.20: 오래 남은 상담(마지막 대화 뒤 영업일 2일 넘게 진행 중인 내 상담)을 날마다 qa.json에 남김 — 상담 번호는 짧은 숫자로,
             상담 링크 · 마지막 대화 시각 · 보류 탭 여부만(이름·내용 없음) · 62일 · [이달의 상담사] '확인할 것'에서 언제부터 언제까지 남았는지 봄
+   · 1.3.21: (기록기 2.4.34와 함께) 우선 응대(패널에 '우선 응대'로 뜬 고객)에게 답한 대기만 따로 하루 칸에 남김(pq: 답한 수 n ·
+            10분 넘김 w10 · 15분 넘김 w15 · 가장 길게 mx, 보류한 고객은 안 셈 · 같은 날 줄이지 않음) · 지금 10분 넘게 기다리는 우선 응대 수(pr10)
+            — 검색기 웹 [팀 기록] 한줄평 칭찬(우선 응대 모두 10분 안)·피드백(15분 넘김)에 씀. 고객 이름·내용 없음
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.20';
+var TEAM_VERSION = '1.3.21';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -298,6 +301,7 @@ function teamBeat_(req) {
   if (req.v) row.v = text_(req.v, 12);
   if (live.sending) row.sending = num_(live.sending);
   if (live.part) row.part = 1;
+  if (live.pr10 != null) row.pr10 = num_(live.pr10); // 1.3.21
   var irv = ir_(live.ir); if (irv) row.ir = irv;
   // 1.3.7 기다리는 고객 5명(이름·마지막 말) · 모든 대기의 기다린 분 · 채널 연결 상태
   if (Array.isArray(live.top)) row.top = topList_(live.top);
@@ -348,6 +352,7 @@ function teamBeat_(req) {
       if (onl.a) d[who].oa = onl.a;
       ['nk', 'bh', 'ho'].forEach(function (k) { if (ms[k]) d[who][k] = ms[k]; }); // 1.3.16 인센티브 재료(기록기 2.4.26)
       if (ms.as) d[who].as = ms.as; if (Object.keys(ms.rh || {}).length) d[who].rh = ms.rh; if (Object.keys(ms.wh || {}).length) d[who].wh = ms.wh; if (Object.keys(ms.ah || {}).length) d[who].ah = ms.ah; // 1.3.19
+      if (ms.pq) d[who].pq = ms.pq; // 1.3.21
       if (ms.ir) d[who].ir = ir_(ms.ir); if (ms.sending) d[who].sending = ms.sending;
       // 1.3.14 같은 날 같은 사람 숫자는 줄이지 않음: 다시 깐 PC의 앞선 몫(carry)을 더하고, 그래도 하루 파일에 있던 값보다 작으면 큰 값 유지
       dayKeep_(d[who], carryGet_(cache, who, day, old), old);
@@ -395,6 +400,7 @@ function dayKeep_(r, carry, old) {
   if (num_(old.oa) > (r.oa || 0)) r.oa = old.oa;
   // 1.3.19 AS 분 · 시간대별 숫자도 같은 날 줄이지 않음
   if (num_(old.as) > (r.as || 0)) r.as = num_(old.as);
+  if (old.pq && typeof old.pq === 'object') r.pq = pqMax_(r.pq, old.pq); // 1.3.21 우선 응대 대기도 같은 날 줄이지 않음
   ['rh', 'wh', 'ah'].forEach(function (k) { if (old[k] && typeof old[k] === 'object') { var m = hourMax_(r[k], old[k]); if (Object.keys(m).length) r[k] = m; } });
   return r;
 }
@@ -516,7 +522,10 @@ function prevFill_(who, p, today, cache) {
   });
   cache.put(key, '1', 21600);
 }
-function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null, as: Math.min(num_(st.as), 600), rh: hourMap_(st.rh), wh: hourMap_(st.wh), ah: hourMap_(st.ah) }; }
+function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null, as: Math.min(num_(st.as), 600), rh: hourMap_(st.rh), wh: hourMap_(st.wh), ah: hourMap_(st.ah), pq: pq_(st.pq) }; }
+// 1.3.21 우선 응대 대기(숫자 넷만)
+function pq_(q) { return q && typeof q === 'object' ? { n: Math.min(num_(q.n), 9999), w10: Math.min(num_(q.w10), 9999), w15: Math.min(num_(q.w15), 9999), mx: Math.min(num_(q.mx), 9999) } : null; }
+function pqMax_(a, b) { if (!a && !b) return null; var o = {}; ['n', 'w10', 'w15', 'mx'].forEach(function (k) { o[k] = Math.max(num_((a || {})[k]), num_((b || {})[k])); }); return o; }
 // 1.3.19 시간대별 숫자(0~23시 → 0 이상 정수) · 이상한 키·값은 버림
 function hourMap_(o) { var out = {}; if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).slice(0, 24).forEach(function (k) { if (!/^(\d|1\d|2[0-3])$/.test(k)) return; var n = Math.min(num_(o[k]), 9999); if (n) out[k] = n; }); return out; }
 function hourMax_(a, b) { var o = {}; [a, b].forEach(function (m) { Object.keys(m || {}).forEach(function (k) { var n = num_(m[k]); if (n > (o[k] || 0)) o[k] = n; }); }); return o; }
@@ -548,6 +557,7 @@ function mergeLive_(rows, mq, now) {
       r.over10 = pw.filter(function (x) { return x.w >= 10; }).length; r.over20 = pw.filter(function (x) { return x.w >= 20; }).length;
     } else ['pending', 'oldestMin', 'over10', 'over20'].forEach(function (k) { r[k] = Math.max.apply(null, rows.map(function (x) { return x[k] || 0; })); });
     r.held = Math.max.apply(null, rows.map(function (x) { return x.held || 0; }));
+    if (rows.some(function (x) { return x.pr10 != null; })) r.pr10 = Math.max.apply(null, rows.map(function (x) { return x.pr10 || 0; })); // 1.3.21
     r.records = Math.max(0, rows.reduce(function (s, x) { return s + (x.records || 0); }, 0) - mq.overlap);
     r.sending = rows.reduce(function (s, x) { return s + (x.sending || 0); }, 0);
     rows.forEach(function (x) { if (x.ir && (!r.ir || (x.ir.n || 0) > (r.ir.n || 0))) r.ir = x.ir; });
@@ -580,7 +590,7 @@ function mergeStats_(sts, mrow, mq) {
     kakao: Math.max(0, sumOf('kakao') - (sts.length > 1 && mq ? mq.overK || 0 : 0)), naver: Math.max(0, sumOf('naver') - (sts.length > 1 && mq ? mq.overN || 0 : 0)), ach: sts.length > 1 ? ach : (top.ach || {}),
     nk: sumOf('nk'), bh: sumOf('bh'), ho: sumOf('ho'),
     // 1.3.19 AS 분 · 시간대별 숫자: 같은 이름 PC가 여러 대면 큰 쪽
-    as: Math.max.apply(null, [0].concat(sts.map(function (x) { return x.as || 0; }))), rh: sts.reduce(function (m, x) { return hourMax_(m, x.rh); }, {}), wh: sts.reduce(function (m, x) { return hourMax_(m, x.wh); }, {}), ah: sts.reduce(function (m, x) { return hourMax_(m, x.ah); }, {}) };
+    as: Math.max.apply(null, [0].concat(sts.map(function (x) { return x.as || 0; }))), rh: sts.reduce(function (m, x) { return hourMax_(m, x.rh); }, {}), wh: sts.reduce(function (m, x) { return hourMax_(m, x.wh); }, {}), ah: sts.reduce(function (m, x) { return hourMax_(m, x.ah); }, {}), pq: sts.reduce(function (m, x) { return pqMax_(m, x.pq); }, null) };
 }
 // 1.3.7 오늘 팀이 기록한 방(누가 열든 기록 창에 "이미 오늘 기록된 상담" 알림) — 방 열쇠 · 시각 · 기록한 사람(명단의 성 포함 이름) · 분류
 //  팀장 PC가 기록한 건 이름 없이(상담사 화면에 '팀장'을 쓰지 않음)
