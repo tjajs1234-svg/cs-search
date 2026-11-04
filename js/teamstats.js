@@ -125,7 +125,7 @@
      · 상담사 화면에도 나오므로 다른 사람 이름·등수·'평균'·어려운 상담 말은 문장에 넣지 않음
      · 게시판 위주이거나 켠 지 1시간 전이면 dash
      · opt.now · opt.prev: 지난 근무일 { ph, label('어제'|'금요일') } · opt.off: 비수기 */
-  var MULTI = '다른 문의 1~2건도 팝업으로 같이 진행해 주세요. 조금만 더 힘내요!'; // 2026-11-04 주인: 응원하는 말투로
+  var MULTI = '다른 문의 1~2건도 팝업으로 같이 진행해 주시면 좋아요.'; // 2026-11-04 주인: 응원하는 말투로
   function minOfDay(now) { var d = new Date(now + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
   function oneLine(R, o, opt) {
     opt = opt || {};
