@@ -29,11 +29,13 @@
       var byR = S().byResp(R.people), bestR = byR.filter(function (o) { return o.rph != null; })[0] || null, rr = 0, lastR = null;
       byR.forEach(function (o, i) { if (o.rph == null) { o.rrank = null; return; } var k = Math.round(o.rph * 10); if (k !== lastR) { rr = i + 1; lastR = k; } o.rrank = rr; });
       var isToday = keys.length === 1 && keys[0] === S().periodKeys('today')[0], pw = isToday ? S().prevWorkday(keys[0]) : null, prev = {};
-      if (pw && r && r.days && r.days[pw.key]) S().compute(r, got[0], [pw.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { if (o.ph != null) prev[o.n] = { ph: o.ph, label: pw.label }; });
+      if (pw && r && r.days && r.days[pw.key]) S().compute(r, got[0], [pw.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { prev[o.n] = { ph: o.ph, rt: o.rt || [], label: pw.label }; });
+      var wk = isToday && S().lastWeekSame ? S().lastWeekSame(keys[0]) : null, week = {}; // 2026-11-04 칭찬: 지난주 같은 요일
+      if (wk && r && r.days && r.days[wk.key]) S().compute(r, got[0], [wk.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { week[o.n] = { rt: o.rt || [], label: wk.label }; });
       var rvCell = function (o) {
-        var ln = S().oneLine(R, o, { prev: prev[o.n], off: !!((got[1] || {}).cfg || {}).offseason }), box = mk('div', 'trk-rv');
+        var ln = S().oneLine(R, o, { prev: prev[o.n], week: week[o.n], off: !!((got[1] || {}).cfg || {}).offseason }), box = mk('div', 'trk-rv');
         if (ln.dash) box.append(mk('span', 'z2', '–')); else { var said = function (cls, t) { var e = mk('span', cls); String(t || '').split(/(?<=[.?!])\s+/).forEach(function (x) { if (x) e.append(mk('span', 's', x)); }); return e; }; // 2026-11-04 문장마다 한 줄
-        if (ln.good) box.append(said('it good', ln.good)); (ln.fixes || []).forEach(function (f) { box.append(said('it fix' + (f.strong ? ' strong' : ''), f.t)); }); }
+        (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { box.append(said('it good', g)); }); (ln.fixes || []).forEach(function (f) { box.append(said('it fix' + (f.strong ? ' strong' : ''), f.t)); }); }
         var oth = R.people.filter(function (x) { return x !== o && !x.board && x.ph != null; }), avg = oth.length ? oth.reduce(function (a, x) { return a + x.ph; }, 0) / oth.length : null, g = [];
         if (o.board) g.push('게시판 ' + o.bd + '건 · 채팅 응대 ' + o.resp + '명');
         else if (avg && o.ph != null) { var d = Math.round((o.ph - avg) / avg * 100); g.push(Math.abs(d) < 5 ? '기록 팀 평균과 비슷' : '팀 평균보다 기록 ' + Math.abs(d) + '% ' + (d > 0 ? '많음' : '적음')); }

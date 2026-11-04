@@ -124,8 +124,8 @@
        관리 화면 '비수기'를 켜면 3건 / 5건
      · 상담사 화면에도 나오므로 다른 사람 이름·등수·'평균'·어려운 상담 말은 문장에 넣지 않음
      · 게시판 위주이거나 켠 지 1시간 전이면 dash
-     · opt.now · opt.prev: 지난 근무일 { ph, label('어제'|'금요일') } · opt.off: 비수기 */
-  var MULTI = '다른 문의 1~2건도 팝업으로 같이 진행해 주시면 좋아요.'; // 2026-11-04 주인: 응원하는 말투로
+     · opt.now · opt.prev: 지난 근무일 { ph, rt, label('어제'|'금요일') } · opt.week: 지난주 같은 요일 { rt, label('지난주 수요일') } · opt.off: 비수기 */
+  var MULTI = '다른 문의 1~2건도 같이 진행해 주시면 좋아요.'; // 2026-11-04 주인: 응원하는 말투로
   function minOfDay(now) { var d = new Date(now + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
   function oneLine(R, o, opt) {
     opt = opt || {};
@@ -144,12 +144,32 @@
     Object.keys(ah).forEach(function (h) { if (Number(h) >= 14 && Number(h) < endH && Number(h) * 60 < aEnd) aAs += Math.min(60, ah[h] || 0); });
     aHrs -= aAs / 60; var aRate = aHrs >= 1 ? cnt(840, aEnd) / aHrs : null;
     var prev = opt.prev, pUp = prev && prev.ph != null ? Math.round(o.ph - prev.ph) : 0;
-    if (o.ph >= 10) good = '시간당 10건 넘게 끝내고 있어요. 지금처럼 가요.';
-    else if (bestH != null) good = bestH + '시~' + (bestH + 1) + '시엔 ' + recH[bestH] + '건 끝냈어요.';
-    else if (o.rph != null && o.rph >= 10) good = '여러 고객을 동시에 잘 진행하고 있어요.';
-    else if (o.resp >= 10 && o.maxW != null && o.maxW <= 10) good = '오늘 10분 넘게 기다린 고객이 없어요.';
-    else if (mRate != null && aRate != null && Math.round(aRate - mRate) >= 1) good = '오전보다 시간당 ' + Math.round(aRate - mRate) + '건 더 끝내고 있어요.';
-    else if (pUp >= 1) good = (prev.label || '어제') + '보다 시간당 ' + pUp + '건 늘었어요.';
+    /* 2026-11-04 주인: 칭찬 넓히기 — 본인 숫자끼리만 비교(전 시간 · 어제 이 시간 · 지난주 같은 요일 이 시간 · 오늘 최고 시간 · 20·30·40건째)
+       숫자 문장 뒤에 담백한 한마디(느낌표 없음) · 한마디는 시간마다 돌아가며 · 칭찬은 두 줄까지 */
+    var goods = [], used = {};
+    var say = function (t, pool) { if (goods.length >= 2) return; var k = 0, tail = pool[(H + k) % pool.length]; while (used[tail] && k < pool.length) { k++; tail = pool[(H + k) % pool.length]; } used[tail] = 1; goods.push(t + ' ' + tail); };
+    var plain = function (t) { if (goods.length < 2) goods.push(t); };
+    var L = H - 1, Pv = L - 1; if (Pv === 12 || Pv === 13) Pv = 11; // 점심 낀 시간은 11시와 비교
+    var lastOk = L >= 11 && L !== 12 && L !== 13 && L < endH;
+    var upRec = lastOk ? (recH[L] || 0) - (recH[Pv] || 0) : 0, upResp = lastOk ? (rh[L] || 0) - (rh[Pv] || 0) : 0;
+    var byNow = function (a) { return (a || []).filter(function (t) { return t < nm; }).length; }, nowN = byNow(rt);
+    var upDay = prev && prev.rt && prev.rt.length && H >= 11 ? nowN - byNow(prev.rt) : 0, wk = opt.week, upWk = wk && wk.rt && wk.rt.length && H >= 11 ? nowN - byNow(wk.rt) : 0;
+    var topL = lastOk && (recH[L] || 0) >= 3 && Object.keys(recH).every(function (h) { return Number(h) === L || recH[h] < recH[L]; });
+    var before = rt.filter(function (t) { return t < L * 60; }).length, upto = rt.filter(function (t) { return t < H * 60; }).length, mile = 0; [40, 30, 20].forEach(function (m) { if (!mile && lastOk && before < m && upto >= m) mile = m; });
+    if (o.ph >= 10) plain('시간당 10건 넘게 끝내고 있어요. 지금처럼 가요.');
+    if (upWk >= 2) say((wk.label || '지난주') + ' 이 시간보다 ' + upWk + '건 더 끝냈어요.', ['많이 늘었어요.', '잘하고 있어요.']);
+    if (upDay >= 2) say((prev.label || '어제') + ' 이 시간보다 ' + upDay + '건 더 끝냈어요.', ['잘하고 있어요.', '흐름 좋아요.']);
+    if (upRec >= 2) say('지난 1시간엔 그 전 시간보다 ' + upRec + '건 더 끝냈어요.', ['흐름 좋아요.', '좋은 속도예요.', '잘하고 있어요.']);
+    if (topL) say(L + '시~' + H + '시가 오늘 가장 많이 끝낸 시간이에요.', ['좋은 속도예요.', '흐름 좋아요.']);
+    if (bestH != null && !(topL && bestH === L)) plain(bestH + '시~' + (bestH + 1) + '시엔 ' + recH[bestH] + '건 끝냈어요.');
+    if (upResp >= 3) say('지난 1시간엔 그 전 시간보다 ' + upResp + '명 더 답했어요.', ['잘하고 있어요.', '흐름 좋아요.']);
+    if (o.rph != null && o.rph >= 10) plain('여러 고객을 동시에 잘 진행하고 있어요.');
+    if (mile) say('오늘 ' + mile + '건째 끝냈어요.', ['수고 많았어요.', '잘하고 있어요.']);
+    if (o.resp >= 10 && o.maxW != null && o.maxW <= 10) plain('오늘 10분 넘게 기다린 고객이 없어요.');
+    else if (o.resp >= 10 && o.maxW != null && o.maxW < 20) say('오늘 20분 넘게 기다린 고객이 없어요.', ['꼼꼼하게 챙기고 있어요.']);
+    if (mRate != null && aRate != null && Math.round(aRate - mRate) >= 1) plain('오전보다 시간당 ' + Math.round(aRate - mRate) + '건 더 끝내고 있어요.');
+    if (pUp >= 1 && upDay < 2) plain((prev.label || '어제') + '보다 시간당 ' + pUp + '건 늘었어요.');
+    good = goods[0] || '';
     // 피드백(맞는 것 전부 · 동시 진행이 맨 위)
     var wv = []; ((R && R.people) || []).forEach(function (x) { Object.keys(x.wh || {}).forEach(function (h) { wv.push(Number(x.wh[h]) || 0); }); });
     var quiet = wv.length >= 2 && Math.max.apply(null, wv) < 1;
@@ -164,11 +184,13 @@
     if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요. 확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두면 기다린 시간으로 잡히지 않아요.' });
     if (slowLast && !quiet) fixes.push({ t: '지난 1시간은 오전보다 ' + Math.round(mRate - lastN) + '건 덜 끝냈어요.' + ((ah[lastH] || 0) >= 10 ? ' A/S 작업 중이었던 것 같아요.' : '') });
     if (o.rkN != null && o.rkN * 2 >= chat && chat - o.rkN >= 3) /* 기록한 방 자료가 절반도 안 되면(옛 판·빠진 자료) 안 셈 */ fixes.push({ t: '같은 고객을 다시 기록한 게 ' + (chat - o.rkN) + '건 있어요. 한 상담은 한 번만 기록해 주세요.' });
-    return { good: good, fixes: fixes };
+    return { good: good, goods: goods, fixes: fixes };
   }
   // 지난 근무일(오늘 앞 · 쉬는 날 건너뜀, 10일 안) · 이름표('어제' 또는 요일)
   function prevWorkday(td) { var y = W.addDays(td, -1); while (!W.day(y, {}) && y > W.addDays(td, -10)) y = W.addDays(y, -1); return { key: y, label: y === W.addDays(td, -1) ? '어제' : '일월화수목금토'[W.weekday(y)] + '요일' }; }
-  var api = { lowHour: lowHour, oneLine: oneLine, prevWorkday: prevWorkday, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
+  // 지난주 같은 요일(쉬는 날이면 없음) · 이름표('지난주 수요일')
+  function lastWeekSame(td) { var k = W.addDays(td, -7); return W.day(k, {}) ? { key: k, label: '지난주 ' + '일월화수목금토'[W.weekday(k)] + '요일' } : null; }
+  var api = { lowHour: lowHour, oneLine: oneLine, prevWorkday: prevWorkday, lastWeekSame: lastWeekSame, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
   root.KBTeamStats = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
