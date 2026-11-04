@@ -504,6 +504,16 @@ button.wsr:hover{background:var(--surface2)}
 .naskd p{margin:0 0 6px;color:var(--ink2)}
 .naskd p.q{font-weight:700;color:var(--ink)}
 .naskd .acts{justify-content:flex-end;margin-top:14px}
+/* 2026-11-03.7 정시 한줄평 팝업 */
+.hpopd{width:min(480px,calc(100vw - 32px))}
+.hpop-tag{display:inline-block;margin-bottom:8px;padding:3px 10px;border-radius:99px;background:var(--accent-soft,rgba(80,120,255,.12));color:var(--accent);font-size:12.5px;font-weight:700}
+.hpop-st{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 6px}
+.hpop-n{border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px}
+.hpop-n span{font-size:13px;color:var(--ink2)}.hpop-n b{font-size:24px;font-variant-numeric:tabular-nums}
+.naskd p.hpop-r{font-size:13.5px;color:var(--ink2);margin:0 0 10px}
+.hpop-l{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.naskd .hpop-l p{margin:0;font-size:15.5px;font-weight:600;line-height:1.5;color:var(--ink)}
+.naskd .hpop-l p.good{color:var(--good)}.naskd .hpop-l p.strong{color:var(--danger)}.naskd .hpop-l p.quiet{color:var(--ink3)}
 .ncard .nchk .nbox{width:20px;height:20px;border-radius:5px;background:var(--good);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
 /* 2026-11-02 문의 분류 표: 가로 스크롤 없이 칸 수만큼 나눔(분류가 늘면 칸이 좁아지고 글자도 조금 작아짐) · 이름 한 줄 · 사람마다 가장 많은 분류 강조 */
 .trk:has(.trk-cat){max-width:min(1400px,100%)}
