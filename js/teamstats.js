@@ -156,6 +156,7 @@
     var one = chat >= 3 && o.resp > 0 && o.resp / chat <= 1.2;
     var lastH = H - 1, lastN = recH[lastH] || 0, slowLast = H >= 15 && lastH < endH && mRate != null && Math.round(mRate - lastN) >= 1;
     if (quiet) fixes.push({ t: '오늘은 들어온 문의가 적어요.', quiet: 1 });
+    else if (o.ph >= T2 || (o.rph != null && o.rph >= T2)) { } // 2026-11-04 주인: 시간당 8건 넘게(완료든 응대든) 하고 있으면 '1~2건 더'는 안 띄움(한 명씩 비율로도)
     else if (one || o.ph < T1) fixes.push({ t: (one ? '한 명씩만 진행하고 있어요. ' : '') + MULTI, strong: 1 });
     else if (o.ph < T2) fixes.push({ t: MULTI });
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
