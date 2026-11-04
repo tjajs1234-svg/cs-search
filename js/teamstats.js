@@ -160,7 +160,8 @@
     else if (one || o.ph < T1) fixes.push({ t: (one ? '한 명씩만 진행하고 있어요. ' : '') + MULTI, strong: 1 });
     else if (o.ph < T2) fixes.push({ t: MULTI });
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
-    if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요.' });
+    // 2026-11-04 주인: 보류 안내 덧붙임 — 기록기는 답하기 전에 [보류]로 옮긴 상담의 대기를 '가장 오래 기다림'에 안 넣음(reply-bg.js held → holds)
+    if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요. 확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두면 기다린 시간으로 잡히지 않아요.' });
     if (slowLast && !quiet) fixes.push({ t: '지난 1시간은 오전보다 ' + Math.round(mRate - lastN) + '건 덜 끝냈어요.' + ((ah[lastH] || 0) >= 10 ? ' A/S 작업 중이었던 것 같아요.' : '') });
     if (o.rkN != null && o.rkN * 2 >= chat && chat - o.rkN >= 3) /* 기록한 방 자료가 절반도 안 되면(옛 판·빠진 자료) 안 셈 */ fixes.push({ t: '같은 고객을 다시 기록한 게 ' + (chat - o.rkN) + '건 있어요. 한 상담은 한 번만 기록해 주세요.' });
     return { good: good, fixes: fixes };

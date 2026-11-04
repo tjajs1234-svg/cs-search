@@ -93,7 +93,7 @@
 
   // ── 정시 팝업 ──
   // 2026-11-04 주인: 상담사들이 압박감을 느낀다고 해서 꺼 둠(코드는 남김 · 다시 켜려면 true) · 시험은 KB_HOURPOP_TEST로만 켬
-  var HOURPOP_ON = false;
+  var HOURPOP_ON = true; // 2026-11-04.3 다시 켬(주인: 숨긴 건 카톡·톡톡 응대 알림)
   var POPK = 'csx:hourPop', popOpen = null, popBusy = false, lastKey = 0, popFail = 0;
   function popGet() { try { return localStorage.getItem(POPK) || ''; } catch (e) { return ''; } }
   function popSet(v) { try { localStorage.setItem(POPK, v); } catch (e) { } }
