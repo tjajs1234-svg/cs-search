@@ -125,7 +125,7 @@
      · 상담사 화면에도 나오므로 다른 사람 이름·등수·'평균'·어려운 상담 말은 문장에 넣지 않음
      · 게시판 위주이거나 켠 지 1시간 전이면 dash
      · opt.now · opt.prev: 지난 근무일 { ph, label('어제'|'금요일') } · opt.off: 비수기 */
-  var MULTI = '다른 문의 1~2건도 팝업으로 동시에 진행해 주세요.';
+  var MULTI = '다른 문의 1~2건도 팝업으로 같이 진행해 주세요. 조금만 더 힘내요!'; // 2026-11-04 주인: 응원하는 말투로
   function minOfDay(now) { var d = new Date(now + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
   function oneLine(R, o, opt) {
     opt = opt || {};
@@ -157,7 +157,7 @@
     var lastH = H - 1, lastN = recH[lastH] || 0, slowLast = H >= 15 && lastH < endH && mRate != null && Math.round(mRate - lastN) >= 1;
     if (quiet) fixes.push({ t: '오늘은 들어온 문의가 적어요.', quiet: 1 });
     else if (o.ph >= T2 || (o.rph != null && o.rph >= T2)) { } // 2026-11-04 주인: 시간당 8건 넘게(완료든 응대든) 하고 있으면 '1~2건 더'는 안 띄움(한 명씩 비율로도)
-    else if (one || o.ph < T1) fixes.push({ t: (one ? '한 명씩만 진행하고 있어요. ' : '') + MULTI, strong: 1 });
+    else if (one || o.ph < T1) fixes.push({ t: MULTI, strong: 1 }); // 2026-11-04 주인: '한 명씩만 진행하고 있어요'는 뺌(상담사 사정을 모름)
     else if (o.ph < T2) fixes.push({ t: MULTI });
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
     // 2026-11-04 주인: 보류 안내 덧붙임 — 기록기는 답하기 전에 [보류]로 옮긴 상담의 대기를 '가장 오래 기다림'에 안 넣음(reply-bg.js held → holds)

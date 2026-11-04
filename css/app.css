@@ -484,10 +484,10 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-03 응대 · 기록을 한 표에: 위 머리로 묶음 · 2026-11-03.5 응대(진행)·기록(완료) 같은 모양(파란색 없앰, 주인) + 한줄평 칸 */
 .trk-rr tr.grp th{text-align:center;font-size:12px;padding:4px 8px;border-bottom:2px solid var(--line2);white-space:normal}
 .trk-rvh{font-weight:400;color:var(--ink3)}
-.trk-rr th.rv,.trk-rr td.rv{border-left:1px solid var(--line);text-align:left;width:38%;min-width:240px}
-.trk-rr td.rv{font-size:14px;font-weight:600;line-height:1.45;white-space:normal}
+.trk-rr th.rv,.trk-rr td.rv{border-left:1px solid var(--line);text-align:left;width:46%;min-width:260px}
+.trk-rr td.rv{font-size:14px;font-weight:600;line-height:1.45;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}
 .trk-rr td.rv span{display:block}.trk-rr td.rv .good{color:var(--good)}.trk-rr td.rv .z{color:var(--ink3);font-weight:400}
-.trk-rr td.rv span+span{margin-top:3px}.trk-rr td.rv .strong{color:var(--danger)}.trk-rr td.rv .quiet{color:var(--ink3)}
+.trk-rr td.rv .it+.it{margin-top:8px}.trk-rr td.rv .strong{color:var(--danger)}.trk-rr td.rv .quiet{color:var(--ink3)}
 .trk-rr th.rv .trk-rvh{font-weight:400;color:var(--ink3)}
 .trk-rr th:nth-child(4),.trk-rr td:nth-child(4){border-left:1px solid var(--line)}
 .trk-rr tr.grp th.g-rec{border-left:1px solid var(--line)}
@@ -513,7 +513,7 @@ button.wsr:hover{background:var(--surface2)}
 .hpop-n span{font-size:13px;color:var(--ink2)}.hpop-n b{font-size:24px;font-variant-numeric:tabular-nums}
 .naskd p.hpop-r{font-size:13.5px;color:var(--ink2);margin:0 0 10px}
 .hpop-l{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
-.naskd .hpop-l p{margin:0;font-size:15.5px;font-weight:600;line-height:1.5;color:var(--ink)}
+.naskd .hpop-l p{margin:0;font-size:15.5px;font-weight:600;line-height:1.5;color:var(--ink);word-break:keep-all}.naskd .hpop-l p span{display:block}.naskd .hpop-l{gap:10px}
 .naskd .hpop-l p.good{color:var(--good)}.naskd .hpop-l p.strong{color:var(--danger)}.naskd .hpop-l p.quiet{color:var(--ink3)}
 .ncard .nchk .nbox{width:20px;height:20px;border-radius:5px;background:var(--good);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
 /* 2026-11-02 문의 분류 표: 가로 스크롤 없이 칸 수만큼 나눔(분류가 늘면 칸이 좁아지고 글자도 조금 작아짐) · 이름 한 줄 · 사람마다 가장 많은 분류 강조 */
