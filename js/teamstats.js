@@ -173,12 +173,11 @@
     // 피드백(맞는 것 전부 · 동시 진행이 맨 위)
     var wv = []; ((R && R.people) || []).forEach(function (x) { Object.keys(x.wh || {}).forEach(function (h) { wv.push(Number(x.wh[h]) || 0); }); });
     var quiet = wv.length >= 2 && Math.max.apply(null, wv) < 1;
-    var one = chat >= 3 && o.resp > 0 && o.resp / chat <= 1.2;
     var lastH = H - 1, lastN = recH[lastH] || 0, slowLast = H >= 15 && lastH < endH && mRate != null && Math.round(mRate - lastN) >= 1;
     if (quiet) fixes.push({ t: '오늘은 들어온 문의가 적어요.', quiet: 1 });
-    else if (o.ph >= T2 || (o.rph != null && o.rph >= T2)) { } // 2026-11-04 주인: 시간당 8건 넘게(완료든 응대든) 하고 있으면 '1~2건 더'는 안 띄움(한 명씩 비율로도)
-    else if (one || o.ph < T1) fixes.push({ t: MULTI, strong: 1 }); // 2026-11-04 주인: '한 명씩만 진행하고 있어요'는 뺌(상담사 사정을 모름)
-    else if (o.ph < T2) fixes.push({ t: MULTI });
+    // 2026-11-04 주인: 완화 — 시간당 완료(기록) 5건 이하일 때만(비수기 3건) · 빨간 글씨·두 단계·응대≈완료 비율은 없앰
+    //  시간당은 켜 둔 근무시간(점심 빼고)에서 A/S 시트 본 시간을 뺀 것으로 나눔 · 시간당 응대 8명 넘으면 안 띄움
+    else if (o.ph <= T1 && !(o.rph != null && o.rph >= T2)) fixes.push({ t: MULTI });
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
     // 2026-11-04 주인: 보류 안내 덧붙임 — 기록기는 답하기 전에 [보류]로 옮긴 상담의 대기를 '가장 오래 기다림'에 안 넣음(reply-bg.js held → holds)
     if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요. 확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두면 기다린 시간으로 잡히지 않아요.' });
