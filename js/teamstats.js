@@ -54,7 +54,7 @@
         var dd = days[d] || {}, v = { rec: 0, on: null, oa: 0, as: 0, ans: 0, k: 0, nv: 0, bd: 0, rh: {}, wh: {}, ah: {} };
         Object.keys(dd).forEach(function (k) {
           if (person(k) !== n) return; var s = dd[k] || {};
-          v.rec += s.records || 0; v.ans += s.answered || 0; if (typeof s.maxWait === 'number') v.mw = Math.max(v.mw || 0, s.maxWait); v.k += s.kakao || 0; v.nv += s.naver || 0;
+          v.rec += s.records || 0; v.ans += s.answered || 0; v.ws = (v.ws || 0) + (s.waitSum || 0); if (typeof s.maxWait === 'number') v.mw = Math.max(v.mw || 0, s.maxWait); v.k += s.kakao || 0; v.nv += s.naver || 0;
           Object.keys(s.sites || {}).forEach(function (st) { v.bd += s.sites[st] || 0; });
           if (typeof s.on === 'number' && s.on >= 0) v.on = (v.on || 0) + s.on;
           if (typeof s.oa === 'number' && s.oa > 0) v.oa += s.oa;
@@ -82,7 +82,7 @@
         if (v.on != null && v.as > 0) { var cut = Math.min(v.as, v.on); v.on -= cut; o.as += cut; }
         o.rec += rec; o.raw += v.rec; o.redup += Math.min(dup, v.rec); o.k += v.k; o.nv += v.nv; o.bd += v.bd;
         if (v.on != null) { o.on += v.on; o.onDays++; o.onRec += rec; o.onResp += resp; }
-        o.resp += resp; if (keys.length === 1) { o.rh = v.rh; o.wh = v.wh; o.ah = v.ah; o.maxW = v.mw == null ? null : v.mw; o.rkN = qd[d] ? Object.keys(rks).length : null; var rts = []; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) rts = rts.concat(qd[d][k].rt || []); }); o.rt = rts; }
+        o.resp += resp; if (keys.length === 1) { o.rh = v.rh; o.wh = v.wh; o.ah = v.ah; o.maxW = v.mw == null ? null : v.mw; o.ans = v.ans; o.wsum = v.ws || 0; var l20 = {}; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) ((qd[d][k] || {}).late || []).forEach(function (z) { if (z && (z.w || 0) >= 20 && !z.skip) l20[(z.ch || '') + ':' + (z.id || z.u || '')] = 1; }); }); o.late20 = qd[d] ? Object.keys(l20).length : null; /* 20분 넘겨 답한 고객(보류한 고객은 안 들어감) */ o.rkN = qd[d] ? Object.keys(rks).length : null; var rts = []; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) rts = rts.concat(qd[d][k].rt || []); }); o.rt = rts; }
         if (rec > 0 || v.ans > 0 || resp > 0) o.work++;
         o.byDay[d] = { rec: rec, on: v.on, resp: resp, as: v.as };
       });
@@ -124,7 +124,7 @@
        관리 화면 '비수기'를 켜면 3건 / 5건
      · 상담사 화면에도 나오므로 다른 사람 이름·등수·'평균'·어려운 상담 말은 문장에 넣지 않음
      · 게시판 위주이거나 켠 지 1시간 전이면 dash
-     · opt.now · opt.prev: 지난 근무일 { ph, rt, label('어제'|'금요일') } · opt.week: 지난주 같은 요일 { rt, label('지난주 수요일') } · opt.off: 비수기 */
+     · opt.now · opt.prev: 지난 근무일 { ph, rt, label('어제'|'금요일') } · opt.off: 비수기 */
   var MULTI = '다른 문의 1~2건도 같이 진행해 주시면 좋아요.'; // 2026-11-04 주인: 응원하는 말투로
   function minOfDay(now) { var d = new Date(now + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
   function oneLine(R, o, opt) {
@@ -144,29 +144,31 @@
     Object.keys(ah).forEach(function (h) { if (Number(h) >= 14 && Number(h) < endH && Number(h) * 60 < aEnd) aAs += Math.min(60, ah[h] || 0); });
     aHrs -= aAs / 60; var aRate = aHrs >= 1 ? cnt(840, aEnd) / aHrs : null;
     var prev = opt.prev, pUp = prev && prev.ph != null ? Math.round(o.ph - prev.ph) : 0;
-    /* 2026-11-04 주인: 칭찬 넓히기 — 본인 숫자끼리만 비교(전 시간 · 어제 이 시간 · 지난주 같은 요일 이 시간 · 오늘 최고 시간 · 20·30·40건째)
-       숫자 문장 뒤에 담백한 한마디(느낌표 없음) · 한마디는 시간마다 돌아가며 · 칭찬은 두 줄까지 */
+    /* 2026-11-04 주인: 칭찬 넓히기 — 본인 숫자끼리만(전 시간 · 어제 이 시간) · 숫자 문장 뒤 담백한 한마디(시간마다 돌아감) · 칭찬은 두 줄까지
+       11/04 밤 주인: 지난주 비교·오늘 최고 시간·문의 적은 날 뺌 · 10분 대기 없음 = 상급, 20분 = 일반 · n건째는 17시부터 · 3시간 연속 시간당 8건+ · 평균 대기 */
     var goods = [], used = {};
     var say = function (t, pool) { if (goods.length >= 2) return; var k = 0, tail = pool[(H + k) % pool.length]; while (used[tail] && k < pool.length) { k++; tail = pool[(H + k) % pool.length]; } used[tail] = 1; goods.push(t + ' ' + tail); };
     var plain = function (t) { if (goods.length < 2) goods.push(t); };
-    var L = H - 1, Pv = L - 1; if (Pv === 12 || Pv === 13) Pv = 11; // 점심 낀 시간은 11시와 비교
+    var prevH = function (h) { h--; if (h === 12 || h === 13) h = 11; return h; }; // 점심 낀 시간은 건너뜀
+    var L = H - 1, Pv = prevH(L);
     var lastOk = L >= 11 && L !== 12 && L !== 13 && L < endH;
     var upRec = lastOk ? (recH[L] || 0) - (recH[Pv] || 0) : 0, upResp = lastOk ? (rh[L] || 0) - (rh[Pv] || 0) : 0;
     var byNow = function (a) { return (a || []).filter(function (t) { return t < nm; }).length; }, nowN = byNow(rt);
-    var upDay = prev && prev.rt && prev.rt.length && H >= 11 ? nowN - byNow(prev.rt) : 0, wk = opt.week, upWk = wk && wk.rt && wk.rt.length && H >= 11 ? nowN - byNow(wk.rt) : 0;
-    var topL = lastOk && (recH[L] || 0) >= 3 && Object.keys(recH).every(function (h) { return Number(h) === L || recH[h] < recH[L]; });
-    var before = rt.filter(function (t) { return t < L * 60; }).length, upto = rt.filter(function (t) { return t < H * 60; }).length, mile = 0; [40, 30, 20].forEach(function (m) { if (!mile && lastOk && before < m && upto >= m) mile = m; });
+    var upDay = prev && prev.rt && prev.rt.length && H >= 11 ? nowN - byNow(prev.rt) : 0;
+    var run3 = lastOk && Pv >= 10 && prevH(Pv) >= 10 && [L, Pv, prevH(Pv)].every(function (h) { return (recH[h] || 0) >= 8; }); // 3시간 연속 시간당 8건+
+    var avgW = o.ans >= 10 && o.wsum > 0 ? Math.max(0, (o.wsum - (o.maxW || 0)) / (o.ans - 1)) : null; // 평균 대기(가장 오래 기다린 1명은 빼고 · 하루 넘게 남은 상담 하나가 평균을 부풀리지 않게)
+    var w10 = o.resp >= 10 && o.maxW != null && o.maxW <= 10, w20 = !w10 && o.resp >= 10 && o.maxW != null && o.maxW < 20;
     if (o.ph >= 10) plain('시간당 10건 넘게 끝내고 있어요. 지금처럼 가요.');
-    if (upWk >= 2) say((wk.label || '지난주') + ' 이 시간보다 ' + upWk + '건 더 끝냈어요.', ['많이 늘었어요.', '잘하고 있어요.']);
+    if (w10) plain('오늘 10분 넘게 기다린 고객이 한 명도 없어요. 정말 잘 챙기고 있어요.'); // 상급
     if (upDay >= 2) say((prev.label || '어제') + ' 이 시간보다 ' + upDay + '건 더 끝냈어요.', ['잘하고 있어요.', '흐름 좋아요.']);
+    if (run3) say('3시간 연속으로 시간당 8건 넘게 끝냈어요.', ['좋아요.']);
     if (upRec >= 2) say('지난 1시간엔 그 전 시간보다 ' + upRec + '건 더 끝냈어요.', ['흐름 좋아요.', '좋은 속도예요.', '잘하고 있어요.']);
-    if (topL) say(L + '시~' + H + '시가 오늘 가장 많이 끝낸 시간이에요.', ['좋은 속도예요.', '흐름 좋아요.']);
-    if (bestH != null && !(topL && bestH === L)) plain(bestH + '시~' + (bestH + 1) + '시엔 ' + recH[bestH] + '건 끝냈어요.');
+    if (bestH != null) plain(bestH + '시~' + (bestH + 1) + '시엔 ' + recH[bestH] + '건 끝냈어요.');
     if (upResp >= 3) say('지난 1시간엔 그 전 시간보다 ' + upResp + '명 더 답했어요.', ['잘하고 있어요.', '흐름 좋아요.']);
     if (o.rph != null && o.rph >= 10) plain('여러 고객을 동시에 잘 진행하고 있어요.');
-    if (mile) say('오늘 ' + mile + '건째 끝냈어요.', ['수고 많았어요.', '잘하고 있어요.']);
-    if (o.resp >= 10 && o.maxW != null && o.maxW <= 10) plain('오늘 10분 넘게 기다린 고객이 없어요.');
-    else if (o.resp >= 10 && o.maxW != null && o.maxW < 20) say('오늘 20분 넘게 기다린 고객이 없어요.', ['꼼꼼하게 챙기고 있어요.']);
+    if (avgW != null && avgW <= 5 && !w10) say('오늘 고객들이 평균 ' + Math.max(1, Math.round(avgW)) + '분 만에 답을 받고 있어요.', ['좋아요.']);
+    if (H >= 17 && nowN >= 10) say('오늘 ' + nowN + '건째 끝냈어요.', ['남은 시간도 이 흐름 그대로 가요.', '남은 시간도 지금처럼만 가요.']);
+    if (w20) say('오늘 20분 넘게 기다린 고객이 없어요.', ['잘 챙기고 있어요.']); // 일반
     if (mRate != null && aRate != null && Math.round(aRate - mRate) >= 1) plain('오전보다 시간당 ' + Math.round(aRate - mRate) + '건 더 끝내고 있어요.');
     if (pUp >= 1 && upDay < 2) plain((prev.label || '어제') + '보다 시간당 ' + pUp + '건 늘었어요.');
     good = goods[0] || '';
@@ -174,13 +176,18 @@
     var wv = []; ((R && R.people) || []).forEach(function (x) { Object.keys(x.wh || {}).forEach(function (h) { wv.push(Number(x.wh[h]) || 0); }); });
     var quiet = wv.length >= 2 && Math.max.apply(null, wv) < 1;
     var lastH = H - 1, lastN = recH[lastH] || 0, slowLast = H >= 15 && lastH < endH && mRate != null && Math.round(mRate - lastN) >= 1;
-    if (quiet) fixes.push({ t: '오늘은 들어온 문의가 적어요.', quiet: 1 });
+    // 11/04 밤 주인: '오늘은 들어온 문의가 적어요' 뺌(quiet는 지난 1시간 문장 막는 데만 씀)
     // 2026-11-04 주인: 완화 — 시간당 완료(기록) 5건 이하일 때만(비수기 3건) · 빨간 글씨·두 단계·응대≈완료 비율은 없앰
     //  시간당은 켜 둔 근무시간(점심 빼고)에서 A/S 시트 본 시간을 뺀 것으로 나눔 · 시간당 응대 8명 넘으면 안 띄움
     // 2026-11-04 밤 주인: '다른 문의 1~2건도 같이 진행' 피드백은 아예 없앰(MULTI는 남겨 둠)
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
     // 2026-11-04 주인: 보류 안내 덧붙임 — 기록기는 답하기 전에 [보류]로 옮긴 상담의 대기를 '가장 오래 기다림'에 안 넣음(reply-bg.js held → holds)
-    if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 먼저 온 고객부터 답해 주세요. 확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두면 기다린 시간으로 잡히지 않아요.' });
+    // 11/04 밤 주인: 문장 사이 띄움(gap) · 보류하면 이 알림도 안 뜬다는 걸 바로 알게 · 평균 대기 15분+면 부드러운 말로 바꿔 한 번만
+    var HOLD = '확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두세요. 보류한 상담은 기다린 시간으로 세지 않아서 이 알림도 뜨지 않아요.';
+    //  대기 피드백은 하나만: 20분 넘김 2명+(D1) › 평균 대기 15분+ › 가장 오래 기다린 고객 15분+ · '먼저 온' 대신 '우선 응대 고객부터'(주인)
+    if (o.late20 != null && o.late20 >= 2) fixes.push({ t: '보류한 고객을 빼고도 20분 넘게 기다린 고객이 ' + o.late20 + '명 있었어요. 우선 응대 고객부터 차례로 답해 주세요. ' + HOLD, gap: 1 });
+    else if (avgW != null && avgW >= 15) fixes.push({ t: '오늘 고객들이 평균 ' + Math.round(avgW) + '분 만에 답을 받고 있어요. 바쁜 날일 수 있어요. 여유가 생기면 우선 응대 고객부터 한 번 더 살펴봐 주세요. ' + HOLD, gap: 1 });
+    else if (o.maxW != null && o.maxW >= 15) fixes.push({ t: '15분 넘게 기다린 고객이 있었어요. 우선 응대 고객부터 차례로 답해 주세요. ' + HOLD, gap: 1 });
     if (slowLast && !quiet) fixes.push({ t: '지난 1시간은 오전보다 ' + Math.round(mRate - lastN) + '건 덜 끝냈어요.' + ((ah[lastH] || 0) >= 10 ? ' A/S 작업 중이었던 것 같아요.' : '') });
     if (o.rkN != null && o.rkN * 2 >= chat && chat - o.rkN >= 3) /* 기록한 방 자료가 절반도 안 되면(옛 판·빠진 자료) 안 셈 */ fixes.push({ t: '같은 고객을 다시 기록한 게 ' + (chat - o.rkN) + '건 있어요. 한 상담은 한 번만 기록해 주세요.' });
     return { good: good, goods: goods, fixes: fixes };

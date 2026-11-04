@@ -531,3 +531,6 @@ button.wsr:hover{background:var(--surface2)}
 .trk-cat td.ctop b{display:inline-block;min-width:26px;padding:1px 6px;border-radius:999px;background:var(--accent);color:#fff;font-weight:800}
 .trk-cat .tot{border-left:1px solid var(--line);font-weight:700}
 .trk-cat tr.sum td{border-top:2px solid var(--line);background:var(--surface)}
+
+/* 2026-11-04 대기 피드백: 문장 사이 띄움 */
+.trk-rr td.rv .gap .s+.s,.naskd .hpop-l p.gap span+span{margin-top:6px}

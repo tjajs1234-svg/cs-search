@@ -31,10 +31,7 @@
       if (my !== gen) return;
       var off = !!((got[2] || {}).cfg || {}).offseason, opt = { roster: (got[2] || {}).roster, ot: (got[3] || {}).items || [] }, pw = KBTeamStats.prevWorkday(keys[0]), prev = {};
       if (got[0] && got[0].days && got[0].days[pw.key]) KBTeamStats.compute(got[0], got[1], [pw.key], opt).people.forEach(function (o) { prev[o.n] = { ph: o.ph, rt: o.rt || [], label: pw.label }; });
-      // 2026-11-04 칭찬: 지난주 같은 요일 이 시간까지 기록 수와 비교
-      var wk = KBTeamStats.lastWeekSame(keys[0]), week = {};
-      if (wk && got[0] && got[0].days && got[0].days[wk.key]) KBTeamStats.compute(got[0], got[1], [wk.key], opt).people.forEach(function (o) { week[o.n] = { rt: o.rt || [], label: wk.label }; });
-      last = { R: KBTeamStats.compute(got[0], got[1], keys, opt), prev: prev, week: week, off: off, cfg: (got[2] || {}).cfg || {}, at: Date.now() }; err = '';
+      last = { R: KBTeamStats.compute(got[0], got[1], keys, opt), prev: prev, off: off, cfg: (got[2] || {}).cfg || {}, at: Date.now() }; err = '';
     } catch (e) { if (my !== gen) return; err = e.message || '불러오지 못했어요'; }
     render();
   }
@@ -65,7 +62,7 @@
     list.forEach(function (o) {
       var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); if (o.n === mine) nm.append(el('span', 'trk-mine', ' (나)'));
       var ln = lineOf(o), rv = el('td', 'rv');
-      if (ln.dash) rv.append(el('span', 'z', '–')); else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : ''), f.t)); }); }
+      if (ln.dash) rv.append(el('span', 'z', '–')); else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t)); }); }
       tr.append(nm, el('td', 'num big', o.board || o.rph == null ? '–' : f1(o.rph) + '명'), el('td', 'num', o.resp + '명'), el('td', 'num big', o.ph == null ? '–' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건'), rv); tb1.append(tr);
     });
     t1.append(tb1); b1.append(t1);
@@ -94,7 +91,7 @@
   }
   // 정시마다 새 문장(그 시간 안에서는 붙잡아 둠) · 표와 팝업이 같은 문장을 씀
   function holdKey() { var hk = KBTeamStats.periodKeys('today')[0] + ':' + new Date(last.at + 9 * 3600e3).getUTCHours(); if (held.key !== hk) held = { key: hk, lines: {} }; return hk; }
-  function lineOf(o) { holdKey(); return held.lines[o.n] || (held.lines[o.n] = KBTeamStats.oneLine(last.R, o, { now: last.at, prev: last.prev[o.n], week: (last.week || {})[o.n], off: last.off })); }
+  function lineOf(o) { holdKey(); return held.lines[o.n] || (held.lines[o.n] = KBTeamStats.oneLine(last.R, o, { now: last.at, prev: last.prev[o.n], off: last.off })); }
 
   // ── 정시 팝업 ──
   // 2026-11-04 주인: 상담사들이 압박감을 느낀다고 해서 꺼 둠(코드는 남김 · 다시 켜려면 true) · 시험은 KB_HOURPOP_TEST로만 켬
@@ -136,7 +133,7 @@
     var rate = el('p', 'hpop-r', '시간당 응대 ' + (o.rph == null ? '–' : f1(o.rph) + '명') + ' · 완료(기록) ' + (o.ph == null ? '–' : f1(o.ph) + '건'));
     var ls = el('div', 'hpop-l');
     (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { ls.append(said('p', 'good', g)); });
-    (ln.fixes || []).forEach(function (f) { ls.append(said('p', 'fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : ''), f.t)); });
+    (ln.fixes || []).forEach(function (f) { ls.append(said('p', 'fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t)); });
     var ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn primary'; ok.textContent = '네, 확인했어요';
     ok.addEventListener('click', function () { popSet(slot); closePop(); });
     var a = el('div', 'acts'); a.append(ok);

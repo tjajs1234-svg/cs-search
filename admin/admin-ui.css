@@ -352,3 +352,5 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 
 /* 2026-11-03.5 관리 [팀 기록] 한줄평 칸 */
 .ttable td.trk-rvc{min-width:300px;white-space:normal;text-align:left;word-break:keep-all}.trk-rv .it+.it{margin-top:7px}.trk-rv span{display:block;line-height:1.4}.trk-rv .good{color:var(--success);font-weight:700}.trk-rv .fix{font-weight:700}.trk-rv .strong{color:var(--danger)}.trk-rv .gray{color:var(--muted);font-size:12px;margin-top:2px}
+
+.trk-rv .gap .s+.s{margin-top:5px}
