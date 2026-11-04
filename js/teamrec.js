@@ -6,7 +6,7 @@
    · 2026-11-03 한줄평(주인): 표 오른쪽 칸에 칭찬 한 문장(초록) + 피드백 한 문장 · 정시마다 바뀜(그 시간 안에서는 붙잡아 둠) · 문장은 teamstats.js oneLine
      게시판 위주인 사람은 맨 위 · 시간당 응대·한줄평 '–'
    · 2026-11-03.6 주인: 칸 이름 응대 / 완료(기록)(묶음 제목 줄 없앰, 표 아래 한 줄 설명) · 칭찬은 있을 때만 · 피드백 여러 개(동시 진행 맨 위, 5건 미만은 빨간 글씨)
-   · 2026-11-03.7 정시 팝업(주인): 한줄평이 바뀌는 정시 뒤 검색기를 처음 볼 때 '내 한줄평 + 오늘 누적 응대·완료' 팝업 · [네, 확인했어요]만 눌러야 닫힘(팀 기록으로 안 옮겨 감)
+   · 2026-11-03.7 정시 팝업(주인, 2026-11-04.2부터 꺼 둠 — HOURPOP_ON): 한줄평이 바뀌는 정시 뒤 검색기를 처음 볼 때 '내 한줄평 + 오늘 누적 응대·완료' 팝업 · [네, 확인했어요]만 눌러야 닫힘(팀 기록으로 안 옮겨 감)
      · 한 PC에 1시간 한 번(csx:hourPop) · 11시~퇴근 전 · 점심(12:30~14:00)·쉬는 날·게시판 위주·이름 모름이면 안 띄움 · 입력 중이거나 공지 확인 창이 떠 있으면 기다림
      · 검색기 웹 안에서만 뜸(카톡·톡톡 화면엔 안 뜸)
    · 자료: 팀 서버 team.get · qa.get(읽기만, 지난 근무일 비교용으로 4일) · 고객 이름·내용은 안 다룸 */
@@ -92,6 +92,8 @@
   function lineOf(o) { holdKey(); return held.lines[o.n] || (held.lines[o.n] = KBTeamStats.oneLine(last.R, o, { now: last.at, prev: last.prev[o.n], off: last.off })); }
 
   // ── 정시 팝업 ──
+  // 2026-11-04 주인: 상담사들이 압박감을 느낀다고 해서 꺼 둠(코드는 남김 · 다시 켜려면 true) · 시험은 KB_HOURPOP_TEST로만 켬
+  var HOURPOP_ON = false;
   var POPK = 'csx:hourPop', popOpen = null, popBusy = false, lastKey = 0, popFail = 0;
   function popGet() { try { return localStorage.getItem(POPK) || ''; } catch (e) { return ''; } }
   function popSet(v) { try { localStorage.setItem(POPK, v); } catch (e) { } }
@@ -107,7 +109,7 @@
     var a = document.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && Date.now() - lastKey < 8000); // 입력 중이면 잠깐 기다림
   }
   async function checkHour() {
-    if (root.KB_NO_HOURPOP || popBusy || document.hidden || !root.CSTeam || !CSTeam.ready() || !me()) return;
+    if (!(HOURPOP_ON || root.KB_HOURPOP_TEST) || root.KB_NO_HOURPOP || popBusy || document.hidden || !root.CSTeam || !CSTeam.ready() || !me()) return;
     var slot = popSlot(last && last.cfg); if (!slot || popGet() === slot || busy() || Date.now() - popFail < 300000) return; // 못 불러오면 5분 뒤 다시
     popBusy = true;
     try {
