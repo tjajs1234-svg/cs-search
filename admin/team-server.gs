@@ -40,10 +40,13 @@
    · 1.3.21: (기록기 2.4.34와 함께) 우선 응대(패널에 '우선 응대'로 뜬 고객)에게 답한 대기만 따로 하루 칸에 남김(pq: 답한 수 n ·
             10분 넘김 w10 · 15분 넘김 w15 · 가장 길게 mx, 보류한 고객은 안 셈 · 같은 날 줄이지 않음) · 지금 10분 넘게 기다리는 우선 응대 수(pr10)
             — 검색기 웹 [팀 기록] 한줄평 칭찬(우선 응대 모두 10분 안)·피드백(15분 넘김)에 씀. 고객 이름·내용 없음
+   · 1.3.22(주인 11/05): 팀장 PC 숫자가 상담사 숫자에 섞이지 않게 — '팀장'으로 보낸 적 있는 PC(14일 기억)가 상담사 이름으로 보내고,
+            그 이름의 상담사 PC가 따로 켜져 있으면(12시간 안) 상담사 숫자에 안 더하고 '팀장' 몫으로 받음(관리 화면에 알림 mixed) ·
+            관리 [팀 기록] [오늘 숫자 다시 받기](team.reday, 관리 열쇠): 그 사람의 오늘 하루 숫자를 비우고 그 사람 PC가 다음에 보내는 숫자로 다시 채움(켜 둔 시간은 유지)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.21';
+var TEAM_VERSION = '1.3.22';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -77,7 +80,8 @@ function handle_(req) {
   if (a === 'hold.get') return { ok: true, list: holdGet_(req.name) };
   if (a === 'rec.get') return recGet_(req.k);
   if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
-  if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), now: Date.now() };
+  if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), mixed: mixedGet_(), now: Date.now() };
+  if (a === 'team.reday') return isAdmin_(req.adminToken) ? withLock_(function () { return teamReday_(req); }) : { ok: false, error: '관리자만 할 수 있어요' };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
   if (a === 'board.uncomment') return withLock_(function () { return boardUncomment_(req); });
   if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
@@ -294,6 +298,7 @@ function chKey_(x) { return x.ch + ':' + x.id; }
 function teamBeat_(req) {
   if (req.lead) return leadBeat_(req);
   var who = person_(req.name); if (!who) return { ok: false, error: '이름이 없어요' };
+  if (leadMix_(who, pcOf_(req))) return leadBeat_(req); // 1.3.22 팀장 PC가 상담사 이름으로 보냄 → 상담사 숫자에 안 섞음
   var live = req.live && typeof req.live === 'object' ? req.live : {}, now = Date.now(), cache = CacheService.getScriptCache(), pc = pcOf_(req);
   tagsSave_(who, req.tags, cache);
   var row = { name: who, at: now, pending: num_(live.pending), oldestMin: num_(live.oldestMin), over10: num_(live.over10), over20: num_(live.over20), held: num_(live.held), records: num_(live.records), channels: text_(live.channels, 60) };
@@ -608,10 +613,57 @@ function teamRecs_(day) {
   });
   return { day: day, list: Object.keys(best).map(function (k) { return best[k]; }).slice(0, 2000) };
 }
+/* ── 1.3.22 팀장 PC 기억: '팀장'으로 보낸 PC 번호 → 마지막 시각(14일) ──
+   팀장 PC가 태그를 바꾸다 이름 하나만 남으면(예: 카톡 '호정') 기록기는 그 상담사 이름으로 보냄 →
+   예전엔 그 상담사의 두 번째 PC로 보고 기록 수를 더했음(11/05 신호정 21건 = 채팅 11 + 팀장 PC 게시판 10)
+   이제: 그 이름의 다른 PC(팀장 PC가 아닌)가 12시간 안에 보낸 적 있으면 → '팀장' 몫으로 받음.
+   다른 PC가 없으면(예: 팀장 자기 이름 '수빈') 예전처럼 그 이름으로 받음 — 다시 깐 상담사 PC가 잘못 기억돼도 그 사람 숫자가 사라지지 않게 */
+var LEAD_PC_DAYS = 14;
+function leadPcs_(cache) {
+  var v = jget_(cache, 'leadpcs');
+  if (!v || typeof v !== 'object') { try { v = JSON.parse(prop_().getProperty('leadPcs') || '{}'); } catch (e) { v = {}; } if (!v || typeof v !== 'object') v = {}; cache.put('leadpcs', JSON.stringify(v), 21600); }
+  return v;
+}
+function leadPcAdd_(cache, pc, now) {
+  if (pc === 'x') return; var m = leadPcs_(cache);
+  if (m[pc] && now - m[pc] < 864e5) return; // 하루에 한 번만 씀
+  m[pc] = now; Object.keys(m).forEach(function (k) { if (now - m[k] > LEAD_PC_DAYS * 864e5) delete m[k]; });
+  prop_().setProperty('leadPcs', JSON.stringify(m)); cache.put('leadpcs', JSON.stringify(m), 21600);
+}
+function leadMix_(who, pc) {
+  if (pc === 'x') return false;
+  var cache = CacheService.getScriptCache(), lead = leadPcs_(cache), now = Date.now();
+  if (!lead[pc] || now - lead[pc] > LEAD_PC_DAYS * 864e5) return false;
+  var m = jget_(cache, 'pcs:' + who) || {};
+  var other = Object.keys(m).some(function (p) { return p !== pc && !lead[p] && now - m[p] < 12 * 3600e3; });
+  if (!other) return false;
+  // 관리 화면 알림(오늘만 · 이름마다 마지막 시각)
+  var mx = jget_(cache, 'mixed') || {}, day = dayKey_(now); if (mx.day !== day) mx = { day: day, list: {} };
+  if (!mx.list[who] || now - mx.list[who].at > 60e3) { mx.list[who] = { at: now, first: (mx.list[who] || {}).first || now }; cache.put('mixed', JSON.stringify(mx), 21600); }
+  return true;
+}
+function mixedGet_() { var mx = jget_(CacheService.getScriptCache(), 'mixed'); if (!mx || mx.day !== dayKey_()) return []; return Object.keys(mx.list || {}).map(function (n) { return { name: n, first: mx.list[n].first, at: mx.list[n].at }; }); }
+// 1.3.22 [오늘 숫자 다시 받기]: 그 사람의 오늘 하루 숫자(team.json · qa.json)를 비우고 그 사람 PC가 다음 박동에 보내는 숫자로 다시 채움
+//  켜 둔 시간(on · oa)과 다시 깐 PC 몫(carry)은 남김 · 팀장 PC는 그 이름 PC 목록에서 뺌
+function teamReday_(req) {
+  var who = person_(req.name), day = dayKey_(), cache = CacheService.getScriptCache();
+  if (!who || who === '팀장') return { ok: false, error: '이름을 확인해 주세요' };
+  var t = readJson_('team.json', {}), old = t && t[day] && t[day][who];
+  if (old) { var keep = { at: Date.now() }; ['on', 'oa', 'carry'].forEach(function (k) { if (old[k] != null) keep[k] = old[k]; }); t[day][who] = keep; writeJson_('team.json', t); }
+  var q = readJson_('qa.json', {}); if (q && q[day] && q[day][who]) { delete q[day][who]; writeJson_('qa.json', q); }
+  var lead = leadPcs_(cache), m = jget_(cache, 'pcs:' + who) || {}, gone = [];
+  Object.keys(m).forEach(function (p) { if (lead[p]) { delete m[p]; gone.push(p); } });
+  cache.put('pcs:' + who, JSON.stringify(m), 21600);
+  var rm = ['dayw:' + who + ':' + day, 'dayr:' + who + ':' + day]; gone.forEach(function (p) { ['live', 'qa', 'cases', 'st'].forEach(function (k) { rm.push('p:' + k + ':' + who + ':' + p); }); });
+  cache.removeAll(rm);
+  var mx = jget_(cache, 'mixed'); if (mx && mx.list && mx.list[who]) { delete mx.list[who]; cache.put('mixed', JSON.stringify(mx), 21600); }
+  return { ok: true, name: who, day: day, had: !!old, leadPcs: gone.length };
+}
 // 팀장 PC: 기록 수 · 기록 시각 · 게시판 사이트별 건수 · 1.3.7 연결 상태 · 오늘 기록한 방(팀 현황 카드·팀장 보기에는 안 나옴)
 function leadBeat_(req) {
   var who = '팀장', st = req.stats && typeof req.stats === 'object' ? req.stats : {}, qa = req.qa && typeof req.qa === 'object' ? qaClean_(req.qa) : { rt: [], rr: [] };
   var day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.day)) ? String(req.day) : dayKey_(), now = Date.now(), cache = CacheService.getScriptCache(), pc = pcOf_(req);
+  if (req.lead) leadPcAdd_(cache, pc, now);
   var live = req.live && typeof req.live === 'object' ? req.live : {};
   var put = {}; put['p:qa:' + who + ':' + pc] = JSON.stringify({ at: now, rr: qa.rr || [], day: day });
   put['live:' + who] = JSON.stringify({ name: who, at: now, conn: connList_(live.conn), records: num_(live.records || st.records), sending: num_(live.sending), v: text_(req.v, 12) });

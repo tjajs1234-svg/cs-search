@@ -354,3 +354,7 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .ttable td.trk-rvc{min-width:300px;white-space:normal;text-align:left;word-break:keep-all}.trk-rv .it+.it{margin-top:7px}.trk-rv span{display:block;line-height:1.4}.trk-rv .good{color:var(--success);font-weight:700}.trk-rv .fix{font-weight:700}.trk-rv .strong{color:var(--danger)}.trk-rv .gray{color:var(--muted);font-size:12px;margin-top:2px}
 
 .trk-rv .gap .s+.s{margin-top:5px}
+/* 2026-11-05.3 오늘 숫자가 이상할 때(팀 서버 1.3.22) */
+.tfix .facts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.tfix select{padding:6px 8px;border:1px solid #d0d5dd;border-radius:8px;font-size:13px}
+.tfix-mx{margin:4px 0;font-size:13px;color:#b42318;font-weight:600}
