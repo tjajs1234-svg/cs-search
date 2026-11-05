@@ -153,7 +153,7 @@
   async function noticeReads(w) {
     if (!(await T().ensureUrl())) return;
     var D; try { D = await noticeData(); } catch (e) { return; }
-    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [확인했어요]를 체크하고 [네, 확인했어요]를 누른 시각(이름은 기록기 태그로 자동) · 공지를 누르면 사람마다 보여요'));
+    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '공지를 누르면 사람마다 확인 시각이 보여요'));
     // 2026-11-02 공지 확인에서도 [숨기기](족보·관리 공지) · [지우기](관리 공지) — 숨기면 상담사 화면에서 빠지고 아래 '숨긴 공지'에서 되돌림
     var redraw = function () { if (window.KBAdminExtra && KBAdminExtra.views && KBAdminExtra.views.notices) KBAdminExtra.views.notices(w); else noticeReads(w); };
     var act = async function (n, what) {
@@ -232,7 +232,7 @@
   async function cal(w) {
     await (T().syncLead ? T().syncLead() : null);
     var title = '근무 달력';
-    if (!(await ready(w, title, '상담사가 검색기 [OT] 탭에 그날 퇴근 시각을 적으면 바로 야근으로 쌓여요(정시 19:00 뒤 넘은 시간 · 따로 승인 없음). 팀장은 검색기 [OT] 탭이나 이 화면에서 누구 이름으로든 적고 지울 수 있어요. 공휴일·비수기 설정은 팀 현황의 ‘기다린 시간’ 계산에도 쓰여요.'))) return;
+    if (!(await ready(w, title, '퇴근 시각을 적으면 바로 야근으로 쌓여요(19:00 뒤).'))) return;
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got;

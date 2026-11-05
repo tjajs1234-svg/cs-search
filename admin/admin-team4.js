@@ -65,7 +65,7 @@
       });
       p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'].concat(isToday ? ['한줄평(상담사 화면과 같음 · 회색 줄은 여기만)'] : []), rows, 'trk-t1'));
       var notes = [];
-      if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날(팀 서버 1.3.12 전)');
+      if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날');
       var rd = R.people.reduce(function (s, o) { return s + o.redup; }, 0); if (rd) notes.push('같은 주에 같은 고객을 다시 기록한 ' + rd + '건은 빼고 셌어요');
       if (R.noQa.length) notes.push(md(R.noQa[0]) + (R.noQa.length > 1 ? ' 등 ' + R.noQa.length + '일' : '') + '은 기록한 방 자료가 없어(두 달 지남) 같은 고객 합치기 없이 셌어요');
       notes.forEach(function (t) { p1.append(mk('p', 'muted tfoot', t)); });
@@ -74,7 +74,7 @@
     // 문의 분류(관리 화면은 어려운 상담 비율도)
     var p2 = mk('div', 'tpanel'), h2 = mk('div', 'tph'); h2.append(mk('b', null, '문의 분류 · ' + label(st.period, keys)), mk('span', 'muted', '주황 = 어려운 상담(교환/반품 · 고장/불량 · A/S · 불만) · 이 비율은 상담사 화면에 안 나와요')); p2.append(h2);
     var ppl = R.people.filter(function (o) { return o.catN > 0; });
-    if (!ppl.length) p2.append(mk('div', 'pnone', '카테고리가 남은 기록이 없어요(기록기 2.4.15부터 모여요)'));
+    if (!ppl.length) p2.append(mk('div', 'pnone', '카테고리가 남은 기록이 없어요'));
     else {
       var head = ['이름'].concat(R.catOrder, ['합계', '어려운 상담']);
       var rows2 = ppl.map(function (o) { var top = 0; R.catOrder.forEach(function (c) { if ((o.cats[c] || 0) > top) top = o.cats[c]; }); return { cells: [{ text: o.full, cls: 'trk-nm' }].concat(R.catOrder.map(function (c) { return { text: o.cats[c] ? String(o.cats[c]) : '·', cls: (S().isHard(c) && o.cats[c] ? 'thard' : '') + (o.cats[c] && o.cats[c] === top ? ' ttop' : '') }; }), [{ text: String(o.catN), cls: 'trk-b' }, pct(o.hardPct)]) }; });

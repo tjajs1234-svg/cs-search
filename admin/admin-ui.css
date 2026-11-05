@@ -161,6 +161,13 @@ button.btile{cursor:pointer}button.btile:hover{border-color:var(--line-2);backgr
 /* 상담사별 표 */
 .ttable.tppl{min-width:980px}.ttable.tppl td{vertical-align:middle}
 .tppl .tword{white-space:nowrap;font-size:11.5px}
+/* 2026-11-05.7 머리글 두 줄(AT1): 글자 꺾임 없음 · 긴 이름은 정해 둔 자리(\n)에서만 줄바꿈 */
+.ttable.tppl th{white-space:pre;line-height:1.3;vertical-align:bottom}
+.ttable.tppl th,.ttable.tppl td{padding-left:8px;padding-right:8px}.ttable.tppl th.tgrp{white-space:nowrap}
+.ttable.tppl th.tsolo{vertical-align:bottom}.ttable.tppl th.tsolo:first-child{text-align:left}
+.ttable.tppl th.tgrp{text-align:center;color:var(--ink-2);font-weight:800;padding-top:6px;padding-bottom:4px}
+.ttable.tppl tr.tgs th{padding-top:4px}
+.ttable.tppl .gs{border-left:1px solid var(--line)}
 .tprow{cursor:pointer}.tprow:hover td{background:var(--raised)}.tprow.bad td{background:var(--danger-soft)}.tprow.warn td{background:var(--warning-soft)}
 .tprow td:first-child{white-space:nowrap}.tprow .nm{margin:0 4px 0 6px}.tprow .car{color:var(--faint);font-size:11px}
 .ttable td.z2{color:var(--muted)}
