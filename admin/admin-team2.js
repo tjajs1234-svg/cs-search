@@ -127,7 +127,7 @@
     return table(['상담사'].concat(cols, ['합계']), rows, 'tsite');
   }
 
-  /* ───── 공지 확인(공지 화면 아래): 누가 [읽고 이해했어요]를 언제 체크했는지 · 2026-11-01 공지마다 펼쳐서 사람별 시각(초까지) ───── */
+  /* ───── 공지 확인(공지 화면 아래): 누가 [확인했어요]를 언제 체크했는지 · 2026-11-01 공지마다 펼쳐서 사람별 시각(초까지) ───── */
   function fullTime(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (v) { return String(v).padStart(2, '0'); }).join(':'); }
   function dayTxt(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
   // 지금 관리 공지(cs-content) + 서버에 확인이 남은 족보 공지 → [{ id, title, at, from, rev }]
@@ -153,7 +153,7 @@
   async function noticeReads(w) {
     if (!(await T().ensureUrl())) return;
     var D; try { D = await noticeData(); } catch (e) { return; }
-    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [읽고 이해했어요]를 체크하고 [예]를 누른 시각(이름은 기록기 태그로 자동) · 공지를 누르면 사람마다 보여요'));
+    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '상담사가 검색기에서 [확인했어요]를 체크하고 [네, 확인했어요]를 누른 시각(이름은 기록기 태그로 자동) · 공지를 누르면 사람마다 보여요'));
     // 2026-11-02 공지 확인에서도 [숨기기](족보·관리 공지) · [지우기](관리 공지) — 숨기면 상담사 화면에서 빠지고 아래 '숨긴 공지'에서 되돌림
     var redraw = function () { if (window.KBAdminExtra && KBAdminExtra.views && KBAdminExtra.views.notices) KBAdminExtra.views.notices(w); else noticeReads(w); };
     var act = async function (n, what) {
@@ -217,7 +217,7 @@
       var D = await noticeData(), from = Date.parse(keys[0] + 'T00:00:00+09:00'), to = Date.parse(keys[keys.length - 1] + 'T23:59:59+09:00');
       var P = D.P(who), list = D.list.filter(function (n) { return n.at >= from && n.at <= to; });
       el.replaceChildren(); el.hidden = false;
-      var hh = mk('div', 'tph'); hh.append(mk('b', null, '공지 확인'), mk('span', 'muted', '검색기에서 [읽고 이해했어요]를 체크한 시각 · 공지 내용을 잘못 안내했을 때 근거')); el.append(hh);
+      var hh = mk('div', 'tph'); hh.append(mk('b', null, '공지 확인'), mk('span', 'muted', '검색기에서 [확인했어요]를 체크한 시각 · 공지 내용을 잘못 안내했을 때 근거')); el.append(hh);
       if (!list.length) { el.append(mk('div', 'pnone', '이 기간에 올라온 공지가 없어요.')); return; }
       var done = [], not = [];
       list.forEach(function (n) { var t = whoRead(D, n.id)[P]; if (t) done.push({ n: n, t: t }); else if (!n.hidden) not.push(n); }); // 숨긴 공지는 안 읽어도 탓하지 않음

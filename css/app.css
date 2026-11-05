@@ -542,3 +542,11 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-05 공지 상단 고정 */
 .ptag.ptop{background:#1f3a8a;color:#fff}
 .ncard.pinned{border-left:4px solid #1f3a8a}
+/* 2026-11-05 공지 카드 아래: 왼쪽 [확인했어요] · 오른쪽 상담사별 세로 목록(이름 · ✓/✗ · 시각) */
+.ncard .nfoot{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.ncard .nwho{margin-left:auto;display:grid;grid-template-columns:auto 18px auto;column-gap:10px;row-gap:1px;align-items:center;font-size:13px;line-height:1.55;padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.ncard .nwho .nm{color:var(--ink2);font-weight:600}
+.ncard .nwho .ok{color:var(--good);font-weight:800;text-align:center}
+.ncard .nwho .no{color:var(--danger);font-weight:800;text-align:center}
+.ncard .nwho .tm{color:var(--ink3);font-variant-numeric:tabular-nums;font-size:12.5px}
+.ncard .nwho .tm.no{color:var(--danger);font-weight:600;text-align:left}

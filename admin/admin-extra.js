@@ -16,7 +16,7 @@
   /* ───── 공지 ───── */
   var editing = null, TOP_MAX = 3;
   async function notices(w) {
-    var T = '공지', D = '상담사 화면 맨 위 [공지] 탭에 보여요. 새 공지는 빨간 숫자로 알리고, 상담사가 [읽고 이해했어요]를 체크하면 꺼져요(체크한 시각은 아래 ‘공지 확인’에). 사진·영상은 구글 드라이브 주소를 붙여 넣어요. [공지 올리기]를 누르면 2분 안에 모든 PC에 반영돼요(멘트 보내기와 따로).';
+    var T = '공지', D = '상담사 화면 맨 위 [공지] 탭에 보여요. 새 공지는 빨간 숫자로 알리고, 상담사가 [확인했어요]를 체크하면 꺼져요(체크한 시각은 아래 ‘공지 확인’에). 사진·영상은 구글 드라이브 주소를 붙여 넣어요. [공지 올리기]를 누르면 2분 안에 모든 PC에 반영돼요(멘트 보내기와 따로).';
     loading(w, T, D);
     var cur; try { cur = await KBAdmin.latest(); } catch (e) { failed(w, T, e); return; }
     var list = cur.parsed ? cur.parsed.notices.slice() : [];
@@ -34,7 +34,7 @@
     var l0 = mk('label'); l0.append(top, ' 맨 위 고정 · 상담사 공지 탭 맨 위에 늘 보여요(' + TOP_MAX + '개까지)'); // 2026-11-05 다시 넣음(주인) · 띠와는 따로
     opts.append(l1, l2, l0);
     // 2026-11-05 [다시 확인 받기]를 눈에 띄게(주인 "다시 확인 받기가 없는데?") · 고정 공지는 처음부터 켜 둠(오타만 고치면 풀고 올림)
-    if (editing) { again.checked = !!editing.top; var l3 = mk('label', 'nagainbox'); l3.append(again, mk('b', null, ' 다시 확인 받기'), mk('span', null, ' — 내용이 바뀌었으면 체크. 모든 상담사에게 빨간 띠 [변경 사항]이 다시 뜨고 [읽고 이해했어요]를 다시 받아요. 오타만 고쳤으면 풀고 올리세요.')); opts.append(l3); }
+    if (editing) { again.checked = !!editing.top; var l3 = mk('label', 'nagainbox'); l3.append(again, mk('b', null, ' 다시 확인 받기'), mk('span', null, ' — 내용이 바뀌었으면 체크. 모든 상담사에게 빨간 띠 [변경 사항]이 다시 뜨고 [확인했어요]를 다시 받아요. 오타만 고쳤으면 풀고 올리세요.')); opts.append(l3); }
     var acts = mk('div', 'facts');
     if (editing) acts.append(btn('고치기 취소', 'ghost', function () { editing = null; notices(w); }));
     acts.append(mk('span', 'sp'));

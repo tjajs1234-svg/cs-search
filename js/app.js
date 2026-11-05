@@ -755,14 +755,14 @@
     var keep = {}; M.seen.forEach(function (id) { if (sa[id]) keep[id] = sa[id]; }); S.put(SEEN_AT, keep);
     renderBadges(); if (curView === 'notice') renderNotices(); syncReads(); tellSeen();
   }
-  /* [☐ 읽고 이해했어요] → "정말 제대로 읽고 이해했나요?" [예]일 때만 확인으로 남김(되돌리기 없음) */
+  /* [☐ 확인했어요] → "공지 내용을 제대로 읽고 확인했나요?" [네]일 때만 확인으로 남김(되돌리기 없음, 문구 주인 11/05) */
   function askUnderstood(n, box) {
     var bg = el('div', 'nask'), d = el('div', 'naskd'); bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
-    var no = btn('아니오, 다시 읽을게요', 'ghost', null, function () { close(false); }), yes = btn('예, 이해했어요', 'primary', null, function () { close(true); });
+    var no = btn('아니오, 다시 읽을게요', 'ghost', null, function () { close(false); }), yes = btn('네, 확인했어요', 'primary', null, function () { close(true); });
     function close(ok) { document.removeEventListener('keydown', key, true); bg.remove(); if (ok) markSeen([n.id]); else { box.checked = false; box.focus(); } }
     function key(e) { if (e.key === 'Escape') { e.preventDefault(); close(false); } }
     var a = el('div', 'acts'); a.append(no, yes);
-    d.append(el('h4', null, '정말 제대로 읽고 이해했나요?'), el('p', 'q', '‘' + (n.title || '(제목 없음)') + '’'), el('p', null, '[예]를 누르면 확인한 시각이 남아요. 이 공지 내용대로 상담해 주세요.'), a);
+    d.append(el('h4', null, n.title || '(제목 없음)'), el('p', 'q', '공지 내용을 제대로 읽고 확인했나요?'), a);
     bg.append(d); bg.addEventListener('click', function (e) { if (e.target === bg) close(false); });
     document.addEventListener('keydown', key, true); document.body.append(bg); no.focus();
   }
@@ -802,7 +802,7 @@
     var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
     if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
     // 공지마다 읽고 [확인했어요] — 한꺼번에 확인 처리는 없음(팀장 화면의 '누가 읽었나'가 정확하게)
-    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [읽고 이해했어요] 체크'));
+    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [확인했어요] 체크'));
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
@@ -822,10 +822,10 @@
       var done = M.seen.indexOf(n.id) >= 0;
       if (isNew || (done && n.fresh)) {
         var lb = el(done ? 'div' : 'label', 'nchk' + (done ? ' done' : '')), cb = el('input'); cb.type = 'checkbox';
-        lb.append(done ? el('span', 'nbox', '✓') : cb, el('span', null, '읽고 이해했어요'));
+        lb.append(done ? el('span', 'nbox', '✓') : cb, el('span', null, '확인했어요'));
         if (done) { var t = seenAt()[n.id]; if (t) lb.append(el('small', null, whenFull(t) + ' 확인')); }
         else cb.addEventListener('change', function () { if (cb.checked) askUnderstood(n, cb); });
-        c.append(lb);
+        var ft = el('div', 'nfoot'); ft.append(lb); var wl = whoList(n); if (wl) ft.append(wl); c.append(ft);
       }
       list.append(c);
     });
@@ -950,15 +950,41 @@
   var RSENT = 'csx:readSent', readT = 0, pullAt = 0;
   // 2026-11-01 서버에 남은 내 확인을 불러옴(크롬 기록을 지웠거나 PC를 바꿔도 다시 안 물음 · 확인 시각도 서버 것)
   function personKey(v) { var s = String(v || '').replace(/\s+/g, '').replace(/\d+$/, ''); return /^[가-힣]{3}$/.test(s) ? s.slice(1) : s; }
+  // 2026-11-05 공지 카드 오른쪽 아래 세로 목록: 상담사마다 이름 · ✓/✗ · 확인 시각(상담사끼리 서로 봄, 주인 11/05)
+  var RD = { reads: null, team: [], sig: '' };
+  function teamNames(roster) {
+    var td = kstToday(), out = [], seen = {};
+    (roster || []).forEach(function (x) { if (!x || !x.name || (x.start && x.start > td) || (x.end && x.end < td)) return; var k = personKey(x.name); if (!k || k === '팀장' || seen[k]) return; seen[k] = 1; out.push(k); });
+    return out;
+  }
+  function whoList(n) {
+    var team = RD.team.slice(), o = RD.reads && RD.reads[n.id] && RD.reads[n.id].reads || {}, at = {}, me = personKey(myName());
+    Object.keys(o).forEach(function (k) { var p = personKey(k); if (p && Number(o[k])) at[p] = Math.max(at[p] || 0, Number(o[k])); });
+    if (!team.length) { if (!RD.reads) return null; var all = {}; Object.keys(RD.reads).forEach(function (id) { Object.keys(RD.reads[id] && RD.reads[id].reads || {}).forEach(function (k) { var p = personKey(k); if (p && p !== '팀장') all[p] = 1; }); }); team = Object.keys(all).sort(); }
+    if (me && team.indexOf(me) >= 0 && M.seen.indexOf(n.id) >= 0 && !at[me]) at[me] = seenAt()[n.id] || Date.now();
+    if (!team.length) return null;
+    team.sort(function (a, b) { return (at[a] ? 1 : 0) - (at[b] ? 1 : 0) || (at[a] || 0) - (at[b] || 0); });
+    var w = el('div', 'nwho'); w.setAttribute('aria-label', '상담사 확인');
+    team.forEach(function (p) {
+      var t = at[p], d = t ? new Date(t) : null;
+      w.append(el('span', 'nm', p), el('span', 'mk ' + (t ? 'ok' : 'no'), t ? '✓' : '✗'), el('span', 'tm' + (t ? '' : ' no'), t ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '아직'));
+    });
+    return w;
+  }
   async function pullReads() {
-    if (!CSTeam.ready() || Date.now() - pullAt < 60000) return; var me = personKey(myName()); if (!me) return; pullAt = Date.now();
+    if (!CSTeam.ready() || Date.now() - pullAt < 60000) return; var me = personKey(myName()); pullAt = Date.now();
     var r; try { r = await CSTeam.get('notice.reads', {}, 30000); } catch (e) { return; }
-    var reads = r && r.reads || {}, ids = [], ats = {}, sa = seenAt(), fix = false;
+    var cf = null; try { cf = await CSTeam.get('cfg.get', {}, 600000); } catch (e) { /* 명단 없으면 확인한 사람으로 */ }
+    RD.reads = r && r.reads || {}; RD.team = teamNames(cf && cf.roster);
+    var sig = JSON.stringify([RD.team, RD.reads]), chg = sig !== RD.sig; RD.sig = sig;
+    if (!me) { if (chg && curView === 'notice') renderNotices(); return; }
+    var reads = RD.reads, ids = [], ats = {}, sa = seenAt(), fix = false;
     Object.keys(reads).forEach(function (id) { var o = reads[id] && reads[id].reads || {}, t = 0; Object.keys(o).forEach(function (k) { if (personKey(k) === me) t = Number(o[k]) || t; }); if (!t) return; if (M.seen.indexOf(id) < 0) ids.push(id); if (sa[id] !== t) { ats[id] = t; fix = true; } });
     if (fix) { Object.keys(ats).forEach(function (id) { sa[id] = ats[id]; }); S.put(SEEN_AT, sa); }
     if (ids.length) { var sent = S.json(RSENT, []); if (!Array.isArray(sent)) sent = []; S.put(RSENT, sent.concat(ids.map(function (id) { return myName() + '|' + id; })).slice(-600)); ids.forEach(function (id) { M.seen.push(id); }); M.seen = M.seen.slice(-500); S.put(K.seen, M.seen); renderBadges(); tellSeen(); }
-    if ((ids.length || fix) && curView === 'notice') renderNotices();
+    if ((ids.length || fix || chg) && curView === 'notice') renderNotices();
   }
+  setInterval(function () { if (curView === 'notice' && !document.hidden) pullReads(); }, 61000);
   function syncReads() {
     clearTimeout(readT);
     readT = setTimeout(async function () {
@@ -1187,7 +1213,7 @@
     return (BD.req && BD.req.sources || []).some(function (s) { return s.kind === 'login'; }) || !!(BD.def && BD.def.kind === 'login') || !!(BD.notice && BD.notice.kind === 'login');
   }
   function sheetToOpen() { var s = C && C.sources || {}; var u = (s.requests && s.requests[0] && s.requests[0].url) || (s.defects && s.defects.url) || (s.notice && s.notice.url) || ''; return /^https:\/\/docs\.google\.com\//.test(u) ? u : 'https://docs.google.com/spreadsheets/'; }
-  // 2026-11-03 띠 표시(주인 C안): 띠 켠 관리 공지 중 이 상담사가 아직 [읽고 이해했어요] 안 한 것 → 맨 위 경고 테이프 띠 + [복사] 위 빨간 상자
+  // 2026-11-03 띠 표시(주인 C안): 띠 켠 관리 공지 중 이 상담사가 아직 [확인했어요] 안 한 것 → 맨 위 경고 테이프 띠 + [복사] 위 빨간 상자
   // 2026-11-03 [다시 확인 받기]로 고친 관리 공지도 띠에 [변경 사항]으로(주인) — 띠 표시 안 켠 공지라도
   function bandUnread() { return allNotices().filter(function (n) { return n.title && /^a:/.test(n.id) && M.seen.indexOf(n.id) < 0 && (n.band || (n.rev && n.fresh)); }); }
   function bandTag(n) { return n.rev ? '변경 사항' : '신규 공지'; }
@@ -1201,7 +1227,7 @@
     var hd = el('div', 'bh'); var kinds = bs.map(bandTag).filter(function (k, i, a) { return a.indexOf(k) === i; }); hd.append(ic('warn'), el('span', null, '아직 안 읽은 ' + (kinds.length === 1 ? kinds[0] : '공지') + ' ' + bs.length + '개'));
     box.append(hd);
     bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', '[' + bandTag(n) + '] ' + n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });
-    box.append(el('div', 'bm', '눌러서 읽고 [읽고 이해했어요]를 체크하면 사라져요'));
+    box.append(el('div', 'bm', '눌러서 읽고 [확인했어요]를 체크하면 사라져요'));
   }
   function renderBanner() {
     var b = $('banner'), st = CSContent.status(); b.replaceChildren(); b.className = 'banner'; b.onclick = null;
