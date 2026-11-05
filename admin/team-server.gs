@@ -40,10 +40,12 @@
    · 1.3.21: (기록기 2.4.34와 함께) 우선 응대(패널에 '우선 응대'로 뜬 고객)에게 답한 대기만 따로 하루 칸에 남김(pq: 답한 수 n ·
             10분 넘김 w10 · 15분 넘김 w15 · 가장 길게 mx, 보류한 고객은 안 셈 · 같은 날 줄이지 않음) · 지금 10분 넘게 기다리는 우선 응대 수(pr10)
             — 검색기 웹 [팀 기록] 한줄평 칭찬(우선 응대 모두 10분 안)·피드백(15분 넘김)에 씀. 고객 이름·내용 없음
+   · 1.3.22: (기록기 2.4.35와 함께) 우선 응대 대기에 뺀 수(sk: 업무시간 밖·점심에 보냄 · 보낸 시각 모름 · AS 하던 때)와
+            15분 넘긴 고객이 보낸 정시(hs)도 남김 — 한줄평 피드백에 '아침에 몰렸던 것 같아요' 같은 말을 붙임
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.21';
+var TEAM_VERSION = '1.3.22';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -524,8 +526,8 @@ function prevFill_(who, p, today, cache) {
 }
 function statsClean_(st, now) { return { at: now, answered: num_(st.answered), waitSum: num_(st.waitSum), over20: num_(st.over20), maxWait: num_(st.maxWait), holds: num_(st.holds), records: num_(st.records), sending: num_(st.sending), sites: sites_(st.sites), cats: sites_(st.cats), kakao: num_(st.kakao), naver: num_(st.naver), ach: ach_(st.ach), nk: num_(st.nk), bh: num_(st.bh), ho: num_(st.ho), ir: st.ir && typeof st.ir === 'object' ? { n: num_(st.ir.n), m: num_(st.ir.m), med: st.ir.med, o30: num_(st.ir.o30), v: irList_(st.ir) } : null, as: Math.min(num_(st.as), 600), rh: hourMap_(st.rh), wh: hourMap_(st.wh), ah: hourMap_(st.ah), pq: pq_(st.pq) }; }
 // 1.3.21 우선 응대 대기(숫자 넷만)
-function pq_(q) { return q && typeof q === 'object' ? { n: Math.min(num_(q.n), 9999), w10: Math.min(num_(q.w10), 9999), w15: Math.min(num_(q.w15), 9999), mx: Math.min(num_(q.mx), 9999) } : null; }
-function pqMax_(a, b) { if (!a && !b) return null; var o = {}; ['n', 'w10', 'w15', 'mx'].forEach(function (k) { o[k] = Math.max(num_((a || {})[k]), num_((b || {})[k])); }); return o; }
+function pq_(q) { if (!q || typeof q !== 'object') return null; var o = { n: Math.min(num_(q.n), 9999), w10: Math.min(num_(q.w10), 9999), w15: Math.min(num_(q.w15), 9999), mx: Math.min(num_(q.mx), 9999) }; if (q.sk) o.sk = Math.min(num_(q.sk), 9999); var hs = hourMap_(q.hs); if (Object.keys(hs).length) o.hs = hs; return o; } // 1.3.22 sk · hs
+function pqMax_(a, b) { if (!a && !b) return null; var o = {}; ['n', 'w10', 'w15', 'mx'].forEach(function (k) { o[k] = Math.max(num_((a || {})[k]), num_((b || {})[k])); }); var sk = Math.max(num_((a || {}).sk), num_((b || {}).sk)); if (sk) o.sk = sk; var hs = hourMax_((a || {}).hs, (b || {}).hs); if (Object.keys(hs).length) o.hs = hs; return o; }
 // 1.3.19 시간대별 숫자(0~23시 → 0 이상 정수) · 이상한 키·값은 버림
 function hourMap_(o) { var out = {}; if (o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).slice(0, 24).forEach(function (k) { if (!/^(\d|1\d|2[0-3])$/.test(k)) return; var n = Math.min(num_(o[k]), 9999); if (n) out[k] = n; }); return out; }
 function hourMax_(a, b) { var o = {}; [a, b].forEach(function (m) { Object.keys(m || {}).forEach(function (k) { var n = num_(m[k]); if (n > (o[k] || 0)) o[k] = n; }); }); return o; }

@@ -32,8 +32,8 @@
       if (pw && r && r.days && r.days[pw.key]) S().compute(r, got[0], [pw.key], { roster: (got[1] || {}).roster }).people.forEach(function (o) { prev[o.n] = { ph: o.ph, rt: o.rt || [], label: pw.label }; });
       var rvCell = function (o) {
         var ln = S().oneLine(R, o, { prev: prev[o.n], off: !!((got[1] || {}).cfg || {}).offseason }), box = mk('div', 'trk-rv');
-        if (ln.dash) box.append(mk('span', 'z2', '–')); else { var said = function (cls, t) { var e = mk('span', cls); String(t || '').split(/(?<=[.?!])\s+/).forEach(function (x) { if (x) e.append(mk('span', 's', x)); }); return e; }; // 2026-11-04 문장마다 한 줄
-        (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { box.append(said('it good', g)); }); (ln.fixes || []).forEach(function (f) { box.append(said('it fix' + (f.strong ? ' strong' : '') + (f.gap ? ' gap' : ''), f.t)); }); }
+        if (ln.dash) box.append(mk('span', 'z2', '–')); else { var said = function (cls, t, tip) { var e = mk('span', cls); String(t || '').split(/(?<=[.?!])\s+/).forEach(function (x) { if (x) e.append(mk('span', 's', x)); }); if (tip) e.append(mk('span', 'tip', tip)); return e; }; // 2026-11-04 문장마다 한 줄
+        (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { box.append(said('it good', g)); }); (ln.fixes || []).forEach(function (f) { box.append(said('it fix' + (f.strong ? ' strong' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); }); }
         var oth = R.people.filter(function (x) { return x !== o && !x.board && x.ph != null; }), avg = oth.length ? oth.reduce(function (a, x) { return a + x.ph; }, 0) / oth.length : null, g = [];
         if (o.board) g.push('게시판 ' + o.bd + '건 · 채팅 응대 ' + o.resp + '명');
         else if (avg && o.ph != null) { var d = Math.round((o.ph - avg) / avg * 100); g.push(Math.abs(d) < 5 ? '기록 팀 평균과 비슷' : '팀 평균보다 기록 ' + Math.abs(d) + '% ' + (d > 0 ? '많음' : '적음')); }

@@ -55,7 +55,7 @@
         Object.keys(dd).forEach(function (k) {
           if (person(k) !== n) return; var s = dd[k] || {};
           v.rec += s.records || 0; v.ans += s.answered || 0; v.ws = (v.ws || 0) + (s.waitSum || 0); if (typeof s.maxWait === 'number') v.mw = Math.max(v.mw || 0, s.maxWait); v.k += s.kakao || 0; v.nv += s.naver || 0;
-          if (s.pq && typeof s.pq === 'object') { var vq = v.pq || (v.pq = { n: 0, w10: 0, w15: 0, mx: 0 }); vq.n += s.pq.n || 0; vq.w10 += s.pq.w10 || 0; vq.w15 += s.pq.w15 || 0; vq.mx = Math.max(vq.mx, s.pq.mx || 0); } // 2026-11-05 기록기 2.4.34 우선 응대 대기
+          if (s.pq && typeof s.pq === 'object') { var vq = v.pq || (v.pq = { n: 0, w10: 0, w15: 0, mx: 0 }); vq.n += s.pq.n || 0; vq.w10 += s.pq.w10 || 0; vq.w15 += s.pq.w15 || 0; vq.mx = Math.max(vq.mx, s.pq.mx || 0); Object.keys(s.pq.hs || {}).forEach(function (h) { vq.hs = vq.hs || {}; vq.hs[h] = (vq.hs[h] || 0) + (Number(s.pq.hs[h]) || 0); }); } // 2026-11-05 기록기 2.4.34 우선 응대 대기 · 2.4.35 15분 넘긴 고객이 보낸 정시(hs)
           Object.keys(s.sites || {}).forEach(function (st) { v.bd += s.sites[st] || 0; });
           if (typeof s.on === 'number' && s.on >= 0) v.on = (v.on || 0) + s.on;
           if (typeof s.oa === 'number' && s.oa > 0) v.oa += s.oa;
@@ -183,12 +183,21 @@
     if (o.resp - chat >= 10) fixes.push({ t: '기록 안 한 상담이 ' + (o.resp - chat) + '건 있어요. 끝난 상담이면 기록하고 [상담 완료]를 눌러 주세요.' });
     // 2026-11-04 주인: 보류 안내 덧붙임 — 기록기는 답하기 전에 [보류]로 옮긴 상담의 대기를 '가장 오래 기다림'에 안 넣음(reply-bg.js held → holds)
     // 11/04 밤 주인: 문장 사이 띄움(gap) · 보류하면 이 알림도 안 뜬다는 걸 바로 알게 · 평균 대기 15분+면 부드러운 말로 바꿔 한 번만
+    // 11/05 주인: 다닥다닥 → 보류 안내는 사실 문장과 떼어 작은 회색 글(tip)로
     var HOLD = '확인에 시간이 걸리는 상담은 내 상담 패널에서 [보류]해 두세요. 보류한 상담은 기다린 시간으로 세지 않아서 이 알림도 뜨지 않아요.';
     //  대기 피드백은 하나만: 20분 넘김 2명+(D1) › 평균 대기 15분+ › 가장 오래 기다린 고객 15분+ · '먼저 온' 대신 '우선 응대 고객부터'(주인)
     //  11/05 주인: 패널에 '우선 응대'로 뜬 고객(보류 안 함)이 15분 넘게 기다렸으면 약하게 먼저(압박 없이) · 가장 오래 기다린 고객 15분+ 문장은 뺌
-    if (pq && pq.w15 >= 1) fixes.push({ t: '오늘 우선 응대 고객 중 15분 넘게 기다린 분이 ' + pq.w15 + '명 있었어요. 우선 응대 고객은 15분 안에 답해 주시면 좋아요. ' + HOLD, gap: 1 });
-    else if (o.late20 != null && o.late20 >= 2) fixes.push({ t: '보류한 고객을 빼고도 20분 넘게 기다린 고객이 ' + o.late20 + '명 있었어요. 우선 응대 고객부터 차례로 답해 주세요. ' + HOLD, gap: 1 });
-    else if (avgW != null && avgW >= 15) fixes.push({ t: '오늘 고객들이 평균 ' + Math.round(avgW) + '분 만에 답을 받고 있어요. 바쁜 날일 수 있어요. 여유가 생기면 우선 응대 고객부터 한 번 더 살펴봐 주세요. ' + HOLD, gap: 1 });
+    //  11/05 주인: 아침 10~11시 · 점심 뒤(14시) · A/S 하던 시간에 보낸 고객이면 '~였던 것 같아요'를 붙여 억울하지 않게(15분 넘긴 고객이 모두 그 시간일 때만)
+    var why = function (hs) {
+      var hrs = Object.keys(hs || {}).filter(function (h) { return hs[h] > 0; }).map(Number); if (!hrs.length) return '';
+      var tag = function (h) { return (ah[h] || 0) >= 10 ? 'as' : h === 10 ? 'am' : h === 14 ? 'lunch' : ''; }, got = {};
+      if (!hrs.every(function (h) { var k = tag(h); if (k) got[k] = 1; return !!k; })) return '';
+      return (got.am ? ' 아침에 문의가 몰렸던 것 같아요.' : '') + (got.lunch ? ' 점심시간 뒤라 문의가 몰렸던 것 같아요.' : '') + (got.as ? ' A/S 작업 중이었던 것 같아요.' : '');
+    };
+    //  11/05 주인: 처리를 끝내라는 게 아니라 답이라도 먼저 — 짧게라도 답하면 기록기는 그때 대기를 끝냄
+    if (pq && pq.w15 >= 1) fixes.push({ t: '오늘 우선 응대 고객 중 15분 넘게 기다린 분이 ' + pq.w15 + '명 있었어요.' + why(pq.hs) + ' 다 처리하지 못해도 괜찮아요. 고객이 마냥 기다리지 않게 15분 안에 짧게라도 먼저 답해 주세요.', tip: HOLD, gap: 1 });
+    else if (o.late20 != null && o.late20 >= 2) fixes.push({ t: '보류한 고객을 빼고도 20분 넘게 기다린 고객이 ' + o.late20 + '명 있었어요. 우선 응대 고객부터 차례로 답해 주세요.', tip: HOLD, gap: 1 });
+    else if (avgW != null && avgW >= 15) fixes.push({ t: '오늘 고객들이 평균 ' + Math.round(avgW) + '분 만에 답을 받고 있어요. 바쁜 날일 수 있어요. 여유가 생기면 우선 응대 고객부터 한 번 더 살펴봐 주세요.', tip: HOLD, gap: 1 });
     if (slowLast && !quiet) fixes.push({ t: '지난 1시간은 오전보다 ' + Math.round(mRate - lastN) + '건 덜 끝냈어요.' + ((ah[lastH] || 0) >= 10 ? ' A/S 작업 중이었던 것 같아요.' : '') });
     if (o.rkN != null && o.rkN * 2 >= chat && chat - o.rkN >= 3) /* 기록한 방 자료가 절반도 안 되면(옛 판·빠진 자료) 안 셈 */ fixes.push({ t: '같은 고객을 다시 기록한 게 ' + (chat - o.rkN) + '건 있어요. 한 상담은 한 번만 기록해 주세요.' });
     return { good: good, goods: goods, fixes: fixes };

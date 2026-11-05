@@ -19,7 +19,7 @@
   function me() { try { return KBTeamStats.person(root.CSWho ? CSWho.name() : ''); } catch (e) { return ''; } }
   function hhmm(ms) { var d = new Date(ms + 9 * 3600e3); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }
   // 2026-11-04 주인: 한줄평 읽기 쉽게 — 문장마다 한 줄(긴 문장이 끝에서 끊겨 다음 줄로 넘어가지 않게)
-  function said(tag, cls, t) { var e = el(tag, cls); String(t || '').split(/(?<=[.?!])\s+/).forEach(function (x) { if (x) e.append(el('span', 's', x)); }); return e; }
+  function said(tag, cls, t, tip) { var e = el(tag, cls); String(t || '').split(/(?<=[.?!])\s+/).forEach(function (x) { if (x) e.append(el('span', 's', x)); }); if (tip) e.append(el('span', 'tip', tip)); return e; } // 11/05 보류 안내(tip)는 작은 회색 한 덩어리
   function md(k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)) + '(' + '일월화수목금토'[WorkClock.weekday(k)] + ')'; }
 
   async function load() {
@@ -62,7 +62,7 @@
     list.forEach(function (o) {
       var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); if (o.n === mine) nm.append(el('span', 'trk-mine', ' (나)'));
       var ln = lineOf(o), rv = el('td', 'rv');
-      if (ln.dash) rv.append(el('span', 'z', '–')); else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t)); }); }
+      if (ln.dash) rv.append(el('span', 'z', '–')); else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); }); }
       tr.append(nm, el('td', 'num big', o.board || o.rph == null ? '–' : f1(o.rph) + '명'), el('td', 'num', o.resp + '명'), el('td', 'num big', o.ph == null ? '–' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건'), rv); tb1.append(tr);
     });
     t1.append(tb1); b1.append(t1);
@@ -133,7 +133,7 @@
     var rate = el('p', 'hpop-r', '시간당 응대 ' + (o.rph == null ? '–' : f1(o.rph) + '명') + ' · 완료(기록) ' + (o.ph == null ? '–' : f1(o.ph) + '건'));
     var ls = el('div', 'hpop-l');
     (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { ls.append(said('p', 'good', g)); });
-    (ln.fixes || []).forEach(function (f) { ls.append(said('p', 'fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t)); });
+    (ln.fixes || []).forEach(function (f) { ls.append(said('p', 'fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); });
     var ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn primary'; ok.textContent = '네, 확인했어요';
     ok.addEventListener('click', function () { popSet(slot); closePop(); });
     var a = el('div', 'acts'); a.append(ok);
