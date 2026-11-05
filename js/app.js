@@ -679,7 +679,7 @@
     var defHit = defectsBySku(qq);
     if (defHit.rows.length) {
       var al = el('div', 'defalert'); al.setAttribute('role', 'alert');
-      al.append(el('b', null, '⚠ 불량가이드에 있는 제품이에요 · ' + defHit.skus.join(', ')), el('span', null, '안내하기 전에 아래 불량 내용을 꼭 확인해 주세요.'));
+      al.append(el('b', null, '⚠ 불량가이드에 있는 제품이에요 · ' + defHit.skus.join(', ')), el('span', null, '안내하기 전에 아래 불량 내용을 확인해 주세요.'));
       list.append(al); defHit.rows.slice(0, 5).forEach(function (x) { list.append(defCard(x, s.toks)); });
       if (defHit.rows.length > 5) list.append(btn('불량가이드에서 ' + defHit.rows.length + '건 모두 보기', '', null, function () { $('dq').value = defHit.skus[0]; $('dq').dispatchEvent(new Event('input')); setView('defect'); }));
       list.append(el('div', 'sec', '비슷한 문의'));
@@ -812,7 +812,7 @@
       if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
       if (n.top) h.prepend(el('span', 'ptag ptop', '📌 고정'));
-      if (n.band) h.append(el('span', 'ptag band', '꼭 읽기'));
+      if (n.band) h.append(el('span', 'ptag band', '읽어 주세요')); // 2026-11-05.8 압박 말 '꼭' 빼기(주인 11/05)
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));

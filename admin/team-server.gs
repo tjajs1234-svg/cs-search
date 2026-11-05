@@ -45,10 +45,12 @@
             관리 [팀 기록] [오늘 숫자 다시 받기](team.reday, 관리 열쇠): 그 사람의 오늘 하루 숫자를 비우고 그 사람 PC가 다음에 보내는 숫자로 다시 채움(켜 둔 시간은 유지)
    · 1.3.23: (기록기 2.4.35와 함께, 1.3.22 포함) 우선 응대 대기에 뺀 수(sk: 업무시간 밖·점심에 보냄 · 보낸 시각 모름 · AS 하던 때)와
             15분 넘긴 고객이 보낸 정시(hs)도 남김 — 한줄평 피드백에 '아침에 몰렸던 것 같아요' 같은 말을 붙임
+   · 1.3.24: (기록기 2.4.37과 함께, 1.3.23 포함) 이 고객 지난 기록(hist)에 그날 마지막 기록 시각을 남김 →
+            기록 창 '이미 기록된 상담' 알림이 '오늘'만이 아니라 '마지막 기록 뒤 24시간(주말·공휴일 빼고)'까지 뜸(10/18 결정)
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.23';
+var TEAM_VERSION = '1.3.24';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -290,7 +292,7 @@ function connList_(v) { return Array.isArray(v) ? v.slice(0, 4).filter(function 
 function holdList_(v) { return Array.isArray(v) ? v.slice(0, 10).filter(function (x) { return x && x.id; }).map(function (x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), n: text_(x.n, 20), p: text_(x.p, 60).replace(/\s+/g, ' '), at: ms_(x.at), u: okUrl_(x.u) }; if (x.s) o.s = 1; return o; }) : []; }
 function topList_(v) { return Array.isArray(v) ? v.slice(0, 5).filter(function (x) { return x && x.id; }).map(function (x) { var o = { ch: x.ch === 'naver' ? 'naver' : 'kakao', id: caseText_(x.id), n: text_(x.n, 20), p: text_(x.p, 60).replace(/\s+/g, ' '), w: num_(x.w), u: okUrl_(x.u) }; if (x.r) o.r = 1; return o; }) : []; }
 function pwList_(v) { return Array.isArray(v) ? v.slice(0, 200).filter(function (x) { return x && x.k; }).map(function (x) { return { k: caseText_(x.k), w: num_(x.w) }; }) : []; }
-function rrList_(v, max) { return Array.isArray(v) ? v.slice(0, max || 200).filter(function (x) { return x && /^(kakao|naver):.{1,100}$/.test(String(x.k || '')); }).map(function (x) { var o = { k: String(x.k), t: ms_(x.t) }; var c = text_(x.c, 20); if (c) o.c = c; return o; }) : []; }
+function rrList_(v, max) { return Array.isArray(v) ? v.slice(0, max || 200).filter(function (x) { return x && /^(kakao|naver):.{1,100}$/.test(String(x.k || '')); }).map(function (x) { var o = { k: String(x.k), t: ms_(x.t) }; var c = text_(x.c, 20); if (c) o.c = c; var l = ms_(x.l); if (l && l > o.t) o.l = l; return o; }) : []; } // 1.3.24 l: 그날 그 방 마지막 기록 시각(기록기 2.4.37~)
 // 1.3.16 게시판 글 목록(사이트+글 지문 · 내용 없음) · 어려운 상담 표본(상담 주소 · 분류 · 시각)
 function brList_(v) { return Array.isArray(v) ? v.slice(0, 300).filter(function (x) { return x && /^board:.{1,118}$/.test(String(x.k || '')); }).map(function (x) { return { k: String(x.k), t: ms_(x.t) }; }) : []; }
 function hsList_(v) { return Array.isArray(v) ? v.slice(0, 30).filter(function (x) { return x && /^https:\/\/[a-z0-9.-]+\//i.test(String(x.u || '')); }).map(function (x) { return { u: String(x.u).slice(0, 300), c: text_(x.c, 20), t: ms_(x.t) }; }) : []; }
@@ -462,6 +464,7 @@ function sdPack_(list, day) {
   return out;
 }
 // 1.3.13 이 고객 지난 기록(기록 창에서 봄): 방 열쇠는 짧은 숫자로만 · 방마다 [날짜, 상담사, 카테고리] 최근 10개 · 60일 지나면 지움
+// 1.3.24 네 번째 칸: 그날 그 상담사의 마지막 기록 시각(ms) — 기록 창 중복 알림 '마지막 기록 뒤 24시간'(10/18 결정)
 function histAdd_(rr, who, day) {
   if (!Array.isArray(rr) || !rr.length) return;
   var h = readJson_('hist.json', {}); if (!h || typeof h !== 'object') h = {};
@@ -469,9 +472,9 @@ function histAdd_(rr, who, day) {
   rr.forEach(function (x) {
     var k = String(x && x.k || ''); if (!/^(kakao|naver):/.test(k)) return;
     var key = hash1_(k), l = Array.isArray(h[key]) ? h[key] : [], c = text_(x.c, 20);
-    var e = l.filter(function (y) { return y[0] === day && y[1] === who; })[0];
-    if (e) { if (c && e[2] !== c) { e[2] = c; changed = true; } return; }
-    l.unshift([day, who, c]); h[key] = l.filter(function (y) { return y[0] >= from; }).slice(0, 10); changed = true;
+    var e = l.filter(function (y) { return y[0] === day && y[1] === who; })[0], lt = Math.max(ms_(x.l) || 0, ms_(x.t) || 0);
+    if (e) { if (c && e[2] !== c) { e[2] = c; changed = true; } if (lt && lt > (Number(e[3]) || 0)) { e[3] = lt; changed = true; } return; }
+    l.unshift(lt ? [day, who, c, lt] : [day, who, c]); h[key] = l.filter(function (y) { return y[0] >= from; }).slice(0, 10); changed = true;
   });
   if (!changed) return;
   if (Math.random() < 0.05) Object.keys(h).forEach(function (key) { var l = (h[key] || []).filter(function (y) { return y[0] >= from; }); if (l.length) h[key] = l; else delete h[key]; });
@@ -480,7 +483,7 @@ function histAdd_(rr, who, day) {
 function histGet_(k) {
   k = String(k || ''); if (!/^(kakao|naver):[A-Za-z0-9_.-]{1,64}$/.test(k)) return [];
   var h = readJson_('hist.json', {}) || {}, l = Array.isArray(h[hash1_(k)]) ? h[hash1_(k)] : [];
-  return l.slice().sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; }).slice(0, 10).map(function (y) { return { d: y[0], n: y[1], c: y[2] || '' }; });
+  return l.slice().sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; }).slice(0, 10).map(function (y) { var o = { d: y[0], n: y[1], c: y[2] || '' }; if (Number(y[3]) > 0) o.t = Number(y[3]); return o; });
 }
 // 1.3.12 켜져 있던 업무시간: 박동 사이가 3분 안이면 그 사이의 업무시간(월~금 10시~19시, 목 17시 · 점심 12:30~14:00 빼고)을 더함
 function bizMin_(a, b) {
@@ -545,7 +548,7 @@ function mergeQa_(qas) {
     lh: byKey_(qas.map(function (q) { return q.lh; }), chKey_, function (a, b) { return (a.last || 0) >= (b.last || 0) ? a : b; }).slice(0, 80),
     late: byKey_(qas.map(function (q) { return q.late; }), chKey_, function (a, b) { return (a.w || 0) >= (b.w || 0) ? a : b; }).slice(0, 100),
     rt: qas.length > 1 ? [].concat.apply([], qas.map(function (q) { return q.rt || []; })).sort(function (a, b) { return a - b; }).slice(0, 400) : (qas[0] && qas[0].rt || []),
-    rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
+    rr: byKey_(qas.map(function (q) { return q.rr; }), function (x) { return x.k; }, function (a, b) { var f = a.t <= b.t ? a : b, l = Math.max(a.l || a.t || 0, b.l || b.t || 0), o = { k: f.k, t: f.t }; if (f.c) o.c = f.c; if (l > f.t) o.l = l; return o; }), // 1.3.24 두 PC면 첫 기록은 이른 쪽 · 마지막 기록은 늦은 쪽
     ar: byKey_(qas.map(function (q) { return q.ar; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }), hasAr: qas.some(function (q) { return Array.isArray(q.ar); }),
     sd: [].concat.apply([], qas.map(function (q) { return q.sd || []; })), hasSd: qas.some(function (q) { return Array.isArray(q.sd); }),
     br: byKey_(qas.map(function (q) { return q.br; }), function (x) { return x.k; }, function (a, b) { return a.t <= b.t ? a : b; }),
