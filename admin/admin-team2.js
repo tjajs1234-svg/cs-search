@@ -147,7 +147,7 @@
     var reads = got[0].reads || {}, cfg = got[1], P = T().person;
     var team = activeNames(cfg && cfg.roster, today(), (got[2].live || []).map(function (x) { return P(x.name); })).filter(function (n) { return n !== '팀장'; });
     var cp = got[3];
-    return { reads: reads, team: team, list: noticeList(reads, cp ? cp.notices : null, cp && cp.sources && cp.sources.nhide || []), nhide: cp && cp.sources && cp.sources.nhide || [], hasAdmin: !!cp, roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
+    return { reads: reads, team: team, list: noticeList(reads, cp ? cp.notices : null, cp && cp.sources && cp.sources.nhide || []), nhide: cp && cp.sources && cp.sources.nhide || [], ntop: cp && cp.sources && cp.sources.ntop || [], topA: cp ? (cp.notices || []).filter(function (x) { return x.top && !x.hidden; }).length : 0, hasAdmin: !!cp, roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
   }
   function whoRead(D, id) { var o = (D.reads[id] || {}).reads || {}, m = {}; Object.keys(o).forEach(function (k) { var n = D.P(k); if (!m[n] || o[k] > m[n]) m[n] = o[k]; }); return m; }
   async function noticeReads(w) {
@@ -159,6 +159,13 @@
     var act = async function (n, what) {
       try {
         if (n.from === '족보') {
+          // 2026-11-05 족보 공지 상단 고정: sources.ntop('s:번호|고정한 때') · 관리 공지 고정과 합쳐 3개까지
+          if (what === 'top' || what === 'untop') {
+            var nt = D.ntop.filter(function (x) { return x.split('|')[0] !== n.base; });
+            if (what === 'top') { if (nt.length + D.topA >= 3) { say('고정은 3개까지예요. 하나를 [고정 풀기] 한 뒤 다시 해 주세요', 'err'); return; } nt.unshift(n.base + '|' + Date.now()); }
+            await KBAdmin.saveSources({ ntop: nt }, (what === 'top' ? '족보 공지 고정: ' : '족보 공지 고정 풀기: ') + (n.title || ''));
+            say(what === 'top' ? '고정했어요. 2분 안에 상담사 공지 탭 맨 위에 보여요' : '고정을 풀었어요', 'ok'); redraw(); return;
+          }
           var nh = D.nhide.filter(function (x) { return x !== n.base; }); if (what === 'hide') nh.push(n.base);
           await KBAdmin.saveSources({ nhide: nh }, (what === 'hide' ? '족보 공지 숨김: ' : '족보 공지 되돌림: ') + (n.title || ''));
         } else if (what === 'del') {
@@ -174,6 +181,7 @@
     var acts = function (n) {
       var a = mk('span', 'nract'); if (!D.hasAdmin || (n.from === '관리자' && !n.raw)) return a;
       var b = function (label, cls, what) { var x = btn(label, cls, function (e) { e.preventDefault(); e.stopPropagation(); act(n, what); }); x.classList.add('sm'); return x; };
+      if (n.from === '족보' && !n.hidden) { var on = D.ntop.some(function (x) { return x.split('|')[0] === n.base; }); a.append(b(on ? '고정 풀기' : '고정', on ? 'nflag on ntopbtn' : 'ghost nflag ntopbtn', on ? 'untop' : 'top')); }
       if (n.hidden) a.append(b('되돌리기', 'ghost nunhide', 'show')); else a.append(b('숨기기', 'ghost nhide', 'hide'));
       if (n.from === '관리자') a.append(b('지우기', 'danger-ghost', 'del'));
       return a;

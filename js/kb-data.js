@@ -119,7 +119,9 @@
           links: (Array.isArray(n.links) ? n.links : []).map(function (u) { return str(u).trim(); }).filter(function (u) { return /^https:\/\/\S+$/.test(u); }).slice(0, 10).map(function (u) { return u.slice(0, 500); }),
           rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0,
           // 2026-11-02 숨김: 상담사 화면에서만 안 보임(관리 화면 '숨긴 공지'에서 되돌림)
-          hidden: !!n.hidden, hid: n.hidden ? Number(n.hid) || 0 : 0 }; });
+          hidden: !!n.hidden, hid: n.hidden ? Number(n.hid) || 0 : 0,
+          // 2026-11-05 상단 고정(고정한 때 ms · 0이면 안 함) — 예전 pin 값은 11/03에 없앴으므로 안 읽음
+          top: Number(n.top) > 0 ? Number(n.top) : 0 }; });
       var s = obj.sources && typeof obj.sources === 'object' ? obj.sources : {};
       out.sources.requests = (Array.isArray(s.requests) ? s.requests : []).map(function (x) { return x && sheetRef(x.url) ? { url: str(x.url).trim(), label: clean(x.label).slice(0, 40) } : null; }).filter(Boolean).slice(0, 10);
       out.sources.defects = s.defects && sheetRef(s.defects.url) ? { url: str(s.defects.url).trim(), label: clean(s.defects.label).slice(0, 40) } : null;
@@ -133,6 +135,8 @@
         if (rates.length) out.sources.calc = { rates: rates, asFee: isFinite(fee) && fee >= 0 && fee <= 100000 ? Math.round(fee) : 6000, returnDays: isFinite(days) && days >= 1 && days <= 60 ? Math.round(days) : 7 };
       }
       // 2026-11-02 숨긴 족보 공지(관리 화면 '공지 확인'에서 숨김): 's:번호' 목록 — 상담사 화면에서 빠짐
+      // 2026-11-05 족보 공지 상단 고정: 's:번호|고정한 때'
+      if (Array.isArray(s.ntop)) { var nt = s.ntop.map(function (x) { return str(x).trim(); }).filter(function (x) { return /^s:[^|\s]{1,100}\|\d{1,15}$/.test(x); }).slice(0, 10); if (nt.length) out.sources.ntop = nt; }
       if (Array.isArray(s.nhide)) { var nh = s.nhide.map(function (x) { return str(x).trim(); }).filter(function (x) { return /^s:\S{1,100}$/.test(x); }).slice(0, 300); if (nh.length) out.sources.nhide = nh; }
       out.updatedAt = Number(obj.updatedAt) || 0;
     }

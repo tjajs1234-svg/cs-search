@@ -539,3 +539,6 @@ button.wsr:hover{background:var(--surface2)}
 /* 11/05 주인: 다닥다닥 → 사실 문장은 붙여 두고, 보류 안내는 작은 회색 한 덩어리로 떼어 둠 · 항목 사이는 넓게 */
 .trk-rr td.rv .tip,.naskd .hpop-l p .tip{margin-top:6px;font-size:12.5px;font-weight:400;line-height:1.5;color:var(--ink3)}
 .naskd .hpop-l p span.s+span.s{margin-top:2px}
+/* 2026-11-05 공지 상단 고정 */
+.ptag.ptop{background:#1f3a8a;color:#fff}
+.ncard.pinned{border-left:4px solid #1f3a8a}

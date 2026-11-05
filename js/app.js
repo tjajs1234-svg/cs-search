@@ -733,11 +733,13 @@
     var out = [];
     var since = firstUse() - 14 * 864e5;
     // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
-    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, band: !!n.band, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: !!n.band || Math.max(n.at || 0, ed) >= since }); });
+    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, band: !!n.band, top: n.top || 0, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: !!n.band || Math.max(n.at || 0, ed) >= since }); });
     var nhide = C && C.sources && C.sources.nhide || [];
-    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, band: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
+    var ntop = {}; (C && C.sources && C.sources.ntop || []).forEach(function (x) { var i = x.lastIndexOf('|'); ntop[x.slice(0, i)] = Number(x.slice(i + 1)) || 1; });
+    (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ top: ntop['s:' + n.id] || 0, id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, band: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
     // 2026-11-03 '맨 위에 고정' 없앰(주인) → 최신 공지가 맨 위 · 띠 공지는 오래돼도 체크 받음(fresh)
-    out.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+    // 2026-11-05 상단 고정(주인): 고정한 공지는 날짜와 상관없이 맨 위 · 나중에 고정한 것이 위 · 띠와는 따로
+    out.sort(function (a, b) { return (b.top || 0) - (a.top || 0) || (b.at || 0) - (a.at || 0); });
     return out;
   }
   // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
@@ -805,10 +807,11 @@
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
     f.rows.forEach(function (n) {
-      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '') + (n.band && isNew ? ' band' : '')), h = el('div', 'nh'); c.dataset.nid = n.id;
+      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '') + (n.band && isNew ? ' band' : '') + (n.top ? ' pinned' : '')), h = el('div', 'nh'); c.dataset.nid = n.id;
       if (isNew) h.append(el('span', 'ptag new', '새 공지'));
       if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
+      if (n.top) h.prepend(el('span', 'ptag ptop', '📌 고정'));
       if (n.band) h.append(el('span', 'ptag band', '꼭 읽기'));
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
