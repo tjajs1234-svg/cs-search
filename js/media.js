@@ -74,6 +74,8 @@
     requestAnimationFrame(function () { if (!b.isConnected) return; var root = b.closest('.results'); observerFor(root && root.scrollHeight > root.clientHeight + 4 ? root : null).observe(b); });
   }
 
+  /* 크게 보기 판: 검색기 웹은 #lb · 검색기 연결(구글 시트 위)은 자기 상자를 줌(root.CSMediaLB) */
+  function LB() { return root.CSMediaLB ? root.CSMediaLB() : document.getElementById('lb'); }
   function svgIcon(p) { var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.innerHTML = p; return s; }
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   var NO = { denied: '이 계정으로는\n볼 수 없는 사진', login: '구글 로그인이\n필요해요', open: '여기서 못 보는 사진\n눌러서 원본 열기' };
@@ -110,12 +112,29 @@
 
   /* 크게 보기 */
   var V = null, lastFocus = null;
-  function openViewer(items, i, title) { lastFocus = document.activeElement; V = { items: items, i: i, s: 1, play: false, title: title || '' }; draw(); document.getElementById('lb').hidden = false; var c = document.querySelector('#lb .close'); if (c) c.focus(); }
-  function close() { document.getElementById('lb').hidden = true; document.getElementById('lb').replaceChildren(); V = null; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  /* 2026-11-05.2 영상이면 바로 재생: 시트 링크엔 파일 이름이 없어 사진인지 영상인지 모름 → 검색기 연결(1.0.9)이 드라이브에서 종류를 알아 옴
+     · 영상이면 그 자리에서 재생 화면으로 바꿈 · 확장이 없거나 예전 판이면 지금처럼 [영상이면 재생] */
+  var kinds = new Map(); // id → 'video' | 'image' | ''
+  function checkKinds(items) {
+    var B = root.CSBridge; if (!B || !B.ready) return;
+    items.forEach(function (it) {
+      if (!it.id || it.video || it.kindAsked) return; it.kindAsked = true;
+      var known = kinds.get(it.id);
+      var apply = function (k) {
+        if (k !== 'video') return; it.video = true; it.auto = true;
+        if (V && V.items.indexOf(it) >= 0) { if (V.items[V.i] === it && !V.play) draw(); else markStrip(); }
+      };
+      if (known != null) { apply(known); return; }
+      B.call('kind', { id: it.id, rk: it.rk || '' }, 20000).then(function (r) { var k = r && r.kind || ''; kinds.set(it.id, k); apply(k); }, function () {});
+    });
+  }
+  function markStrip() { if (!V) return; var bs = LB().querySelectorAll('.strip button'); V.items.forEach(function (t, j) { if (t.video && bs[j] && !bs[j].querySelector('.play')) { var p = el('span', 'play'), ii = el('i'); ii.append(svgIcon('<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>')); p.append(ii); bs[j].append(p); } }); }
+  function openViewer(items, i, title) { lastFocus = document.activeElement; V = { items: items, i: i, s: 1, play: false, title: title || '' }; draw(); checkKinds(items); LB().hidden = false; var c = LB().querySelector('.close'); if (c) c.focus(); }
+  function close() { LB().hidden = true; LB().replaceChildren(); V = null; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
   function step(d) { if (!V || V.items.length < 2) return; V.i = (V.i + d + V.items.length) % V.items.length; V.s = 1; V.play = false; draw(); }
   function btn(cls, label, icon, fn) { var b = el('button', cls); b.type = 'button'; if (icon) b.append(svgIcon(icon)); if (label) b.append(label); b.addEventListener('click', fn); return b; }
   function draw() {
-    var L = document.getElementById('lb'), it = V.items[V.i], later = []; L.replaceChildren();
+    var L = LB(), it = V.items[V.i], later = []; L.replaceChildren();
     var top = el('div', 'lbtop');
     top.append(el('b', null, V.title || '사진'), el('span', 'cnt', (V.i + 1) + ' / ' + V.items.length));
     if (it.name) top.append(el('span', 'cnt', it.name));
@@ -125,8 +144,11 @@
       var zo = btn('lbb zb', '축소', '<path d="M5 12h14"/>', function () { zoomBy(-1); }); zo.title = '작게 (−)'; zo.setAttribute('aria-label', '작게');
       var zl = btn('lbb zl', '맞춤', null, function () { setZoom(1); }); zl.title = '화면에 맞추기 (0)';
       var zi = btn('lbb zb', '확대', '<path d="M5 12h14M12 5v14"/>', function () { zoomBy(1); }); zi.title = '크게 (+)'; zi.setAttribute('aria-label', '크게');
-      zg.append(zo, zl, zi); top.append(zg); V.zl = zl; V.zo = zo; V.zi = zi;
+      var zr = el('input', 'zr'); zr.type = 'range'; zr.min = '100'; zr.max = '800'; zr.step = '5'; zr.value = '100'; zr.title = '끌어서 크기 고르기'; zr.setAttribute('aria-label', '크기 막대');
+      zr.addEventListener('input', function () { setZoom(Number(zr.value) / 100); });
+      zg.append(zo, zl, zi); top.append(zg, zr); V.zl = zl; V.zo = zo; V.zi = zi; V.zr = zr;
     }
+    if (it.id && it.video && it.auto) top.append(btn('lbb', '사진으로 보기', '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-8 8"/>', function () { it.video = false; it.auto = false; V.play = false; draw(); })); // 혹시 사진인데 영상으로 잘못 알았을 때
     if (it.id && !it.video && !V.play) top.append(btn('lbb', '영상이면 재생', '<path d="M7 4.5v15l12-7.5z"/>', function () { V.play = true; draw(); }));
     var o = el('a', 'lbb'); o.href = openUrl(it); o.target = '_blank'; o.rel = 'noopener noreferrer'; o.append(svgIcon('<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'), '드라이브에서 열기'); top.append(o);
     var x = btn('lbb close', '닫기', '<path d="M6 6l12 12M18 6 6 18"/>', close); x.title = '닫기 (Esc)'; top.append(x);
@@ -152,8 +174,9 @@
       b.addEventListener('click', function () { V.i = j; V.s = 1; V.play = false; draw(); });
       sp.append(b);
     });
-    var hint = el('div', 'lbhint', it.id && !it.video && !V.play ? '휠 또는 + − 로 확대·축소 · 사진 누르면 2배 · 끌어서 옮기기 · 0 맞춤 · ← → 다음 사진' : '← → 다음 사진 · Esc 닫기');
+    var hint = el('div', 'lbhint', it.id && !it.video && !V.play ? '방향키 위 확대 · 아래 축소 · 왼쪽 이전 사진 · 오른쪽 다음 사진 · 0번 원래대로 · 마우스 휠로도 확대·축소' : '← → 다음 사진 · Esc 닫기');
     L.append(top, st, sp, hint);
+    markStrip();
     later.forEach(function (f) { f(); }); // 화면에 붙인 뒤에 불러와야 ‘사라진 사진’으로 건너뛰지 않음
     zoomUi();
   }
@@ -169,13 +192,20 @@
   }
   window.addEventListener('resize', function () { if (V && V.s === 1) fitSmall(); });
   /* 크기 조절: 맞춤(1) → 1.5 → 2 → 3 → 4배. 다시 그리지 않고 그 자리에서 바꿈(사진이 깜빡이지 않게) */
-  var STEPS = [1, 1.5, 2, 3, 4, 6];
+  var STEPS = [1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8]; // 2026-11-05.2 잘게(주인: 무조건 2배 같다)
   function zoomUi() {
     if (!V || !V.zl) return;
     V.zl.textContent = V.s === 1 ? '맞춤' : Math.round(V.s * 100) + '%';
     V.zo.disabled = V.s <= 1; V.zi.disabled = V.s >= STEPS[STEPS.length - 1];
+    if (V.zr && document.activeElement !== V.zr) V.zr.value = String(Math.round(V.s * 100));
   }
-  function zoomBy(d, cx, cy) { if (!V) return; var i = STEPS.indexOf(V.s); if (i < 0) i = 0; setZoom(STEPS[Math.max(0, Math.min(STEPS.length - 1, i + d))], cx, cy); }
+  // 지금 크기 다음 단계(막대로 맞춘 크기 사이에서도 바로 위·아래 단계로)
+  function zoomBy(d, cx, cy) {
+    if (!V) return; var n = V.s, t = null;
+    if (d > 0) { for (var i = 0; i < STEPS.length; i++) if (STEPS[i] > n + 0.001) { t = STEPS[i]; break; } }
+    else { for (var j = STEPS.length - 1; j >= 0; j--) if (STEPS[j] < n - 0.001) { t = STEPS[j]; break; } }
+    if (t != null) setZoom(t, cx, cy);
+  }
   function setZoom(n, cx, cy) {
     var st = V && V.st, im = V && V.im; if (!st || !im || !im.naturalWidth) return;
     if (V.s === 1) V.fitW = im.getBoundingClientRect().width; // 맞춤일 때 크기를 기준으로
@@ -185,7 +215,7 @@
     if (n === 1) { st.classList.remove('zoom'); im.style.width = ''; st.scrollLeft = st.scrollTop = 0; fitSmall(); zoomUi(); return; }
     st.classList.add('zoom'); im.style.width = Math.round(V.fitW * n) + 'px';
     st.scrollLeft = fx * st.scrollWidth - x; st.scrollTop = fy * st.scrollHeight - y;
-    if (n >= 2 && !V.hi) { V.hi = true; var it = V.items[V.i]; var hi = new Image(); hi.referrerPolicy = 'no-referrer'; hi.onload = function () { if (V && V.im === im) im.src = hi.src; }; hi.src = thumbUrl(it, 4000); } // 크게 볼 땐 원본에 가까운 사진으로(받아지면 바꿈 · 드라이브는 원본보다 크게는 안 줌)
+    if (n >= 1.5 && !V.hi) { V.hi = true; var it = V.items[V.i]; var hi = new Image(); hi.referrerPolicy = 'no-referrer'; hi.onload = function () { if (V && V.im === im) im.src = hi.src; }; hi.src = thumbUrl(it, 4000); } // 크게 볼 땐 원본에 가까운 사진으로(받아지면 바꿈 · 드라이브는 원본보다 크게는 안 줌)
     zoomUi();
   }
   /* 휠 = 크기 · 끌기 = 옮기기 · 한 번 누르기 = 맞춤 ↔ 2배 */
@@ -208,7 +238,7 @@
     });
     var up = function (e) {
       if (!drag) return; var d = drag; drag = null; st.classList.remove('grab');
-      if (e.type === 'pointerup' && !d.moved && d.onImg && V) setZoom(V.s === 1 ? 2 : 1, e.clientX, e.clientY);
+      // 2026-11-05.2 사진을 눌러도 크기는 안 바뀜(주인: 누를 때마다 말고 휠·방향키로)
     };
     st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
   }
@@ -217,6 +247,8 @@
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); zoomBy(1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); zoomBy(-1); }
     else if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(1); }
     else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(-1); }
     else if (e.key === '0') { e.preventDefault(); setZoom(1); }
@@ -233,7 +265,7 @@
     return itemsOf({ at: urls.join(' ') }).filter(function (x) { return !x.link; });
   }
   document.addEventListener('paste', function (e) {
-    if (V || !document.getElementById('lb')) return;
+    if (V || root.CSMediaNoPaste || !LB()) return; // 구글 시트 위에서는 붙여 넣기를 가로채지 않음
     var tg = e.target, cd = e.clipboardData; if (!cd) return;
     if (tg && tg.closest && (tg.closest('textarea') || tg.closest('[contenteditable=""],[contenteditable="true"]'))) return;
     var items = pastedItems(cd.getData('text/plain'), cd.getData('text/html')); if (!items.length) return;
