@@ -11,6 +11,24 @@
   function f1(v) { return v == null ? '–' : (Math.round(v * 10) / 10).toFixed(1); }
   function md(k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)) + '(' + WD[W.weekday(k)] + ')'; }
   function hm(m) { m = Math.round(m); var h = Math.floor(m / 60), r = m % 60; return (h ? h + '시간' : '') + (r ? (h ? ' ' : '') + r + '분' : h ? '' : '0분'); }
+  function btn(label, cls, fn) { var b = mk('button', 'btn ' + (cls || 'ghost'), label); b.type = 'button'; if (fn) b.addEventListener('click', fn); return b; }
+  function say(t, k) { if (window.KBAdminApp) window.KBAdminApp.say(t, k); }
+  function hhmm(ms) { var d = new Date(ms + 9 * 3600e3); return d.getUTCHours() + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }
+  /* 2026-11-05.3(팀 서버 1.3.22, 주인 11/05) 팀장 PC 숫자 섞임: 막은 알림 + [오늘 숫자 다시 받기] — 오늘을 볼 때만 · 관리 화면에만 */
+  function fixPanel(r, R, st) {
+    var p = mk('div', 'tpanel tfix'), h = mk('div', 'tph'); h.append(mk('b', null, '오늘 숫자가 이상할 때'), mk('span', 'muted', '팀장 PC 태그를 바꾸다 이름이 하나만 남으면, 그동안 팀장 PC 숫자가 그 상담사 숫자에 섞일 수 있어요(팀 서버 1.3.22부터 막아요)')); p.append(h);
+    ((r && r.mixed) || []).forEach(function (x) { var o = R.people.filter(function (y) { return y.n === x.name; })[0]; p.append(mk('p', 'tfix-mx', '팀장 PC가 ' + hhmm(x.first) + (x.at - x.first > 60e3 ? '~' + hhmm(x.at) : '') + '에 \'' + (o ? o.full : x.name) + '\' 이름으로 보낸 숫자는 ' + (o ? o.full : x.name) + ' 님 숫자에 넣지 않았어요.')); });
+    var row = mk('div', 'facts'), sel = mk('select'); sel.append(mk('option', null, '이름 고르기'));
+    R.people.forEach(function (o) { var op = mk('option', null, o.full + ' · 지금 완료(기록) ' + o.rec + '건'); op.value = o.n; sel.append(op); }); sel.firstChild.value = '';
+    var go = btn('오늘 숫자 다시 받기', 'ghost', async function () {
+      var o = R.people.filter(function (y) { return y.n === sel.value; })[0]; if (!o) { say('이름을 골라 주세요', 'err'); return; }
+      if (!confirm(o.full + ' 님의 오늘 숫자(완료 기록 · 응대)를 비우고, ' + o.full + ' 님 기록기가 다음에 보내는 숫자로 다시 채울까요?\n켜 둔 시간은 그대로예요. 1~2분 뒤 [새로 고침]을 눌러 주세요.')) return;
+      try { var c = await KBAdmin.getConn(); var j = await CSTeam.call('team.reday', { name: o.n, adminToken: (c && c.token) || '' }); if (!j || !j.ok) throw new Error((j && j.error) || '서버가 받지 않았어요(팀 서버 1.3.22가 필요해요)'); say(o.full + ' 님 오늘 숫자를 비웠어요. 1~2분 뒤 새로 고침하면 ' + o.full + ' 님 PC 숫자로 보여요', 'ok'); if (st.again) setTimeout(st.again, 1500); } catch (e) { say((e && e.message) || '하지 못했어요', 'err'); }
+    });
+    row.append(sel, go); p.append(row);
+    p.append(mk('p', 'muted tfoot', '시트에 적힌 건수와 많이 다를 때만 눌러 주세요. 그 사람 기록기가 켜져 있어야 다시 채워져요.'));
+    return p;
+  }
   function pct(v) { return v == null ? '–' : Math.round(v * 100) + '%'; }
   var NAME = { today: '오늘', yday: '어제', week: '이번 주', lweek: '지난주', month: '이번 달', lmonth: '지난달' };
   function label(period, keys) {
@@ -66,6 +84,7 @@
       p2.append(tb);
     }
     wrap.append(p2);
+    if (keys.length === 1 && keys[0] === S().periodKeys('today')[0] && R.people.length) wrap.append(fixPanel(r, R, st));
     wrap.append(mk('p', 'muted tfoot', '상담사 화면 [팀 기록] 탭은 오늘만 · 이름 · 시간당 응대 · 오늘 응대 · 시간당 기록 · 오늘 기록 · 카테고리 건수만 보여요(등수 · 1등과 차이 · AS로 뺀 시간 · 어려운 상담은 이 화면에만).'));
     return wrap;
   }
