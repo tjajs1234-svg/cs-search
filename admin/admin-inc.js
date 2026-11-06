@@ -297,8 +297,10 @@
     }); if (fl.length) cp.append(chk); box.append(cp);
     // 숫자(기록 · 채널 · 응대 · 문의 분류)
     box.append(numTable(R));
-    // QA 감점 기록 · 배점
-    box.append(qaPanel(R, month, st), cfgPanel(R, st));
+    // QA 감점 기록은 왼쪽 메뉴 [QA 피드백]으로 옮김(주인 11/06) · 여기는 한 줄 + 배점
+    var qn = mk('div', 'tpanel sec iqago'), qh = mk('div', 'tph'), qs = R.rows.filter(function (z) { return z.adj < 0; });
+    qh.append(mk('b', null, 'QA 감점'), mk('span', 'muted', qs.length ? qs.map(function (z) { return z.n + ' ' + qaPt(z.adj); }).join(' · ') : '이번 달 감점 없어요'), mk('span', 'sp'), btn('QA 피드백에서 적기 →', 'ghost sm', function () { var b = document.querySelector('.navx[data-view="qafb"]'); if (b) b.click(); }));
+    qn.append(qh); box.append(qn, cfgPanel(R, st));
     // 확정(월말)
     var can = period !== 'month' || info.canFinal || !!fin;
     var fz = mk('div', 'ins bper ifin'); fz.append(mk('span', 'muted', fin ? '확정한 점수표가 팀 서버에 있어요(' + new Date(fin.at).toLocaleString('ko-KR') + ')' : '확정하면 이 점수표가 팀 서버에 남아요'));
@@ -330,7 +332,36 @@
   function when(t) { var x = new Date(t + 9 * 3600e3); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate() + ' ' + String(x.getUTCHours()).padStart(2, '0') + ':' + String(x.getUTCMinutes()).padStart(2, '0'); }
   function qaLink(u) { var a = mk('a', 'qlink', '상담 열기'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
   // 2026-11-06 QA 감점 기록: 상담사마다 접고 펼치기(감점 많은 순) · 펼친 곳에서 바로 추가 · 지우기
-  var qaOpen = {};
+  // 주인 11/06: 팀 현황 · 근무 달력처럼 왼쪽 메뉴에 따로 [QA 피드백](이달의 상담사 탭에 안 들어가도 되게)
+  var qaOpen = {}, qaMonth = '';
+  function qaRows(inc, month, names) {
+    var C = cfgOf(inc), P = T().person, mm = (inc.months || {})[month] || {}, people = mm.people || {}, all = (mm.qa || []).filter(function (x) { return x && QTN[x.t]; }), set = {};
+    names.forEach(function (n) { if (n && n !== '팀장') set[P(n)] = 1; }); all.forEach(function (x) { set[P(x.n)] = 1; }); Object.keys(people).forEach(function (n) { if (num(people[n].er) || num(people[n].nt)) set[P(n)] = 1; });
+    return { C: C, rows: Object.keys(set).map(function (n) {
+      var r = { n: n, qa: all.filter(function (z) { return P(z.n) === n; }).sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : (b.at || 0) - (a.at || 0); }), qaN: {} }, x = people[n] || {};
+      r.qa.forEach(function (z) { r.qaN[z.t] = (r.qaN[z.t] || 0) + 1; }); r.qaOld = { er: num(x.er), nt: num(x.nt) };
+      r.adj = r.qa.reduce(function (s2, z) { return s2 + (C[QTN[z.t][2]] || 0); }, 0) + r.qaOld.er * C.qWi + r.qaOld.nt * C.qNt; return r;
+    }) };
+  }
+  async function qaView(w) {
+    var title = 'QA 피드백';
+    w.replaceChildren(mk('h2', null, title), mk('p', 'desc', '상담을 QA해서 틀린 건을 한 건씩 적어요. 이달의 상담사 점수에서 깎이고, [상담사에게 보내기]를 누른 건은 그 상담사 검색기 [내 피드백]에 떠요(점수는 안 보여요).'), mk('div', 'empty', '불러오는 중…'));
+    if (!(await T().ensureUrl())) { T().needServer(w, title); return; }
+    var inc, extra = [];
+    try { inc = await getInc(); } catch (e) { w.lastChild.textContent = e.message; return; }
+    try { var tg = await CSTeam.get('team.get', { days: 31 }); Object.keys(tg.days || {}).forEach(function (d) { Object.keys(tg.days[d] || {}).forEach(function (n) { extra.push(n); }); }); } catch (e) {}
+    var names = []; try { names = await KBTeam2.teamNames(extra); } catch (e) { names = extra; }
+    var tm = W.dayKey(Date.now()).slice(0, 7), months = [tm]; for (var i = 1; i < 12; i++) { var m = W.addDays(months[i - 1] + '-01', -1).slice(0, 7); if (m < START) break; months.push(m); }
+    if (months.indexOf(qaMonth) < 0) qaMonth = tm;
+    var bar = mk('div', 'ins bper qamon'), sel = mk('select'); sel.setAttribute('aria-label', '달 고르기');
+    months.forEach(function (m) { var o = mk('option', null, m.slice(0, 4) + '년 ' + Number(m.slice(5)) + '월'); o.value = m; if (m === qaMonth) o.selected = true; sel.append(o); });
+    sel.addEventListener('change', function () { qaMonth = sel.value; qaView(w); });
+    bar.append(mk('span', null, '달'), sel, mk('span', 'muted', '그 달에 적은 건만 보여요 · 상담사를 누르면 펼쳐져요'));
+    var R = qaRows(inc, qaMonth, names); R.month = qaMonth;
+    var box = mk('div', 'tview tinc'); box.append(qaPanel(R, qaMonth, { again: function () { qaView(w); } }));
+    w.replaceChildren(mk('h2', null, title), w.children[1] || mk('p'), bar, box);
+  }
+  (function reg() { if (typeof document === 'undefined') return; if (!root.KBAdminExtra || !root.KBTeam || !root.KBTeam2) return setTimeout(reg, 60); KBAdminExtra.views.qafb = qaView; })();
   function qaPanel(R, month, st) {
     var p = mk('div', 'tpanel sec iqa'), h = mk('div', 'tph'), C = R.C, mn = Number(month.slice(5)) + '월';
     var accs = [];
