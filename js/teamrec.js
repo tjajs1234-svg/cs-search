@@ -100,46 +100,60 @@
   function popGet() { try { return localStorage.getItem(POPK) || ''; } catch (e) { return ''; } }
   function popSet(v) { try { localStorage.setItem(POPK, v); } catch (e) { } }
   function nowKst() { var d = new Date(Date.now() + 9 * 3600e3); return { h: d.getUTCHours(), m: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
-  // 지금 띄울 수 있는 시간이면 'YYYY-MM-DD:H', 아니면 ''
+  /* 2026-11-06 주인: 팝업은 하루 2번 — 오전 10~12시 두 시간치를 12시에, 오후 16~18시 두 시간치를 18시에([팀 기록] 표는 그대로 1시간마다)
+     목요일(퇴근 17시)은 오후를 14~16시치로 16시에 · 12시에 못 봤으면(점심) 14시부터 오후 팝업 전까지 · 오후는 퇴근 2시간 뒤까지(야근) · 점심(12:30~14:00)엔 안 띄움
+     지금 띄울 수 있으면 { key: 'YYYY-MM-DD:am|pm', from, to(시) }, 아니면 null */
   function popSlot(cfg) {
-    var td = KBTeamStats.periodKeys('today')[0], d = WorkClock.day(td, cfg || {}); if (!d) return '';
-    var t = nowKst(); if (t.h < 11 || t.m >= d.workEnd || (t.m >= 750 && t.m < 840)) return '';
-    return td + ':' + t.h;
+    var td = KBTeamStats.periodKeys('today')[0], d = WorkClock.day(td, cfg || {}); if (!d) return null;
+    var t = nowKst(), pmTo = Math.floor(d.workEnd / 60) - 1, pmAt = pmTo * 60; // 퇴근 19시 → 18시(16~18시치) · 목 17시 → 16시(14~16시치)
+    if (t.m >= 750 && t.m < 840) return null;
+    if (t.m >= pmAt && t.m < d.workEnd + 120) return { key: td + ':pm', from: pmTo - 2, to: pmTo, at: pmAt };
+    if (t.m >= 720 && t.m < pmAt) return { key: td + ':am', from: 10, to: 12, at: 720 };
+    return null;
   }
+  function kstMin(at) { var d = new Date(at + 9 * 3600e3); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
   function busy() {
     if (popOpen || document.querySelector('.nask')) return true;
     var a = document.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && Date.now() - lastKey < 8000); // 입력 중이면 잠깐 기다림
   }
   async function checkHour() {
     if (!(HOURPOP_ON || root.KB_HOURPOP_TEST) || root.KB_NO_HOURPOP || popBusy || document.hidden || !root.CSTeam || !CSTeam.ready() || !me()) return;
-    var slot = popSlot(last && last.cfg); if (!slot || popGet() === slot || busy() || Date.now() - popFail < 300000) return; // 못 불러오면 5분 뒤 다시
+    var slot = popSlot(last && last.cfg); if (!slot || popGet() === slot.key || busy() || Date.now() - popFail < 300000) return; // 못 불러오면 5분 뒤 다시
     popBusy = true;
     try {
-      if (!last || Date.now() - last.at > 50000 || holdKeyOf(last.at) !== slot) await load();
+      var fresh = function () { return last && Date.now() - last.at <= 50000 && last.R && last.R.today === KBTeamStats.periodKeys('today')[0] && kstMin(last.at) >= slot.at; };
+      if (!fresh()) await load();
       if (!last || err) { popFail = Date.now(); return; }
-      slot = popSlot(last.cfg); if (!slot || popGet() === slot || holdKeyOf(last.at) !== slot) return;
+      slot = popSlot(last.cfg); if (!slot || popGet() === slot.key || kstMin(last.at) < slot.at) return;
       var o = last.R.people.filter(function (x) { return x.n === me(); })[0], ln = o ? lineOf(o) : { dash: true };
-      if (!o || ln.dash) { popSet(slot); return; } // 게시판 위주·켠 지 1시간 전 → 이번 시간은 안 띄움
+      if (!o || ln.dash) { popSet(slot.key); return; } // 게시판 위주·켠 지 1시간 전 → 이번엔 안 띄움
       if (busy()) return;
       openPop(slot, o, ln);
     } finally { popBusy = false; }
   }
   function holdKeyOf(at) { return KBTeamStats.periodKeys('today')[0] + ':' + new Date(at + 9 * 3600e3).getUTCHours(); }
+  // 그 두 시간(from~to시) 응대(시간마다 답한 고객 수의 합) · 완료(기록)
+  function winOf(o, from, to) {
+    var r = 0, c = 0, h; for (h = from; h < to; h++) r += Number((o.rh || {})[h]) || 0;
+    (o.rt || []).forEach(function (t) { if (t >= from * 60 && t < to * 60) c++; });
+    return { resp: Math.min(r, o.resp || r), rec: c }; // 두 시간에 걸친 고객이 두 번 세져 오늘 전체보다 커지지 않게
+  }
   function openPop(slot, o, ln) {
     var bg = el('div', 'nask hpop'), d = el('div', 'naskd hpopd'); bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true'); bg.setAttribute('aria-labelledby', 'hpopT');
-    var h = el('h4', null, o.full + ' 님, 이번 1시간은 이렇게 해 볼까요?'); h.id = 'hpopT';
+    var span = slot.from + '~' + slot.to + '시', w = winOf(o, slot.from, slot.to);
+    var h = el('h4', null, o.full + ' 님, ' + slot.from + '시~' + slot.to + '시 두 시간 정리예요.'); h.id = 'hpopT';
     var st = el('div', 'hpop-st'), c1 = el('div', 'hpop-n'), c2 = el('div', 'hpop-n');
-    c1.append(el('span', null, '오늘 응대'), el('b', null, o.resp + '명')); c2.append(el('span', null, '오늘 완료(기록)'), el('b', null, o.rec + '건')); st.append(c1, c2);
-    var rate = el('p', 'hpop-r', '시간당 응대 ' + (o.rph == null ? '–' : f1(o.rph) + '명') + ' · 완료(기록) ' + (o.ph == null ? '–' : f1(o.ph) + '건'));
+    c1.append(el('span', null, span + ' 응대'), el('b', null, w.resp + '명')); c2.append(el('span', null, span + ' 완료(기록)'), el('b', null, w.rec + '건')); st.append(c1, c2);
+    var rate = el('p', 'hpop-r', '오늘 전체 응대 ' + o.resp + '명 · 완료(기록) ' + o.rec + '건 · 시간당 완료 ' + (o.ph == null ? '–' : f1(o.ph) + '건'));
     var ls = el('div', 'hpop-l');
     (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { ls.append(said('p', 'good', g)); });
     (ln.fixes || []).forEach(function (f) { ls.append(said('p', 'fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); });
     var ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn primary'; ok.textContent = '네, 확인했어요';
-    ok.addEventListener('click', function () { popSet(slot); closePop(); });
+    ok.addEventListener('click', function () { popSet(slot.key); closePop(); });
     var a = el('div', 'acts'); a.append(ok);
-    d.append(el('span', 'hpop-tag', slot.split(':')[1] + '시 한줄평'), h, st, rate);
+    d.append(el('span', 'hpop-tag', (/:am$/.test(slot.key) ? '오전' : '오후') + ' 한줄평 · ' + span), h, st, rate);
     if (ls.childNodes.length) d.append(ls);
-    d.append(a); bg.append(d); document.body.append(bg); popOpen = { bg: bg, slot: slot }; ok.focus();
+    d.append(a); bg.append(d); document.body.append(bg); popOpen = { bg: bg, slot: slot.key }; ok.focus();
   }
   function closePop() { if (popOpen) { popOpen.bg.remove(); popOpen = null; } }
   function startHourly() {
