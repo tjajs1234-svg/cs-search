@@ -8,7 +8,9 @@
      AS 시트를 본 분(팀 서버 1.3.19 as · 기록기 2.4.27: 월~금 14~17시에 5분 넘게 보고 그동안 답 0)은 켜진 시간에서 뺌
    · 카테고리 = 기록 창에서 고른 분류(기록기 2.4.15부터)
    · 자료: 팀 서버 team.get(days: 날짜 → 이름 → 하루 숫자 · live: 지금) · qa.get(days: 날짜 → 이름 → rk 그날 기록한 방)
-   · '팀장' 이름(팀장 PC가 보낸 숫자)은 넣지 않음. 고객 이름·내용은 다루지 않음 */
+   · '팀장' 이름(팀장 PC가 보낸 숫자)은 넣지 않음. 고객 이름·내용은 다루지 않음
+   · 2026-11-06 주인: 팀장 PC가 태그를 여러 개 넣어 '팀장'으로 보낸 기록도 팀장 이름 줄(김수빈)로 보임 — 팀 서버 1.3.25 team.get leadName
+     같은 날 그 PC가 이름('수빈')으로도 보냈으면 같은 PC 기록이라 더하지 않고 큰 쪽(기록 수가 많은 쪽의 채널·게시판·카테고리)을 씀 */
 (function (root) {
   'use strict';
   var W = root.WorkClock || (typeof require === 'function' ? require('./workclock.js') : null);
@@ -35,8 +37,38 @@
   function daysBack(keys, now) { var td = today(now), from = keys[0] || td; return Math.max(1, Math.round((Date.parse(td + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 864e5) + 1); }
 
   /* team: team.get 대답 · qa: qa.get 대답(없으면 같은 고객 합치기 없이 셈) · keys: 날짜 목록 · opt.now · opt.roster(명단: 성 포함 이름) */
+  // 2026-11-06 '팀장' 숫자를 팀장 이름으로 합친 새 자료(원래 자료는 안 바꿈)
+  var COUNT = ['records', 'answered', 'kakao', 'naver', 'holds', 'nk', 'bh', 'ho'];
+  function leadMerge(team, qa, lead) {
+    var t2 = {}, q2 = {}, days = (team && team.days) || {}, qd = (qa && qa.days) || {};
+    Object.keys(days).forEach(function (d) {
+      var dd = days[d] || {}, o = t2[d] = {}, own = null, ld = dd['팀장'];
+      Object.keys(dd).forEach(function (k) { if (k === '팀장') return; if (person(k) === lead && !own) { own = k; return; } o[k] = dd[k]; });
+      if (!ld) { if (own) o[own] = dd[own]; return; }
+      var a = own ? dd[own] || {} : {}, b = ld || {}, big = (b.records || 0) > (a.records || 0) ? b : a, m = {};
+      Object.keys(a).forEach(function (k) { m[k] = a[k]; });
+      COUNT.forEach(function (k) { var v = Math.max(a[k] || 0, b[k] || 0); if (v) m[k] = v; });
+      m.sites = big.sites || {}; m.cats = big.cats || {};
+      o[own || lead] = m;
+    });
+    Object.keys(qd).forEach(function (d) {
+      var dd = qd[d] || {}, o = q2[d] = {}, own = null, ld = dd['팀장'];
+      Object.keys(dd).forEach(function (k) { if (k === '팀장') return; if (person(k) === lead && !own) own = k; o[k] = dd[k]; });
+      if (!ld) return;
+      var a = own ? dd[own] || {} : {}, m = {}; Object.keys(a).forEach(function (k) { m[k] = a[k]; });
+      var rt = {}; (a.rt || []).concat(ld.rt || []).forEach(function (x) { rt[x] = 1; }); m.rt = Object.keys(rt).map(Number).sort(function (x, y) { return x - y; });
+      o[own || lead] = m;
+    });
+    var lv = ((team && team.live) || []).filter(function (x) { return x && x.name !== '팀장'; }), ll = team && team.lead;
+    if (ll && ll.records) { var me = lv.filter(function (x) { return person(x.name) === lead; })[0]; if (me) { me = Object.assign({}, me, { records: Math.max(me.records || 0, ll.records) }); lv = lv.map(function (x) { return person(x.name) === lead ? me : x; }); } else lv.push({ name: lead, at: ll.at, records: ll.records }); }
+    var nt = {}; Object.keys(team || {}).forEach(function (k) { nt[k] = team[k]; }); nt.days = t2; nt.live = lv;
+    var nq = {}; Object.keys(qa || {}).forEach(function (k) { nq[k] = qa[k]; }); nq.days = q2;
+    return { team: nt, qa: qa ? nq : qa };
+  }
   function compute(team, qa, keys, opt) {
     opt = opt || {};
+    var lead = person(opt.lead != null ? opt.lead : (team && team.leadName) || '');
+    if (lead && lead !== '팀장') { var mg = leadMerge(team, qa, lead); team = mg.team; qa = mg.qa; }
     var now = opt.now == null ? Date.now() : opt.now, td = today(now), days = (team && team.days) || {}, qd = (qa && qa.days) || {};
     var live = {}; ((team && team.live) || []).forEach(function (x) { if (x && x.name) live[person(x.name)] = x; });
     var names = {}, full = {}; ((opt.roster) || []).forEach(function (x) { if (x && x.name) full[person(x.name)] = x.full || x.name; });

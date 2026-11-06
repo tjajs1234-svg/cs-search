@@ -15,6 +15,20 @@
   function say(t, k) { if (window.KBAdminApp) window.KBAdminApp.say(t, k); }
   function hhmm(ms) { var d = new Date(ms + 9 * 3600e3); return d.getUTCHours() + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }
   /* 2026-11-05.3(팀 서버 1.3.22, 주인 11/05) 팀장 PC 숫자 섞임: 막은 알림 + [오늘 숫자 다시 받기] — 오늘을 볼 때만 · 관리 화면에만 */
+  /* 2026-11-06.1(팀 서버 1.3.25, 주인 11/06) 팀장 PC가 '팀장'으로 보낸 기록을 어느 이름 줄로 보일지 — 서버가 모르면 여기서 한 번 고름 */
+  function leadPick(r, roster, st, small) {
+    var p = mk('div', small ? 'facts tlead' : 'tpanel tlead tleadbig'), cur = (r && r.leadName) || '', full = {};
+    (roster || []).forEach(function (x) { if (x && x.name) full[x.name] = x.full || x.name; });
+    var sel = mk('select'); sel.append(mk('option', null, '이름 고르기')); sel.firstChild.value = '';
+    (roster || []).forEach(function (x) { if (!x || !x.name) return; var op = mk('option', null, x.full || x.name); op.value = x.name; if (x.name === cur) op.selected = true; sel.append(op); });
+    var save = btn(small ? '바꾸기' : '저장', 'ghost', async function () {
+      if (!sel.value) { say('이름을 골라 주세요', 'err'); return; }
+      try { var c = await KBAdmin.getConn(); var j = await CSTeam.call('lead.set', { name: sel.value, adminToken: (c && c.token) || '' }); if (!j || !j.ok) throw new Error((j && j.error) || '서버가 받지 않았어요(팀 서버 1.3.25가 필요해요)'); say('팀장 PC 기록을 ' + (full[sel.value] || sel.value) + ' 줄로 보여 줘요', 'ok'); if (st.again) setTimeout(st.again, 800); } catch (e) { say((e && e.message) || '저장하지 못했어요', 'err'); }
+    });
+    if (small) { p.append(mk('span', 'muted', '팀장 PC(태그 여러 개)가 남긴 기록은 ' + (full[cur] || cur) + ' 줄로 보여요'), sel, save); return p; }
+    var h = mk('div', 'tph'); h.append(mk('b', null, '팀장 PC 기록을 누구 줄로 보일까요?'), mk('span', 'muted', '패널에 상담사 태그를 여러 개 넣으면 기록기가 이름 대신 \'팀장\'으로 보내서 표에서 빠져요. 한 번 고르면 계속 그 이름 줄로 보여요'));
+    var row = mk('div', 'facts'); row.append(sel, save); p.append(h, row); return p;
+  }
   function fixPanel(r, R, st) {
     var p = mk('div', 'tpanel tfix'), h = mk('div', 'tph'); h.append(mk('b', null, '오늘 숫자가 이상할 때'), mk('span', 'muted', '팀장 PC 태그를 바꾸다 이름이 하나만 남으면, 그동안 팀장 PC 숫자가 그 상담사 숫자에 섞일 수 있어요(팀 서버 1.3.22부터 막아요)')); p.append(h);
     ((r && r.mixed) || []).forEach(function (x) { var o = R.people.filter(function (y) { return y.n === x.name; })[0]; p.append(mk('p', 'tfix-mx', '팀장 PC가 ' + hhmm(x.first) + (x.at - x.first > 60e3 ? '~' + hhmm(x.at) : '') + '에 \'' + (o ? o.full : x.name) + '\' 이름으로 보낸 숫자는 ' + (o ? o.full : x.name) + ' 님 숫자에 넣지 않았어요.')); });
@@ -84,7 +98,9 @@
       p2.append(tb);
     }
     wrap.append(p2);
-    if (keys.length === 1 && keys[0] === S().periodKeys('today')[0] && R.people.length) wrap.append(fixPanel(r, R, st));
+    var hasLead = Object.keys((r && r.days) || {}).some(function (d) { return r.days[d] && r.days[d]['팀장'] && r.days[d]['팀장'].records; });
+    if (hasLead && r && 'leadName' in r && !r.leadName) wrap.prepend(leadPick(r, (got[1] || {}).roster, st));
+    if (keys.length === 1 && keys[0] === S().periodKeys('today')[0] && R.people.length) { var fp = fixPanel(r, R, st); if (r && r.leadName) fp.append(leadPick(r, (got[1] || {}).roster, st, true)); wrap.append(fp); }
     wrap.append(mk('p', 'muted tfoot', '상담사 화면 [팀 기록] 탭은 오늘만 · 이름 · 시간당 응대 · 오늘 응대 · 시간당 기록 · 오늘 기록 · 카테고리 건수만 보여요(등수 · 1등과 차이 · AS로 뺀 시간 · 어려운 상담은 이 화면에만).'));
     return wrap;
   }

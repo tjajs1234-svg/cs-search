@@ -47,10 +47,12 @@
             15분 넘긴 고객이 보낸 정시(hs)도 남김 — 한줄평 피드백에 '아침에 몰렸던 것 같아요' 같은 말을 붙임
    · 1.3.24: (기록기 2.4.37과 함께, 1.3.23 포함) 이 고객 지난 기록(hist)에 그날 마지막 기록 시각을 남김 →
             기록 창 '이미 기록된 상담' 알림이 '오늘'만이 아니라 '마지막 기록 뒤 24시간(주말·공휴일 빼고)'까지 뜸(10/18 결정)
+   · 1.3.25(주인 11/06): 팀장 PC가 '팀장'으로 보낸 기록(태그 여러 개일 때)을 [팀 기록]에서 팀장 이름 줄로 보이게 — team.get이 leadName을 줌
+            (관리 [팀 기록]에서 고른 이름 lead.set › 팀장 PC가 다른 PC 없이 혼자 쓴 이름 중 가장 많이 쓴 이름 › 게시판 댓글 이름이 명단에 있을 때). 숫자 합치기는 검색기 웹이 함
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.24';
+var TEAM_VERSION = '1.3.25';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -84,7 +86,8 @@ function handle_(req) {
   if (a === 'hold.get') return { ok: true, list: holdGet_(req.name) };
   if (a === 'rec.get') return recGet_(req.k);
   if (a === 'cases.get') return { ok: true, list: casesGet_(), now: Date.now() };
-  if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), mixed: mixedGet_(), now: Date.now() };
+  if (a === 'team.get') return { ok: true, live: teamLive_(), lead: leadLive_(), days: teamDays_(Number(req.days) || 14), mixed: mixedGet_(), leadName: leadName_(), now: Date.now() };
+  if (a === 'lead.set') return isAdmin_(req.adminToken) ? withLock_(function () { var st = settings_(), n = person_(req.name || ''); if (n === '팀장') n = ''; st.leadPick = n; writeJson_('settings.json', st); return { ok: true, leadName: leadName_() }; }) : { ok: false, error: '관리자만 할 수 있어요' };
   if (a === 'team.reday') return isAdmin_(req.adminToken) ? withLock_(function () { return teamReday_(req); }) : { ok: false, error: '관리자만 할 수 있어요' };
   if (a === 'admin.check') return { ok: true, admin: isAdmin_(req.adminToken) };
   if (a === 'board.uncomment') return withLock_(function () { return boardUncomment_(req); });
@@ -641,11 +644,24 @@ function leadMix_(who, pc) {
   if (!lead[pc] || now - lead[pc] > LEAD_PC_DAYS * 864e5) return false;
   var m = jget_(cache, 'pcs:' + who) || {};
   var other = Object.keys(m).some(function (p) { return p !== pc && !lead[p] && now - m[p] < 12 * 3600e3; });
-  if (!other) return false;
+  if (!other) { leadSelfAdd_(cache, who, now); return false; }
   // 관리 화면 알림(오늘만 · 이름마다 마지막 시각)
   var mx = jget_(cache, 'mixed') || {}, day = dayKey_(now); if (mx.day !== day) mx = { day: day, list: {} };
   if (!mx.list[who] || now - mx.list[who].at > 60e3) { mx.list[who] = { at: now, first: (mx.list[who] || {}).first || now }; cache.put('mixed', JSON.stringify(mx), 21600); }
   return true;
+}
+// 1.3.25 팀장 이름: 팀장 PC가 다른 PC 없이 혼자 쓴 이름을 한 시간에 한 번 셈 → 가장 많이 쓴 이름
+function leadSelfAdd_(cache, who, now) {
+  var k = 'lsh:' + who + ':' + Math.floor(now / 3600e3); if (cache.get(k)) return; cache.put(k, '1', 3700);
+  withLock_(function () { var st = settings_(), m = st.leadSelfN && typeof st.leadSelfN === 'object' ? st.leadSelfN : {}; m[who] = (Number(m[who]) || 0) + 1; st.leadSelfN = m; writeJson_('settings.json', st); return { ok: true }; });
+}
+function leadName_() {
+  var st = settings_(), m = st.leadSelfN && typeof st.leadSelfN === 'object' ? st.leadSelfN : {}, best = '';
+  if (st.leadPick) return String(st.leadPick); // 관리 [팀 기록]에서 고른 이름
+  Object.keys(m).forEach(function (n) { if (n && n !== '팀장' && (!best || m[n] > m[best])) best = n; });
+  if (best) return best;
+  var n = person_(st.leadName || ''); if (n && (st.roster || []).some(function (r) { return r && r.name === n; })) return n;
+  return '';
 }
 function mixedGet_() { var mx = jget_(CacheService.getScriptCache(), 'mixed'); if (!mx || mx.day !== dayKey_()) return []; return Object.keys(mx.list || {}).map(function (n) { return { name: n, first: mx.list[n].first, at: mx.list[n].at }; }); }
 // 1.3.22 [오늘 숫자 다시 받기]: 그 사람의 오늘 하루 숫자(team.json · qa.json)를 비우고 그 사람 PC가 다음 박동에 보내는 숫자로 다시 채움
