@@ -16,7 +16,8 @@
   var DEF = { wRph: 30, wRsp: 25, wDpd: 20, wLate: 20, wOt: 5, lateStep: 1, hardStep: 3, hardMax: 5, qWi: -3, qWp: -3, qNt: -2, qPq: -1, tie: 3, gA: 85, gB: 70 };
   var CFG_LABEL = [['wRph', '시간당 기록 배점'], ['wRsp', '시간당 응대 배점'], ['wDpd', '하루 평균 기록 배점'], ['wLate', '기다리게 한 정도 배점'], ['wOt', 'OT 기여 배점'], ['lateStep', '20분 넘김 1%마다 감점'], ['hardStep', '어려운 상담: 팀보다 10%p마다 기록 +%'], ['hardMax', '어려운 상담: 최대 +%'], ['qWi', 'QA 오안내 1건'], ['qWp', 'QA 오처리 1건'], ['qNt', 'QA 공지 미반영 1건'], ['qPq', 'QA 응대 미흡 1건'], ['tie', '공동 추천: 몇 점 차이 안'], ['gA', 'A 등급: 몇 점부터'], ['gB', 'B 등급: 몇 점부터']];
   // 2026-11-06 QA 감점 종류(팀 서버 1.3.26 INC_QA와 같은 키) · 배점 키 · 색(m = 노랑)
-  var QT = [['wi', '오안내', 'qWi', ''], ['wp', '오처리', 'qWp', ''], ['nt', '공지 미반영', 'qNt', ''], ['pq', '응대 미흡', 'qPq', ' m']], QTN = {}; QT.forEach(function (q) { QTN[q[0]] = q; });
+  // 2026-11-06 '제안'(주인): 감점이 아닌 아쉬운 점 · 0점 · 5번째 칸 1 = 점수 없음
+  var QT = [['wi', '오안내', 'qWi', ''], ['wp', '오처리', 'qWp', ''], ['nt', '공지 미반영', 'qNt', ''], ['pq', '응대 미흡', 'qPq', ' m'], ['sg', '제안', 'qSg', ' s', 1]], QTN = {}; QT.forEach(function (q) { QTN[q[0]] = q; });
   var HOLD_NOTE = '보류를 누르면 그 고객의 기다린 시간이 멈춰서 20분 넘김에 안 잡혀요. 참고하세요.';
   function isHard(c) { return HARD.test(String(c || '')); }
   function num(v) { v = Number(v); return isFinite(v) ? v : 0; }
@@ -174,7 +175,7 @@
       H(['등수', '상담사', '합계', '등급', '추천 제외', '시간당 기록', '시간당 응대', '하루 평균 기록', '20분 넘김(%)', '평균 대기(분)', '가장 긴 대기(분)', 'OT(시간)', '기록', '기록(참작 뒤)', '응대', '어려운 상담(%)', '어려운 상담 참작(%)', '근무일', '근무시간', '생산성 점수', 'QA 감점 건수', 'QA 감점', '메모'])] };
     R.rows.forEach(function (r) { score.rows.push([r.out.length ? '' : r.rank, r.n, r.score, r.grade, r.out.join(' / '), r2(r.rph), r2(r.rsp), r1(r.dpd), r.latePct == null ? null : r1(r.latePct * 100), r.wait == null ? null : Math.round(r.wait), Math.round(r.maxWait || 0), r1(r.ot / 60), r.rec, r1(r.wrec), r.resp, r.hardPct == null ? null : Math.round(r.hardPct * 100), r1(r.hardBonus), r.work, Math.round(r.hours), r.prod, r.qa.length + r.qaOld.er + r.qaOld.nt, Math.round(r.adj), r.in.memo || '']); });
     score.rows.push([]); score.rows.push([{ v: '배점', s: 1 }, '시간당 기록 ' + R.C.wRph + ' · 시간당 응대 ' + R.C.wRsp + ' · 하루 평균 기록 ' + R.C.wDpd + ' · 기다리게 한 정도 ' + R.C.wLate + ' · OT 기여 ' + R.C.wOt + ' (항목마다 1등이 만점)']);
-    score.rows.push([{ v: 'QA 감점', s: 1 }, QT.map(function (q) { return q[1] + ' ' + (R.C[q[2]] || 0); }).join(' · ') + ' · 합계 = 생산성 점수 + QA 감점']);
+    score.rows.push([{ v: 'QA 감점', s: 1 }, QT.filter(function (q) { return !q[4]; }).map(function (q) { return q[1] + ' ' + (R.C[q[2]] || 0); }).join(' · ') + ' · 합계 = 생산성 점수 + QA 감점']);
     score.rows.push([{ v: '참작', s: 1 }, '어려운 상담(' + HARD_LABEL + ') 비율이 팀 평균보다 10%p 높을 때마다 기록 +' + R.C.hardStep + '%, 최대 +' + R.C.hardMax + '%']);
     var daily = { name: '날짜별', freeze: 1, cols: [10, 12, 8, 8, 10, 12, 8], rows: [H(['상담사', '날짜', '기록', '응대', '답한 고객', '20분 넘김', '보류'])] };
     R.rows.forEach(function (r) { R.keys.forEach(function (d) { var v = r.o.days[d] || {}, rd = (r.o.respDay || {})[d] || {}, hold = 0, dd = (M.days || {})[d] || {}; Object.keys(dd).forEach(function (k) { if ((info.P || String)(k) === r.n) hold += num((dd[k] || {}).holds); }); if (!(v.rec || rd.resp || v.ans || v.lateN || hold)) return; daily.rows.push([r.n, d, Math.max(0, (v.rec || 0) - (v.dup || 0)), rd.resp || 0, v.ans || 0, v.lateN || 0, hold]); }); });
@@ -327,7 +328,7 @@
     return p;
   }
   function qaPt(v) { v = Math.round(v); return v < 0 ? '−' + (-v) + '점' : v + '점'; }
-  function qaBits(z) { var b = []; QT.forEach(function (q) { if (z.qaN[q[0]]) b.push(q[1] + ' ' + z.qaN[q[0]]); }); if (z.qaOld.er) b.push('숫자로 넣은 오안내·오처리 ' + z.qaOld.er); if (z.qaOld.nt) b.push('숫자로 넣은 공지 미반영 ' + z.qaOld.nt); return b; }
+  function qaBits(z) { var b = []; QT.forEach(function (q) { if (z.qaN[q[0]] && !q[4]) b.push(q[1] + ' ' + z.qaN[q[0]]); }); if (z.qaOld.er) b.push('숫자로 넣은 오안내·오처리 ' + z.qaOld.er); if (z.qaOld.nt) b.push('숫자로 넣은 공지 미반영 ' + z.qaOld.nt); return b; }
   function qaTag(t) { var q = QTN[t]; return mk('span', 'qty' + q[3], q[1]); }
   function when(t) { var x = new Date(t + 9 * 3600e3); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate() + ' ' + String(x.getUTCHours()).padStart(2, '0') + ':' + String(x.getUTCMinutes()).padStart(2, '0'); }
   function qaLink(u) { var a = mk('a', 'qlink', '상담 열기'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
@@ -373,7 +374,7 @@
       var d = mk('details', 'qacc'), sm = mk('summary'), bits = qaBits(z), cnt = z.qa.length + z.qaOld.er + z.qaOld.nt; d.open = !!qaOpen[z.n];
       d.addEventListener('toggle', function () { qaOpen[z.n] = d.open; });
       sm.append(mk('b', null, z.n), mk('span', 'qpt' + (z.adj < 0 ? '' : ' z'), qaPt(z.adj)));
-      var chips = mk('span', 'qchips'); if (bits.length) QT.forEach(function (q) { if (z.qaN[q[0]]) chips.append(mk('span', 'qty' + q[3], q[1] + ' ' + z.qaN[q[0]])); }); else chips.append(mk('span', 'muted', '감점 없어요 ✓'));
+      var chips = mk('span', 'qchips'); QT.forEach(function (q) { if (z.qaN[q[0]]) chips.append(mk('span', 'qty' + q[3], q[1] + ' ' + z.qaN[q[0]])); }); if (!bits.length) chips.append(mk('span', 'muted', '감점 없어요 ✓'));
       if (z.qaOld.er || z.qaOld.nt) chips.append(mk('span', 'qty', '숫자로 넣은 ' + (z.qaOld.er + z.qaOld.nt)));
       sm.append(chips, mk('span', 'muted', cnt + '건')); d.append(sm);
       var bd = mk('div', 'qbd');
@@ -384,9 +385,9 @@
           c3.append(e.memo || '–'); if (e.fix) c3.append(mk('div', 'qfix', '→ ' + e.fix));
           if (e.ack) c6.append(mk('span', 'qst r', '✓ 확인 ' + when(e.ack))); else if (e.sent) c6.append(mk('span', 'qst s', '보냄 ' + when(e.sent) + ' · 아직 확인 전'));
           else { var sb = btn('보내기', 'primary sm qsend', async function () { if (!confirm(z.n + ' 님에게 이 피드백을 보낼까요? 검색기 [내 피드백]에 떠요.')) return; sb.disabled = true; try { await setInc({ qa: { send: e.id } }); say('보냈어요', 'ok'); st.again(); } catch (er) { say(er.message, 'err'); sb.disabled = false; } }); c6.append(sb); }
-          var del = btn('지우기', 'ghost sm', async function () { if (!confirm(z.n + ' · ' + md(e.d) + ' ' + QTN[e.t][1] + ' 감점을 지울까요?' + (e.sent ? ' 상담사 [내 피드백]에서도 빠져요.' : ''))) return; del.disabled = true; try { await setInc({ qa: { del: e.id } }); say('지웠어요', 'ok'); st.again(); } catch (er) { say(er.message, 'err'); del.disabled = false; } });
+          var del = btn('지우기', 'ghost sm', async function () { if (!confirm(z.n + ' · ' + md(e.d) + ' ' + QTN[e.t][1] + (QTN[e.t][4] ? ' 제안을' : ' 감점을') + ' 지울까요?' + (e.sent ? ' 상담사 [내 피드백]에서도 빠져요.' : ''))) return; del.disabled = true; try { await setInc({ qa: { del: e.id } }); say('지웠어요', 'ok'); st.again(); } catch (er) { say(er.message, 'err'); del.disabled = false; } });
           c4.append(del);
-          t.append(mk('td', null, md(e.d)), c1, mk('td', 'minus', qaPt(C[QTN[e.t][2]] || 0)), c3, c5, c6, c4); tb.append(t);
+          t.append(mk('td', null, md(e.d)), c1, QTN[e.t][4] ? mk('td', 'muted', '–') : mk('td', 'minus', qaPt(C[QTN[e.t][2]] || 0)), c3, c5, c6, c4); tb.append(t);
         });
         var tw = mk('div', 'twrap'); tw.append(tb); bd.append(tw);
       } else bd.append(mk('div', 'note', '적은 감점이 없어요.'));
@@ -394,22 +395,23 @@
       // 바로 추가
       var f = mk('div', 'qadd'), di = mk('input'), ts = mk('select'), ui = mk('input'), mi = mk('textarea'), fi = mk('textarea');
       di.type = 'date'; di.value = defD; di.setAttribute('aria-label', z.n + ' 날짜');
-      var o0 = mk('option', null, '종류 고르기'); o0.value = ''; ts.append(o0); QT.forEach(function (q) { var o = mk('option', null, q[1] + ' (' + (C[q[2]] || 0) + ')'); o.value = q[0]; ts.append(o); }); ts.setAttribute('aria-label', z.n + ' 종류');
+      var o0 = mk('option', null, '종류 고르기'); o0.value = ''; ts.append(o0); QT.forEach(function (q) { var o = mk('option', null, q[1] + (q[4] ? ' (감점 없음)' : ' (' + (C[q[2]] || 0) + ')')); o.value = q[0]; ts.append(o); }); ts.setAttribute('aria-label', z.n + ' 종류');
       ui.type = 'url'; ui.placeholder = '상담 링크 (https://…)'; ui.maxLength = 300; ui.setAttribute('aria-label', z.n + ' 상담 링크');
       mi.maxLength = 200; mi.placeholder = '고객 이름·전화번호는 적지 마세요'; mi.setAttribute('aria-label', z.n + ' 무엇이 틀렸나');
       fi.maxLength = 200; fi.placeholder = '예: 단순 변심 반품은 받은 날부터 7일로 안내'; fi.setAttribute('aria-label', z.n + ' 이렇게 했어야 해요');
       var go = async function (send, b) {
         if (!di.value || !ts.value) { say('날짜와 종류를 골라 주세요', 'err'); return; }
-        if (send && !mi.value.trim()) { say('상담사에게 보낼 때는 무엇이 틀렸나를 적어 주세요', 'err'); return; }
+        if (send && !mi.value.trim()) { say('상담사에게 보낼 때는 ' + (QTN[ts.value][4] ? '아쉬웠던 점' : '무엇이 틀렸나') + '을 적어 주세요', 'err'); return; }
         add.disabled = addS.disabled = true; qaOpen[z.n] = true;
         try { await setInc({ qa: { add: { n: z.n, d: di.value, t: ts.value, u: ui.value.trim(), memo: mi.value.trim(), fix: fi.value.trim(), send: !!send } } }); say((di.value.slice(0, 7) === month ? '' : Number(di.value.slice(5, 7)) + '월 기록에 ') + (send ? '추가하고 ' + z.n + ' 님에게 보냈어요' : '추가했어요'), 'ok'); st.again(); } catch (er) { say(er.message, 'err'); add.disabled = addS.disabled = false; }
       };
       var add = btn('추가만', 'ghost sm qonly', function () { go(false); }), addS = btn('추가 후 상담사에게 보내기', 'primary sm qaddsend', function () { go(true); });
-      var two = mk('div', 'qtwo'), l1 = mk('label'), l2 = mk('label'); l1.append(mk('span', null, '무엇이 틀렸나'), mi); l2.append(mk('span', null, '이렇게 했어야 해요 (상담사에게 같이 가요)'), fi); two.append(l1, l2);
+      var two = mk('div', 'qtwo'), l1 = mk('label'), l2 = mk('label'), s1 = mk('span', null, '무엇이 틀렸나'), s2 = mk('span', null, '이렇게 했어야 해요 (상담사에게 같이 가요)'); l1.append(s1, mi); l2.append(s2, fi); two.append(l1, l2);
+      ts.addEventListener('change', function () { var fr = QTN[ts.value] && QTN[ts.value][4]; s1.textContent = fr ? '아쉬웠던 점' : '무엇이 틀렸나'; s2.textContent = (fr ? '이렇게 하면 더 좋아요' : '이렇게 했어야 해요') + ' (상담사에게 같이 가요)'; fi.placeholder = fr ? '예: 교환 안내 때 접수 링크를 같이 보내면 고객이 덜 헤매요' : '예: 단순 변심 반품은 받은 날부터 7일로 안내'; });
       var acts = mk('div', 'qacts'); acts.append(add, addS);
       f.append(di, ts, ui); bd.append(f, two, acts); d.append(bd); accs.push(d); p.append(d);
     });
-    p.append(mk('p', 'note', '감점이 많은 사람부터 보여요 · 보낸 건만 상담사 검색기 [내 피드백]에 떠요(점수는 안 보여요) · ' + QT.map(function (q) { return q[1] + ' ' + qaPt(C[q[2]] || 0); }).join(' · ') + ' · 추천에서 빼지는 않아요 · 그 건의 날짜가 속한 달에 들어가요'));
+    p.append(mk('p', 'note', '감점이 많은 사람부터 보여요 · 보낸 건만 상담사 검색기 [내 피드백]에 떠요(점수는 안 보여요) · ' + QT.map(function (q) { return q[1] + ' ' + (q[4] ? '감점 없음' : qaPt(C[q[2]] || 0)); }).join(' · ') + ' · 추천에서 빼지는 않아요 · 그 건의 날짜가 속한 달에 들어가요'));
     return p;
   }
   function cfgPanel(R, st) {
@@ -436,18 +438,18 @@
   // 면담 화면 '근거: QA 감점' 칸: 고른 기간(keys) 안의 그 사람 건만 · 관리 열쇠가 있을 때만
   async function qaEvidence(who, keys) {
     var inc = await getInc(), C = cfgOf(inc), P = T().person, ks = {}, out = []; keys.forEach(function (k) { ks[k] = 1; });
-    Object.keys(inc.months || {}).forEach(function (m) { (inc.months[m].qa || []).forEach(function (e) { if (e && QTN[e.t] && ks[e.d] && P(e.n) === who) out.push({ d: e.d, t: e.t, label: QTN[e.t][1], m: QTN[e.t][3], pt: C[QTN[e.t][2]] || 0, u: e.u || '', memo: e.memo || '', fix: e.fix || '', sent: e.sent || 0, ack: e.ack || 0, at: e.at || 0 }); }); });
+    Object.keys(inc.months || {}).forEach(function (m) { (inc.months[m].qa || []).forEach(function (e) { if (e && QTN[e.t] && ks[e.d] && P(e.n) === who) out.push({ d: e.d, t: e.t, label: QTN[e.t][1], m: QTN[e.t][3], free: !!QTN[e.t][4], pt: C[QTN[e.t][2]] || 0, u: e.u || '', memo: e.memo || '', fix: e.fix || '', sent: e.sent || 0, ack: e.ack || 0, at: e.at || 0 }); }); });
     return out.sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : b.at - a.at; });
   }
   async function qaLine(who, keys, el) {
     try {
       if (!root.CSTeam || !CSTeam.ready() || !keys || !keys.length) return;
-      var L = await qaEvidence(who, keys), tot = L.reduce(function (s2, e) { return s2 + e.pt; }, 0);
+      var L = await qaEvidence(who, keys), tot = L.reduce(function (s2, e) { return s2 + e.pt; }, 0), nP = L.filter(function (e) { return !e.free; }).length, nS = L.length - nP;
       el.replaceChildren(); el.hidden = false;
-      var hh = mk('div', 'tph'); hh.append(mk('b', null, L.length ? '근거: QA 감점 ' + L.length + '건 (' + qaPt(tot) + ')' : '근거: QA 감점 없어요 ✓'), mk('span', 'muted', '고른 기간 안의 건 · 상담 링크로 같이 열어 봐요')); el.append(hh);
+      var hh = mk('div', 'tph'); hh.append(mk('b', null, (nP ? '근거: QA 감점 ' + nP + '건 (' + qaPt(tot) + ')' : '근거: QA 감점 없어요 ✓') + (nS ? ' · 제안 ' + nS + '건' : '')), mk('span', 'muted', '고른 기간 안의 건 · 상담 링크로 같이 열어 봐요')); el.append(hh);
       if (!L.length) return;
       var tb = mk('table', 'ttable'), tr = mk('tr'); ['날짜', '종류', '감점', '무엇이 틀렸나 · 이렇게 했어야 해요', '상담', '본인 확인'].forEach(function (x) { tr.append(mk('th', null, x)); }); tb.append(tr);
-      L.forEach(function (e) { var t = mk('tr'), c1 = mk('td'), c3 = mk('td', 'qmemo'), c5 = mk('td'); c1.append(qaTag(e.t)); if (e.u) c5.append(qaLink(e.u)); else c5.append('–'); c3.append(e.memo || '–'); if (e.fix) c3.append(mk('div', 'qfix', '→ ' + e.fix)); t.append(mk('td', null, md(e.d)), c1, mk('td', 'minus', qaPt(e.pt)), c3, c5, mk('td', e.ack ? 'qst r' : 'qst s', e.ack ? '✓ ' + when(e.ack) : e.sent ? '아직 확인 전' : '안 보냄')); tb.append(t); });
+      L.forEach(function (e) { var t = mk('tr'), c1 = mk('td'), c3 = mk('td', 'qmemo'), c5 = mk('td'); c1.append(qaTag(e.t)); if (e.u) c5.append(qaLink(e.u)); else c5.append('–'); c3.append(e.memo || '–'); if (e.fix) c3.append(mk('div', 'qfix', '→ ' + e.fix)); t.append(mk('td', null, md(e.d)), c1, e.free ? mk('td', 'muted', '–') : mk('td', 'minus', qaPt(e.pt)), c3, c5, mk('td', e.ack ? 'qst r' : 'qst s', e.ack ? '✓ ' + when(e.ack) : e.sent ? '아직 확인 전' : '안 보냄')); tb.append(t); });
       var tw = mk('div', 'twrap'); tw.append(tb); el.append(tw);
     } catch (e) { /* 관리 열쇠가 없거나 팀 서버가 예전 판이면 칸을 안 띄움 */ }
   }

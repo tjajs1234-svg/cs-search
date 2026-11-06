@@ -572,3 +572,5 @@ button.wsr:hover{background:var(--surface2)}
 .fblk{margin-top:8px;font-size:13px}
 .fbpopd{width:min(560px,calc(100vw - 32px))}
 .fbpopd .fbcard{margin-top:10px}
+.fbty.s{background:var(--accent-soft);color:var(--accent)}
+.fbwrong.s .l{color:var(--accent)}

@@ -1,13 +1,13 @@
 /* 검색기 [내 피드백] 탭(2026-11-06 주인): 관리 화면 [이달의 상담사] QA 감점 기록에서 '상담사에게 보내기'를 누른 건만 그 상담사에게
    · 본인 것만(검색기가 아는 이 PC 이름으로 팀 서버 fb.get) · 이번 달 · 지난달
-   · 날짜 · 종류 · 무엇이 틀렸나 · 이렇게 했어야 해요 · [상담 열기] · [확인했어요](fb.ack — 확인 시각이 관리 화면 · 면담 화면에 남음)
+   · 날짜 · 종류 · 무엇이 틀렸나 · 이렇게 했어야 해요(제안은 아쉬웠던 점 · 이렇게 하면 더 좋아요) · [상담 열기] · [확인했어요](fb.ack — 확인 시각이 관리 화면 · 면담 화면에 남음)
    · 점수(−3점)는 안 보임(주인 11/01: 인센티브 기준을 상담사에게 숨김) · 상담사 화면이라 '팀장' 말을 쓰지 않음
    · 새 피드백이 오면 1분 안에 이 PC에만 창이 뜸: [네, 확인했어요]를 눌러야 닫힘 · [내 피드백에서 볼게요]는 탭으로 가고 1시간 뒤 다시 뜸
      입력 중이거나 다른 확인 창(공지 · 한줄평)이 떠 있으면 기다림 · 검색기 웹 안에서만 뜸
    · 자료: 팀 서버 1.3.26 fb.get · fb.ack(예전 판이면 탭에 '팀 서버 새 판이 필요해요') · 고객 이름·내용은 안 다룸 */
 (function (root) {
   'use strict';
-  var TYPES = { wi: ['오안내', ''], wp: ['오처리', ''], nt: ['공지 미반영', ''], pq: ['응대 미흡', ' m'] };
+  var TYPES = { wi: ['오안내', ''], wp: ['오처리', ''], nt: ['공지 미반영', ''], pq: ['응대 미흡', ' m'], sg: ['제안', ' s', 1] }; // 2026-11-06 제안: 틀린 건 아니고 이렇게 하면 더 좋음
   var SNOOZE = 'csx:fbLater', list = null, err = '', at = 0, month = 'this', timer = 0, popOpen = null, lastKey = 0, loading = null, shown = false;
   function $(id) { return document.getElementById(id); }
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
@@ -38,8 +38,8 @@
   function typeTag(t) { var x = TYPES[t] || ['피드백', '']; return el('span', 'fbty' + x[1], x[0]); }
   function link(u) { var a = el('a', 'fblink', '상담 열기 ↗'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
   function body(x) {
-    var f = document.createDocumentFragment(), w = el('div', 'fbwrong'); w.append(el('span', 'l', '무엇이 틀렸나'), el('span', null, x.memo || '–')); f.append(w);
-    if (x.fix) { var g = el('div', 'fbfix'); g.append(el('span', 'l', '이렇게 했어야 해요'), el('span', null, x.fix)); f.append(g); }
+    var fr = (TYPES[x.t] || [])[2], f = document.createDocumentFragment(), w = el('div', 'fbwrong' + (fr ? ' s' : '')); w.append(el('span', 'l', fr ? '아쉬웠던 점' : '무엇이 틀렸나'), el('span', null, x.memo || '–')); f.append(w);
+    if (x.fix) { var g = el('div', 'fbfix'); g.append(el('span', 'l', fr ? '이렇게 하면 더 좋아요' : '이렇게 했어야 해요'), el('span', null, x.fix)); f.append(g); }
     return f;
   }
   async function ack(x, b) {

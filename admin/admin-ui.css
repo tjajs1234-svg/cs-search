@@ -404,3 +404,4 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .qst{font-size:12px;font-weight:700;white-space:nowrap}.qst.s{color:var(--warning)}.qst.r{color:var(--success)}
 @media (max-width:900px){.iqa .qtwo{grid-template-columns:1fr}}
 .iqa .ttable th,.iqa .ttable td,.tqa .ttable th,.tqa .ttable td{text-align:left}
+.qty.s{background:var(--accent-soft);color:var(--accent)}
