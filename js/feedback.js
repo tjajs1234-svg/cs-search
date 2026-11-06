@@ -1,5 +1,5 @@
 /* 검색기 [내 피드백] 탭(2026-11-06 주인): 관리 화면 [이달의 상담사] QA 감점 기록에서 '상담사에게 보내기'를 누른 건만 그 상담사에게
-   · 본인 것만(검색기가 아는 이 PC 이름으로 팀 서버 fb.get) · 이번 달 · 지난달
+   · 본인 것만(검색기가 아는 이 PC 이름으로 팀 서버 fb.get) · 오늘 · 이번 주 · 이번 달 · 지난달 · 미확인 / 확인 완료(주인 11/06)
    · 날짜 · 종류 · 무엇이 틀렸나 · 이렇게 했어야 해요(제안은 아쉬웠던 점 · 이렇게 하면 더 좋아요) · [상담 열기] · [확인했어요](fb.ack — 확인 시각이 관리 화면 · 면담 화면에 남음)
    · 점수(−3점)는 안 보임(주인 11/01: 인센티브 기준을 상담사에게 숨김) · 상담사 화면이라 '팀장' 말을 쓰지 않음
    · 새 피드백이 오면 1분 안에 이 PC에만 창이 뜸: [네, 확인했어요]를 눌러야 닫힘 · [내 피드백에서 볼게요]는 탭으로 가고 1시간 뒤 다시 뜸
@@ -8,7 +8,7 @@
 (function (root) {
   'use strict';
   var TYPES = { wi: ['오안내', ''], wp: ['오처리', ''], nt: ['공지 미반영', ''], pq: ['응대 미흡', ' m'], sg: ['제안', ' s', 1] }; // 2026-11-06 제안: 틀린 건 아니고 이렇게 하면 더 좋음
-  var SNOOZE = 'csx:fbLater', list = null, err = '', at = 0, month = 'this', timer = 0, popOpen = null, lastKey = 0, loading = null, shown = false;
+  var SNOOZE = 'csx:fbLater', list = null, err = '', at = 0, month = 'month', ackTab = 'un', timer = 0, popOpen = null, lastKey = 0, loading = null, shown = false;
   function $(id) { return document.getElementById(id); }
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function name() { try { return root.CSWho ? String(CSWho.name() || '').trim() : ''; } catch (e) { return ''; } }
@@ -48,24 +48,38 @@
     catch (e) { if (b) b.disabled = false; if (root.alert) alert('확인을 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요.\n' + (e.message || '')); return false; }
   }
 
+  // 2026-11-06 주인: 기간(오늘 · 이번 주 · 이번 달 · 지난달) + 미확인 / 확인 완료 두 칸
+  var PER = [['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['last', '지난달']], ACKS = [['un', '미확인'], ['ok', '확인 완료']];
+  function todayKey() { return kst(Date.now()).toISOString().slice(0, 10); }
+  function inPer(d, p) {
+    var td = todayKey();
+    if (p === 'today') return d === td;
+    if (p === 'week') { var t = new Date(td + 'T00:00:00Z'), mon = new Date(t.getTime() - ((t.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10); return d >= mon && d <= td; }
+    if (p === 'last') return d.slice(0, 7) === ym(-1);
+    return d.slice(0, 7) === ym(0);
+  }
   function render() {
     var L = $('fbList'); if (!L) return; L.replaceChildren();
-    var n = short(name()), m = month === 'this' ? ym(0) : ym(-1), head = el('div', 'bhead fbhead'), h2 = el('h2', null, '내 피드백 · ' + Number(m.slice(5)) + '월');
-    var sw = el('div', 'fbsw');
-    [['this', '이번 달'], ['last', '지난달']].forEach(function (o) { var b = el('button', month === o[0] ? 'on' : null, o[1]); b.type = 'button'; b.addEventListener('click', function () { month = o[0]; render(); }); sw.append(b); });
+    if (!PER.some(function (o) { return o[0] === month; })) month = 'month';
+    var n = short(name()), pl = PER.filter(function (o) { return o[0] === month; })[0][1], head = el('div', 'bhead fbhead'), h2 = el('h2', null, '내 피드백');
+    var sw = el('div', 'fbsw fbper');
+    PER.forEach(function (o) { var b = el('button', month === o[0] ? 'on' : null, o[1]); b.type = 'button'; b.dataset.p = o[0]; b.addEventListener('click', function () { month = o[0]; render(); }); sw.append(b); });
     var hl = el('div', 'fbhl'); hl.append(h2, el('span', 'fbme', '나에게만 보여요'), el('span', 'sp'), sw); head.append(hl);
     head.append(el('p', null, '상담을 다시 열어 보고 같은 실수가 없게 해 주세요. 확인하면 [확인했어요]를 눌러 주세요.')); L.append(head);
     if (err === 'noname') { L.append(el('div', 'empty', '이 PC 상담사 이름을 알 수 없어요.\n기록기를 켜 두거나, 요청·건의에서 이름을 한 번 적어 주세요.')); return; }
-    if (err === 'old') { L.append(el('div', 'empty', '팀 서버 새 판(1.3.26)이 올라가면 보여요.')); return; }
+    if (err === 'old') { L.append(el('div', 'empty', '팀 서버 새 판이 올라가면 보여요.')); return; }
     if (!list) { L.append(el('div', 'empty', err ? '불러오지 못했어요.\n' + err : '불러오는 중…')); return; }
     if (err) L.append(el('div', 'scope', '새로 불러오지 못해 지난번 것을 보여 줘요 · ' + err));
-    var mine = list.filter(function (x) { return x.d.slice(0, 7) === m; }), cnt = {}, un = 0;
-    mine.forEach(function (x) { cnt[x.t] = (cnt[x.t] || 0) + 1; if (!x.ack) un++; });
-    var sum = el('div', 'fbsum'); sum.append(el('span', null, (month === 'this' ? '이번 달 ' : '지난달 ') + mine.length + '건'));
+    var inP = list.filter(function (x) { return inPer(x.d, month); }), cnt = {}, un = inP.filter(function (x) { return !x.ack; }), ok = inP.filter(function (x) { return x.ack; });
+    inP.forEach(function (x) { cnt[x.t] = (cnt[x.t] || 0) + 1; });
+    // 미확인 / 확인 완료(숫자 함께)
+    var tabs = el('div', 'fbtabs'); tabs.setAttribute('role', 'tablist');
+    ACKS.forEach(function (o) { var c = o[0] === 'un' ? un.length : ok.length, b = el('button', 'fbtab' + (ackTab === o[0] ? ' on' : '') + (o[0] === 'un' && c ? ' hot' : ''), o[1] + ' ' + c); b.type = 'button'; b.dataset.a = o[0]; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(ackTab === o[0])); b.addEventListener('click', function () { ackTab = o[0]; render(); }); tabs.append(b); });
+    var sum = el('div', 'fbsum'); sum.append(el('span', null, pl + ' ' + inP.length + '건'));
     Object.keys(TYPES).forEach(function (t) { if (cnt[t]) sum.append(el('span', null, TYPES[t][0] + ' ' + cnt[t])); });
-    if (un) sum.append(el('span', 'un', '확인 안 한 것 ' + un));
-    L.append(sum);
-    if (!mine.length) { L.append(el('div', 'empty', (n ? n + ' 님, ' : '') + (month === 'this' ? '이번 달' : '지난달') + ' 받은 피드백이 없어요 ✓')); return; }
+    L.append(tabs, sum);
+    var mine = ackTab === 'un' ? un : ok;
+    if (!mine.length) { L.append(el('div', 'empty', !inP.length ? (n ? n + ' 님, ' : '') + pl + ' 받은 피드백이 없어요 ✓' : ackTab === 'un' ? pl + ' 확인 안 한 피드백이 없어요 ✓' : pl + ' 확인한 피드백이 아직 없어요')); return; }
     var wrap = el('div', 'fbcards');
     mine.forEach(function (x) {
       var c = el('div', 'fbcard' + (x.ack ? '' : ' new')), top = el('div', 'fbtop'); top.append(el('span', 'd', md(x.d)), typeTag(x.t), el('span', 'sp'));
