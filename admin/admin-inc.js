@@ -3,7 +3,8 @@
    · 점수(주인이 34개 중 고름): 시간당 기록 · 시간당 응대(동시 진행) · 하루 평균 기록 · 기다리게 한 정도(20분 넘김 · 평균 · 가장 길게) · OT 기여
    · 참작: 어려운 상담(교환/반품 · 고장/불량 · A/S · 불만)이 팀 평균보다 많으면 기록을 조금 더 쳐 줌 — 한도 있음(간단한 문의를 어렵게 분류했을 수 있어서)
    · 확인할 것(점수엔 안 넣음): 오래 남은 상담(링크 · 언제부터 언제까지) · 같은 고객 다시 기록 · 보류 · 남이 답한 고객 기록
-   · 팀장 입력: 오안내·오처리 · 공지 미반영 · 지각·조퇴·무단 · 메모 — 팀 서버 inc.json(관리자 열쇠로만 읽음) · 확정한 점수표도 거기에
+   · 2026-11-06 QA 감점 기록(주인): 팀장이 한 건씩 적음(날짜 · 종류 · 상담 링크 · 무엇이 틀렸나) — 오안내 −3 · 오처리 −3 · 공지 미반영 −2 · 응대 미흡 −1 ·
+     추천 제외 없음 · 지각·조퇴·무단 뺌 · 면담 화면 '근거' 칸과 엑셀 'QA 감점' 시트로 보여 줌 · 팀 서버 1.3.26 inc.json(관리자 열쇠로만) · 확정한 점수표도 거기에
    · 상담사 화면 어디에도 이 기준을 보여 주지 않음(주인: 알면 카테고리를 일부러 바꿀 수 있음)
    계산(compute)과 엑셀 만들기(xlsx)는 화면과 떼어 시험(tests/incentive.test.js)이 그대로 부름 */
 (function (root) {
@@ -12,9 +13,10 @@
   var HARD = /교환|반품|불량|고장|A\s*\/?\s*S|불만|컴플레인/i, HARD_LABEL = '교환/반품 · 고장/불량 · A/S · 불만';
   var START = '2026-11'; // 주인 11/03: 10월은 날이 적어 버리고 11월부터
   // 기본 배점(팀 서버에 저장하면 그 값을 씀 — [배점 바꾸기])
-  var DEF = { wRph: 30, wRsp: 25, wDpd: 20, wLate: 20, wOt: 5, lateStep: 1, hardStep: 3, hardMax: 5, pErr: -3, pNt: -3, pLt: -2, exEr: 3, tie: 3, gA: 85, gB: 70 };
-  var CFG_LABEL = [['wRph', '시간당 기록 배점'], ['wRsp', '시간당 응대 배점'], ['wDpd', '하루 평균 기록 배점'], ['wLate', '기다리게 한 정도 배점'], ['wOt', 'OT 기여 배점'], ['lateStep', '20분 넘김 1%마다 감점'], ['hardStep', '어려운 상담: 팀보다 10%p마다 기록 +%'], ['hardMax', '어려운 상담: 최대 +%'], ['pErr', '오안내·오처리 1건'], ['pNt', '공지 미반영 1건'], ['pLt', '지각·조퇴·무단 1건'], ['exEr', '추천 제외: 오안내·오처리 몇 건부터'], ['tie', '공동 추천: 몇 점 차이 안'], ['gA', 'A 등급: 몇 점부터'], ['gB', 'B 등급: 몇 점부터']];
-  var INPUTS = [['er', '오안내·오처리', 'pErr'], ['nt', '공지 미반영', 'pNt'], ['lt', '지각·조퇴·무단', 'pLt']];
+  var DEF = { wRph: 30, wRsp: 25, wDpd: 20, wLate: 20, wOt: 5, lateStep: 1, hardStep: 3, hardMax: 5, qWi: -3, qWp: -3, qNt: -2, qPq: -1, tie: 3, gA: 85, gB: 70 };
+  var CFG_LABEL = [['wRph', '시간당 기록 배점'], ['wRsp', '시간당 응대 배점'], ['wDpd', '하루 평균 기록 배점'], ['wLate', '기다리게 한 정도 배점'], ['wOt', 'OT 기여 배점'], ['lateStep', '20분 넘김 1%마다 감점'], ['hardStep', '어려운 상담: 팀보다 10%p마다 기록 +%'], ['hardMax', '어려운 상담: 최대 +%'], ['qWi', 'QA 오안내 1건'], ['qWp', 'QA 오처리 1건'], ['qNt', 'QA 공지 미반영 1건'], ['qPq', 'QA 응대 미흡 1건'], ['tie', '공동 추천: 몇 점 차이 안'], ['gA', 'A 등급: 몇 점부터'], ['gB', 'B 등급: 몇 점부터']];
+  // 2026-11-06 QA 감점 종류(팀 서버 1.3.26 INC_QA와 같은 키) · 배점 키 · 색(m = 노랑)
+  var QT = [['wi', '오안내', 'qWi', ''], ['wp', '오처리', 'qWp', ''], ['nt', '공지 미반영', 'qNt', ''], ['pq', '응대 미흡', 'qPq', ' m']], QTN = {}; QT.forEach(function (q) { QTN[q[0]] = q; });
   var HOLD_NOTE = '보류를 누르면 그 고객의 기다린 시간이 멈춰서 20분 넘김에 안 잡혀요. 참고하세요.';
   function isHard(c) { return HARD.test(String(c || '')); }
   function num(v) { v = Number(v); return isFinite(v) ? v : 0; }
@@ -37,7 +39,7 @@
      M: collect() 결과(people · keys · days · q · wcfg) · ext: { inc: 팀 서버 inc.json, month: 'YYYY-MM', ot: OT 목록, P: 이름 바꾸기 } */
   function compute(M, ext) {
     ext = ext || {}; var inc = ext.inc || {}, C = cfgOf(inc), month = ext.month || (M.keys[0] || '').slice(0, 7), P = ext.P || function (n) { return n; };
-    var input = ((inc.months || {})[month] || {}).people || {}, q = (M.q && M.q.days) || {}, days = M.days || {}, keys = M.keys, wcfg = M.wcfg || {};
+    var input = ((inc.months || {})[month] || {}).people || {}, qaAll = (((inc.months || {})[month] || {}).qa || []).filter(function (x) { return x && QTN[x.t]; }), q = (M.q && M.q.days) || {}, days = M.days || {}, keys = M.keys, wcfg = M.wcfg || {};
     var otMin = {}; (ext.ot || []).forEach(function (x) { if (x && x.status !== '반려' && keys.indexOf(x.date) >= 0) otMin[P(x.name)] = (otMin[P(x.name)] || 0) + num(x.mins); });
     // 사람마다 그날 보낸 방(sd) · 기록한 방(rk) · 게시판 글(bk) · 어려운 상담 표본(hs) · 오래 남은 상담(lh)
     var Q = {}; keys.forEach(function (d) { var qd = q[d] || {}; Object.keys(qd).forEach(function (k) { var n = P(k), e = qd[k] || {}, o = (Q[n] || (Q[n] = {}))[d] || (Q[n][d] = { sd: {}, rk: [], bk: [], hs: [], lh: [] }); if (e.sd && typeof e.sd === 'object') Object.keys(e.sd).forEach(function (h) { o.sd[h] = 1; }); o.rk = o.rk.concat(e.rk || []); o.bk = o.bk.concat(e.bk || []); o.hs = o.hs.concat(e.hs || []); o.lh = o.lh.concat(Array.isArray(e.lh) ? e.lh : []); }); });
@@ -81,10 +83,15 @@
       var x = r.in, part = function (v, m, w) { return v == null || !m ? 0 : w * v / m; };
       r.pts = { rph: part(r.rph, M1.rph, C.wRph), rsp: part(r.rsp, M1.rsp, C.wRsp), dpd: part(r.dpd, M1.dpd, C.wDpd), late: r.latePct == null ? 0 : Math.max(0, C.wLate - r.latePct * 100 * C.lateStep), ot: part(r.ot, M1.ot, C.wOt) };
       r.base = r.pts.rph + r.pts.rsp + r.pts.dpd + r.pts.late + r.pts.ot;
-      r.adj = num(x.er) * C.pErr + num(x.nt) * C.pNt + num(x.lt) * C.pLt;
+      // QA 감점: 적은 건(종류별 감점) + 예전에 숫자로 넣은 오안내·오처리 · 공지 미반영(사라지지 않게)
+      r.qa = qaAll.filter(function (z) { return P(z.n) === r.n; }).sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : (b.at || 0) - (a.at || 0); });
+      r.qaN = {}; r.qa.forEach(function (z) { r.qaN[z.t] = (r.qaN[z.t] || 0) + 1; });
+      r.qaOld = { er: num(x.er), nt: num(x.nt) };
+      r.adj = r.qa.reduce(function (s2, z) { return s2 + (C[QTN[z.t][2]] || 0); }, 0) + r.qaOld.er * C.qWi + r.qaOld.nt * C.qNt;
+      r.prod = Math.round(r.base);
       r.score = Math.max(0, Math.round(r.base + r.adj));
       r.grade = r.score >= C.gA ? 'A' : r.score >= C.gB ? 'B' : 'C';
-      r.out = []; if (C.exEr > 0 && num(x.er) >= C.exEr) r.out.push('오안내·오처리 ' + num(x.er) + '건'); if (maxWork && r.work * 2 < maxWork) r.out.push('근무일 ' + r.work + '일(다른 사람 절반 미만)');
+      r.out = []; if (maxWork && r.work * 2 < maxWork) r.out.push('근무일 ' + r.work + '일(다른 사람 절반 미만)');
     });
     // 확인할 것(점수엔 안 넣음) — 한 줄에 한 가지 · '~해요'
     var others = function (r, k) { return mean(rows.filter(function (z) { return z !== r && z.work; }).map(function (z) { return z[k]; })); };
@@ -164,9 +171,10 @@
     var H = function (a) { return a.map(function (v) { return { v: v, s: 2 }; }); }, mn = Number(R.month.slice(5)) + '월';
     var title = mn + ' 이달의 상담사 · ' + md(R.keys[0]) + ' ~ ' + md(R.keys[R.keys.length - 1]) + ' · ' + (info.fin ? '확정' : '확정 전') + ' · 받은 시각 ' + (info.at || '');
     var score = { name: '점수표', freeze: 2, cols: [6, 10, 7, 6, 22, 11, 11, 13, 13, 13, 13, 10, 8, 11, 8, 13, 15, 8, 10, 13, 11, 13, 13, 30], rows: [[{ v: title, s: 1 }],
-      H(['등수', '상담사', '점수', '등급', '추천 제외', '시간당 기록', '시간당 응대', '하루 평균 기록', '20분 넘김(%)', '평균 대기(분)', '가장 긴 대기(분)', 'OT(시간)', '기록', '기록(참작 뒤)', '응대', '어려운 상담(%)', '어려운 상담 참작(%)', '근무일', '근무시간', '오안내·오처리', '공지 미반영', '지각·조퇴·무단', '팀장 입력 점수', '메모'])] };
-    R.rows.forEach(function (r) { score.rows.push([r.out.length ? '' : r.rank, r.n, r.score, r.grade, r.out.join(' / '), r2(r.rph), r2(r.rsp), r1(r.dpd), r.latePct == null ? null : r1(r.latePct * 100), r.wait == null ? null : Math.round(r.wait), Math.round(r.maxWait || 0), r1(r.ot / 60), r.rec, r1(r.wrec), r.resp, r.hardPct == null ? null : Math.round(r.hardPct * 100), r1(r.hardBonus), r.work, Math.round(r.hours), num(r.in.er), num(r.in.nt), num(r.in.lt), Math.round(r.adj), r.in.memo || '']); });
+      H(['등수', '상담사', '합계', '등급', '추천 제외', '시간당 기록', '시간당 응대', '하루 평균 기록', '20분 넘김(%)', '평균 대기(분)', '가장 긴 대기(분)', 'OT(시간)', '기록', '기록(참작 뒤)', '응대', '어려운 상담(%)', '어려운 상담 참작(%)', '근무일', '근무시간', '생산성 점수', 'QA 감점 건수', 'QA 감점', '메모'])] };
+    R.rows.forEach(function (r) { score.rows.push([r.out.length ? '' : r.rank, r.n, r.score, r.grade, r.out.join(' / '), r2(r.rph), r2(r.rsp), r1(r.dpd), r.latePct == null ? null : r1(r.latePct * 100), r.wait == null ? null : Math.round(r.wait), Math.round(r.maxWait || 0), r1(r.ot / 60), r.rec, r1(r.wrec), r.resp, r.hardPct == null ? null : Math.round(r.hardPct * 100), r1(r.hardBonus), r.work, Math.round(r.hours), r.prod, r.qa.length + r.qaOld.er + r.qaOld.nt, Math.round(r.adj), r.in.memo || '']); });
     score.rows.push([]); score.rows.push([{ v: '배점', s: 1 }, '시간당 기록 ' + R.C.wRph + ' · 시간당 응대 ' + R.C.wRsp + ' · 하루 평균 기록 ' + R.C.wDpd + ' · 기다리게 한 정도 ' + R.C.wLate + ' · OT 기여 ' + R.C.wOt + ' (항목마다 1등이 만점)']);
+    score.rows.push([{ v: 'QA 감점', s: 1 }, QT.map(function (q) { return q[1] + ' ' + (R.C[q[2]] || 0); }).join(' · ') + ' · 합계 = 생산성 점수 + QA 감점']);
     score.rows.push([{ v: '참작', s: 1 }, '어려운 상담(' + HARD_LABEL + ') 비율이 팀 평균보다 10%p 높을 때마다 기록 +' + R.C.hardStep + '%, 최대 +' + R.C.hardMax + '%']);
     var daily = { name: '날짜별', freeze: 1, cols: [10, 12, 8, 8, 10, 12, 8], rows: [H(['상담사', '날짜', '기록', '응대', '답한 고객', '20분 넘김', '보류'])] };
     R.rows.forEach(function (r) { R.keys.forEach(function (d) { var v = r.o.days[d] || {}, rd = (r.o.respDay || {})[d] || {}, hold = 0, dd = (M.days || {})[d] || {}; Object.keys(dd).forEach(function (k) { if ((info.P || String)(k) === r.n) hold += num((dd[k] || {}).holds); }); if (!(v.rec || rd.resp || v.ans || v.lateN || hold)) return; daily.rows.push([r.n, d, Math.max(0, (v.rec || 0) - (v.dup || 0)), rd.resp || 0, v.ans || 0, v.lateN || 0, hold]); }); });
@@ -180,7 +188,11 @@
     var chk = { name: '확인할 것', freeze: 1, cols: [10, 60, 22, 10, 60], rows: [H(['상담사', '내용', '기간', '일수', '상담 링크'])] };
     R.rows.forEach(function (r) { r.flags.forEach(function (f) { chk.rows.push([r.n, f.t + (f.more && f.more.note ? ' ' + f.more.note : '')]); if (f.more && f.more.long) f.more.long.forEach(function (c) { chk.rows.push([r.n, '오래 남은 상담 · ' + (c.ch === 'naver' ? '톡톡' : '카톡') + (c.h ? ' 보류 탭' : ''), md(c.from) + ' ~ ' + md(c.to), c.days, c.u ? { v: c.u, s: 4 } : '']); }); }); });
     if (chk.rows.length === 1) chk.rows.push(['', '확인할 것이 없어요']);
-    return [score, daily, weekly, cats, chk];
+    var qa = { name: 'QA 감점', freeze: 1, cols: [8, 10, 12, 8, 50, 50, 50, 16], rows: [H(['날짜', '상담사', '종류', '감점', '무엇이 틀렸나', '상담 링크', '이렇게 했어야 해요', '상담사 확인'])] };
+    var qall = []; R.rows.forEach(function (r) { r.qa.forEach(function (e) { qall.push(e); }); if (r.qaOld.er) qa.rows.push(['', r.n, '오안내·오처리(숫자로 넣음)', Math.round(r.qaOld.er * R.C.qWi), r.qaOld.er + '건', '']); if (r.qaOld.nt) qa.rows.push(['', r.n, '공지 미반영(숫자로 넣음)', Math.round(r.qaOld.nt * R.C.qNt), r.qaOld.nt + '건', '']); });
+    qall.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : (a.at || 0) - (b.at || 0); }).forEach(function (e) { var q = QTN[e.t]; qa.rows.push([md(e.d), (info.P || function (n) { return n; })(e.n), q[1], R.C[q[2]] || 0, e.memo || '', e.u ? { v: e.u, s: 4 } : '', e.fix || '', e.ack ? '확인 ' + when(e.ack) : e.sent ? '보냄 · 확인 전' : '안 보냄']); });
+    if (qa.rows.length === 1) qa.rows.push(['', '', 'QA 감점이 없어요']);
+    return [score, daily, weekly, cats, chk, qa];
   }
 
   /* ───── 화면 ───── */
@@ -252,7 +264,7 @@
     // 점수표
     var sp = mk('div', 'tpanel sec'), sh = mk('div', 'tph'); sh.append(mk('b', null, '점수표'), mk('span', 'muted', '근무시간 = 출근한 날 업무시간 + OT · 항목마다 1등이 만점'), mk('span', 'sp'));
     sh.append(btn('⬇ 엑셀로 받기', 'primary sm iexcel', function () { download(R, M, { fin: fin, at: new Date().toLocaleString('ko-KR'), P: T().person }); })); sp.append(sh);
-    var tb = mk('table', 'ttable iscore'), tr = mk('tr'); ['등수', '상담사', '점수', '시간당 기록 (' + C.wRph + ')', '시간당 응대 (' + C.wRsp + ')', '하루 평균 기록 (' + C.wDpd + ')', '기다리게 한 정도 (' + C.wLate + ')', 'OT 기여 (' + C.wOt + ')', '팀장 입력'].forEach(function (h) { tr.append(mk('th', null, h)); }); tb.append(tr);
+    var tb = mk('table', 'ttable iscore'), tr = mk('tr'); ['등수', '상담사', '합계', '시간당 기록 (' + C.wRph + ')', '시간당 응대 (' + C.wRsp + ')', '하루 평균 기록 (' + C.wDpd + ')', '기다리게 한 정도 (' + C.wLate + ')', 'OT 기여 (' + C.wOt + ')', '생산성 점수', 'QA 감점'].forEach(function (h) { tr.append(mk('th', null, h)); }); tb.append(tr);
     var cell = function (big, smalls) { var c2 = mk('td'); c2.append(mk('b', null, big)); smalls.forEach(function (s) { if (s) c2.append(mk('small', s[1] || null, s[0])); }); return c2; };
     R.rows.forEach(function (z) {
       var t = mk('tr', z.out.length ? 'out' : z.rank === 1 ? 'win' : null), nm = mk('td'); nm.append(z.n + ' ', mk('span', 'grade ' + z.grade.toLowerCase(), z.grade));
@@ -262,12 +274,13 @@
       t.append(cell(z.dpd == null ? '–' : f1(z.dpd) + '건', [[f1(z.pts.dpd) + '점']]));
       t.append(cell(z.latePct == null ? '–' : '20분 넘김 ' + pc(z.latePct), [z.wait != null ? ['평균 ' + Math.round(z.wait) + '분 · 가장 길게 ' + Math.round(z.maxWait || 0) + '분'] : null, [Math.round(z.pts.late) + '점']]));
       t.append(cell(Math.round(z.ot / 60) + '시간', [[f1(z.pts.ot) + '점']]));
-      var ad = mk('td'), x = z.in, bits = []; INPUTS.forEach(function (f) { if (num(x[f[0]])) bits.push(f[1] + ' ' + num(x[f[0]])); });
-      if (bits.length) { ad.append(mk('b', z.adj < 0 ? 'minus' : 'plus', (z.adj > 0 ? '+' : '') + Math.round(z.adj) + ' '), bits.join(' · ')); } else ad.append('–');
+      var pr = mk('td'); pr.append(mk('b', null, String(z.prod))); t.append(pr);
+      var ad = mk('td'), bits = qaBits(z); if (bits.length) { ad.append(mk('b', 'minus', qaPt(z.adj))); bits.forEach(function (b) { ad.append(mk('small', null, b)); }); } else ad.append('0');
       if (z.out.length) { ad.append(mk('br')); ad.append(mk('span', 'tag', '추천 제외')); }
       t.append(ad); tb.append(t);
     });
     var tw = mk('div', 'twrap'); tw.append(tb); sp.append(tw);
+    sp.append(mk('p', 'note', '합계 = 생산성 점수(100점) + QA 감점. QA 감점은 아래 \'QA 감점 기록\'에 적은 건으로 저절로 세요.'));
     sp.append(mk('p', 'note', '어려운 상담(' + HARD_LABEL + ') 비율이 팀 평균보다 높으면 10%p마다 기록을 ' + C.hardStep + '% 더 쳐 줘요. 최대 ' + C.hardMax + '%까지예요.'));
     box.append(sp);
     // 확인할 것
@@ -284,8 +297,8 @@
     }); if (fl.length) cp.append(chk); box.append(cp);
     // 숫자(기록 · 채널 · 응대 · 문의 분류)
     box.append(numTable(R));
-    // 팀장 입력 · 배점
-    box.append(inputPanel(R, month, st), cfgPanel(R, st));
+    // QA 감점 기록 · 배점
+    box.append(qaPanel(R, month, st), cfgPanel(R, st));
     // 확정(월말)
     var can = period !== 'month' || info.canFinal || !!fin;
     var fz = mk('div', 'ins bper ifin'); fz.append(mk('span', 'muted', fin ? '확정한 점수표가 팀 서버에 있어요(' + new Date(fin.at).toLocaleString('ko-KR') + ')' : '확정하면 이 점수표가 팀 서버에 남아요'));
@@ -295,7 +308,7 @@
     box.append(fz);
     return box;
   }
-  function rowOut(r) { return { n: r.n, score: r.score, grade: r.grade, rank: r.out.length ? 0 : r.rank, out: r.out.join(', '), rph: r2(r.rph), rsp: r2(r.rsp), dpd: r1(r.dpd), late: r.latePct == null ? null : r1(r.latePct * 100), wait: r.wait == null ? null : Math.round(r.wait), ot: r1(r.ot / 60), rec: r.rec, resp: r.resp, work: r.work, hours: Math.round(r.hours), hard: r.hardPct == null ? null : Math.round(r.hardPct * 100), hardBonus: r1(r.hardBonus), adj: Math.round(r.adj), flags: r.flags.length }; }
+  function rowOut(r) { return { n: r.n, score: r.score, grade: r.grade, rank: r.out.length ? 0 : r.rank, out: r.out.join(', '), rph: r2(r.rph), rsp: r2(r.rsp), dpd: r1(r.dpd), late: r.latePct == null ? null : r1(r.latePct * 100), wait: r.wait == null ? null : Math.round(r.wait), ot: r1(r.ot / 60), rec: r.rec, resp: r.resp, work: r.work, hours: Math.round(r.hours), hard: r.hardPct == null ? null : Math.round(r.hardPct * 100), hardBonus: r1(r.hardBonus), prod: r.prod, qa: r.qa.length, adj: Math.round(r.adj), flags: r.flags.length }; }
   function numTable(R) {
     var p = mk('div', 'tpanel sec'), h = mk('div', 'tph'); h.append(mk('b', null, '숫자'), mk('span', 'muted', '같은 고객은 한 주에 1건 · 노란 칸 = 어려운 상담')); p.append(h);
     var all = {}; R.rows.forEach(function (z) { Object.keys(z.cats || {}).forEach(function (c) { all[c] = (all[c] || 0) + z.cats[c]; }); });
@@ -311,19 +324,61 @@
     if (!cl.length) p.append(mk('div', 'pnone', '문의 분류 기록이 없어요'));
     return p;
   }
-  function inputPanel(R, month, st) {
-    var p = mk('div', 'tpanel sec inp'), h = mk('div', 'tph'), fields = {}, C = R.C;
-    h.append(mk('b', null, '팀장 입력'), mk('span', 'muted', '기록기가 못 세는 것 · 상담사에게 안 보여요'), mk('span', 'sp'));
-    var save = btn('저장', 'primary sm', async function () { var people = {}; Object.keys(fields).forEach(function (n) { var o = {}; Object.keys(fields[n]).forEach(function (k) { o[k] = fields[n][k].value; }); people[n] = o; }); save.disabled = true; try { await setInc({ month: month, people: people }); say('저장했어요', 'ok'); st.again(); } catch (e) { say(e.message, 'err'); save.disabled = false; } });
-    h.append(save); p.append(h);
-    var tb = mk('table', 'ttable'), tr = mk('tr'); tr.append(mk('th', null, '상담사')); INPUTS.forEach(function (x) { tr.append(mk('th', null, x[1] + ' (' + C[x[2]] + ')')); }); tr.append(mk('th', null, '메모')); tb.append(tr);
-    R.rows.slice().sort(function (a, b) { return a.n > b.n ? 1 : -1; }).forEach(function (z) {
-      var t = mk('tr'), f = fields[z.n] = {}; t.append(mk('td', null, z.n));
-      INPUTS.forEach(function (x) { var i = mk('input'); i.type = 'number'; i.min = '0'; i.step = '1'; i.value = num(z.in[x[0]]) || 0; i.setAttribute('aria-label', z.n + ' ' + x[1]); f[x[0]] = i; var c2 = mk('td'); c2.append(i); t.append(c2); });
-      var m = mk('input', 'w'); m.maxLength = 200; m.value = z.in.memo || ''; m.placeholder = '예: 11/8 반품 접수 누락'; f.memo = m; var c3 = mk('td'); c3.append(m); t.append(c3); tb.append(t);
+  function qaPt(v) { v = Math.round(v); return v < 0 ? '−' + (-v) + '점' : v + '점'; }
+  function qaBits(z) { var b = []; QT.forEach(function (q) { if (z.qaN[q[0]]) b.push(q[1] + ' ' + z.qaN[q[0]]); }); if (z.qaOld.er) b.push('숫자로 넣은 오안내·오처리 ' + z.qaOld.er); if (z.qaOld.nt) b.push('숫자로 넣은 공지 미반영 ' + z.qaOld.nt); return b; }
+  function qaTag(t) { var q = QTN[t]; return mk('span', 'qty' + q[3], q[1]); }
+  function when(t) { var x = new Date(t + 9 * 3600e3); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate() + ' ' + String(x.getUTCHours()).padStart(2, '0') + ':' + String(x.getUTCMinutes()).padStart(2, '0'); }
+  function qaLink(u) { var a = mk('a', 'qlink', '상담 열기'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
+  // 2026-11-06 QA 감점 기록: 상담사마다 접고 펼치기(감점 많은 순) · 펼친 곳에서 바로 추가 · 지우기
+  var qaOpen = {};
+  function qaPanel(R, month, st) {
+    var p = mk('div', 'tpanel sec iqa'), h = mk('div', 'tph'), C = R.C, mn = Number(month.slice(5)) + '월';
+    var accs = [];
+    h.append(mk('b', null, 'QA 감점 기록 · ' + month.slice(0, 4) + '년 ' + mn), mk('span', 'muted', '상담사를 누르면 펼쳐져요 · 상담사 화면에는 안 보여요'), mk('span', 'sp'));
+    h.append(btn('모두 펼치기', 'ghost sm', function () { var all = accs.every(function (d) { return d.open; }); accs.forEach(function (d) { d.open = !all; }); }));
+    p.append(h);
+    var td = W.dayKey(Date.now()), defD = td.slice(0, 7) === month ? td : (month < td.slice(0, 7) ? W.addDays(W.addDays(month + '-01', 40).slice(0, 8) + '01', -1) : month + '-01');
+    R.rows.slice().sort(function (a, b) { return a.adj - b.adj || b.qa.length - a.qa.length || (a.n > b.n ? 1 : -1); }).forEach(function (z) {
+      var d = mk('details', 'qacc'), sm = mk('summary'), bits = qaBits(z), cnt = z.qa.length + z.qaOld.er + z.qaOld.nt; d.open = !!qaOpen[z.n];
+      d.addEventListener('toggle', function () { qaOpen[z.n] = d.open; });
+      sm.append(mk('b', null, z.n), mk('span', 'qpt' + (z.adj < 0 ? '' : ' z'), qaPt(z.adj)));
+      var chips = mk('span', 'qchips'); if (bits.length) QT.forEach(function (q) { if (z.qaN[q[0]]) chips.append(mk('span', 'qty' + q[3], q[1] + ' ' + z.qaN[q[0]])); }); else chips.append(mk('span', 'muted', '감점 없어요 ✓'));
+      if (z.qaOld.er || z.qaOld.nt) chips.append(mk('span', 'qty', '숫자로 넣은 ' + (z.qaOld.er + z.qaOld.nt)));
+      sm.append(chips, mk('span', 'muted', cnt + '건')); d.append(sm);
+      var bd = mk('div', 'qbd');
+      if (z.qa.length) {
+        var tb = mk('table', 'ttable'), tr = mk('tr'); ['날짜', '종류', '감점', '무엇이 틀렸나 · 이렇게 했어야 해요', '상담', '상담사에게', ''].forEach(function (x) { tr.append(mk('th', null, x)); }); tb.append(tr);
+        z.qa.forEach(function (e) {
+          var t = mk('tr'), c1 = mk('td'), c3 = mk('td', 'qmemo'), c4 = mk('td'), c5 = mk('td'), c6 = mk('td'); c1.append(qaTag(e.t)); if (e.u) c5.append(qaLink(e.u)); else c5.append('–');
+          c3.append(e.memo || '–'); if (e.fix) c3.append(mk('div', 'qfix', '→ ' + e.fix));
+          if (e.ack) c6.append(mk('span', 'qst r', '✓ 확인 ' + when(e.ack))); else if (e.sent) c6.append(mk('span', 'qst s', '보냄 ' + when(e.sent) + ' · 아직 확인 전'));
+          else { var sb = btn('보내기', 'primary sm qsend', async function () { if (!confirm(z.n + ' 님에게 이 피드백을 보낼까요? 검색기 [내 피드백]에 떠요.')) return; sb.disabled = true; try { await setInc({ qa: { send: e.id } }); say('보냈어요', 'ok'); st.again(); } catch (er) { say(er.message, 'err'); sb.disabled = false; } }); c6.append(sb); }
+          var del = btn('지우기', 'ghost sm', async function () { if (!confirm(z.n + ' · ' + md(e.d) + ' ' + QTN[e.t][1] + ' 감점을 지울까요?' + (e.sent ? ' 상담사 [내 피드백]에서도 빠져요.' : ''))) return; del.disabled = true; try { await setInc({ qa: { del: e.id } }); say('지웠어요', 'ok'); st.again(); } catch (er) { say(er.message, 'err'); del.disabled = false; } });
+          c4.append(del);
+          t.append(mk('td', null, md(e.d)), c1, mk('td', 'minus', qaPt(C[QTN[e.t][2]] || 0)), c3, c5, c6, c4); tb.append(t);
+        });
+        var tw = mk('div', 'twrap'); tw.append(tb); bd.append(tw);
+      } else bd.append(mk('div', 'note', '적은 감점이 없어요.'));
+      if (z.qaOld.er || z.qaOld.nt) bd.append(mk('div', 'note', '예전에 숫자로 넣은 것: ' + [z.qaOld.er ? '오안내·오처리 ' + z.qaOld.er + '건(' + qaPt(z.qaOld.er * C.qWi) + ')' : '', z.qaOld.nt ? '공지 미반영 ' + z.qaOld.nt + '건(' + qaPt(z.qaOld.nt * C.qNt) + ')' : ''].filter(Boolean).join(' · ')));
+      // 바로 추가
+      var f = mk('div', 'qadd'), di = mk('input'), ts = mk('select'), ui = mk('input'), mi = mk('textarea'), fi = mk('textarea');
+      di.type = 'date'; di.value = defD; di.setAttribute('aria-label', z.n + ' 날짜');
+      var o0 = mk('option', null, '종류 고르기'); o0.value = ''; ts.append(o0); QT.forEach(function (q) { var o = mk('option', null, q[1] + ' (' + (C[q[2]] || 0) + ')'); o.value = q[0]; ts.append(o); }); ts.setAttribute('aria-label', z.n + ' 종류');
+      ui.type = 'url'; ui.placeholder = '상담 링크 (https://…)'; ui.maxLength = 300; ui.setAttribute('aria-label', z.n + ' 상담 링크');
+      mi.maxLength = 200; mi.placeholder = '고객 이름·전화번호는 적지 마세요'; mi.setAttribute('aria-label', z.n + ' 무엇이 틀렸나');
+      fi.maxLength = 200; fi.placeholder = '예: 단순 변심 반품은 받은 날부터 7일로 안내'; fi.setAttribute('aria-label', z.n + ' 이렇게 했어야 해요');
+      var go = async function (send, b) {
+        if (!di.value || !ts.value) { say('날짜와 종류를 골라 주세요', 'err'); return; }
+        if (send && !mi.value.trim()) { say('상담사에게 보낼 때는 무엇이 틀렸나를 적어 주세요', 'err'); return; }
+        add.disabled = addS.disabled = true; qaOpen[z.n] = true;
+        try { await setInc({ qa: { add: { n: z.n, d: di.value, t: ts.value, u: ui.value.trim(), memo: mi.value.trim(), fix: fi.value.trim(), send: !!send } } }); say((di.value.slice(0, 7) === month ? '' : Number(di.value.slice(5, 7)) + '월 기록에 ') + (send ? '추가하고 ' + z.n + ' 님에게 보냈어요' : '추가했어요'), 'ok'); st.again(); } catch (er) { say(er.message, 'err'); add.disabled = addS.disabled = false; }
+      };
+      var add = btn('추가만', 'ghost sm qonly', function () { go(false); }), addS = btn('추가 후 상담사에게 보내기', 'primary sm qaddsend', function () { go(true); });
+      var two = mk('div', 'qtwo'), l1 = mk('label'), l2 = mk('label'); l1.append(mk('span', null, '무엇이 틀렸나'), mi); l2.append(mk('span', null, '이렇게 했어야 해요 (상담사에게 같이 가요)'), fi); two.append(l1, l2);
+      var acts = mk('div', 'qacts'); acts.append(add, addS);
+      f.append(di, ts, ui); bd.append(f, two, acts); d.append(bd); accs.push(d); p.append(d);
     });
-    var tw = mk('div', 'twrap'); tw.append(tb); p.append(tw);
-    if (C.exEr > 0) p.append(mk('p', 'note', '오안내·오처리가 ' + C.exEr + '건이면 추천에서 빠져요.'));
+    p.append(mk('p', 'note', '감점이 많은 사람부터 보여요 · 보낸 건만 상담사 검색기 [내 피드백]에 떠요(점수는 안 보여요) · ' + QT.map(function (q) { return q[1] + ' ' + qaPt(C[q[2]] || 0); }).join(' · ') + ' · 추천에서 빼지는 않아요 · 그 건의 날짜가 속한 달에 들어가요'));
     return p;
   }
   function cfgPanel(R, st) {
@@ -347,6 +402,24 @@
       document.body.append(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     } catch (e) { say('엑셀 파일을 만들지 못했어요: ' + e.message, 'err'); }
   }
-  var api = { compute: compute, render: render, pushSkip: pushSkip, pullSkip: pullSkip, monthOf: monthOf, monthInfo: monthInfo, workbook: workbook, xlsx: xlsx, DEF: DEF, START: START, period: function (p) { if (p) { period = p; picked = true; } return period; } };
+  // 면담 화면 '근거: QA 감점' 칸: 고른 기간(keys) 안의 그 사람 건만 · 관리 열쇠가 있을 때만
+  async function qaEvidence(who, keys) {
+    var inc = await getInc(), C = cfgOf(inc), P = T().person, ks = {}, out = []; keys.forEach(function (k) { ks[k] = 1; });
+    Object.keys(inc.months || {}).forEach(function (m) { (inc.months[m].qa || []).forEach(function (e) { if (e && QTN[e.t] && ks[e.d] && P(e.n) === who) out.push({ d: e.d, t: e.t, label: QTN[e.t][1], m: QTN[e.t][3], pt: C[QTN[e.t][2]] || 0, u: e.u || '', memo: e.memo || '', fix: e.fix || '', sent: e.sent || 0, ack: e.ack || 0, at: e.at || 0 }); }); });
+    return out.sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : b.at - a.at; });
+  }
+  async function qaLine(who, keys, el) {
+    try {
+      if (!root.CSTeam || !CSTeam.ready() || !keys || !keys.length) return;
+      var L = await qaEvidence(who, keys), tot = L.reduce(function (s2, e) { return s2 + e.pt; }, 0);
+      el.replaceChildren(); el.hidden = false;
+      var hh = mk('div', 'tph'); hh.append(mk('b', null, L.length ? '근거: QA 감점 ' + L.length + '건 (' + qaPt(tot) + ')' : '근거: QA 감점 없어요 ✓'), mk('span', 'muted', '고른 기간 안의 건 · 상담 링크로 같이 열어 봐요')); el.append(hh);
+      if (!L.length) return;
+      var tb = mk('table', 'ttable'), tr = mk('tr'); ['날짜', '종류', '감점', '무엇이 틀렸나 · 이렇게 했어야 해요', '상담', '본인 확인'].forEach(function (x) { tr.append(mk('th', null, x)); }); tb.append(tr);
+      L.forEach(function (e) { var t = mk('tr'), c1 = mk('td'), c3 = mk('td', 'qmemo'), c5 = mk('td'); c1.append(qaTag(e.t)); if (e.u) c5.append(qaLink(e.u)); else c5.append('–'); c3.append(e.memo || '–'); if (e.fix) c3.append(mk('div', 'qfix', '→ ' + e.fix)); t.append(mk('td', null, md(e.d)), c1, mk('td', 'minus', qaPt(e.pt)), c3, c5, mk('td', e.ack ? 'qst r' : 'qst s', e.ack ? '✓ ' + when(e.ack) : e.sent ? '아직 확인 전' : '안 보냄')); tb.append(t); });
+      var tw = mk('div', 'twrap'); tw.append(tb); el.append(tw);
+    } catch (e) { /* 관리 열쇠가 없거나 팀 서버가 예전 판이면 칸을 안 띄움 */ }
+  }
+  var api = { qaEvidence: qaEvidence, qaLine: qaLine, QT: QT, compute: compute, render: render, pushSkip: pushSkip, pullSkip: pullSkip, monthOf: monthOf, monthInfo: monthInfo, workbook: workbook, xlsx: xlsx, DEF: DEF, START: START, period: function (p) { if (p) { period = p; picked = true; } return period; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KBInc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

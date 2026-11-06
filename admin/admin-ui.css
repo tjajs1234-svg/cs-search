@@ -375,3 +375,32 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .tlead.facts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 0}
 .tleadbig .facts{display:flex;gap:8px;align-items:center;margin:6px 0}
 .tlead select{padding:6px 8px;border:1px solid #d0d5dd;border-radius:8px;font-size:13px}
+/* 2026-11-06 QA 감점 기록(이달의 상담사) · 면담 화면 근거 칸 */
+.iqa .qacc{border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:8px;overflow:hidden}
+.iqa .qacc[open]{border-color:var(--accent)}
+.iqa .qacc summary{display:grid;grid-template-columns:12px 90px 70px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 16px;cursor:pointer;list-style:none}
+.iqa .qacc summary::-webkit-details-marker{display:none}
+.iqa .qacc summary::before{content:'▶';font-size:9px;color:var(--muted)}
+.iqa .qacc[open] summary::before{content:'▼'}
+.iqa .qpt{font-weight:800;color:var(--danger);font-size:15px}.iqa .qpt.z{color:var(--muted)}
+.iqa .qchips{display:flex;gap:6px;flex-wrap:wrap}
+.iqa .qbd{border-top:1px solid var(--line);padding:10px 16px 14px;background:var(--raised)}
+.iqa .qbd .ttable{background:var(--card)}
+.iqa .qadd{display:grid;grid-template-columns:140px 140px minmax(0,1.2fr) minmax(0,1.6fr) 64px;gap:8px;margin-top:10px}
+.iqa .qadd input,.iqa .qadd select{height:32px;border:1px solid var(--line-2);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:0}
+.qty{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:1px 7px;background:var(--danger-soft,#fde8e8);color:var(--danger);white-space:nowrap}
+.qty.m{background:var(--warning-soft,#fff4d6);color:var(--warning)}
+.iqa .qmemo,.tqa .qmemo{white-space:normal;min-width:180px}
+.iqa a.qlink,.tqa a.qlink{color:var(--accent);font-weight:700;text-decoration:none}
+.tqa .minus{color:var(--danger);font-weight:800}
+.tqa .twrap{overflow-x:auto}
+@media (max-width:900px){.iqa .qadd{grid-template-columns:1fr 1fr}.iqa .qacc summary{grid-template-columns:12px 80px 60px minmax(0,1fr)}}
+.iqa .qadd{grid-template-columns:140px 150px minmax(0,1fr)!important}
+.iqa .qtwo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.iqa .qtwo label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:800;color:var(--muted)}
+.iqa .qtwo textarea{height:58px;border:1px solid var(--line-2);border-radius:7px;padding:7px 8px;font:inherit;font-size:13px;background:var(--card);color:var(--ink);resize:vertical}
+.iqa .qacts{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.qfix{font-size:12px;color:var(--success);margin-top:3px}
+.qst{font-size:12px;font-weight:700;white-space:nowrap}.qst.s{color:var(--warning)}.qst.r{color:var(--success)}
+@media (max-width:900px){.iqa .qtwo{grid-template-columns:1fr}}
+.iqa .ttable th,.iqa .ttable td,.tqa .ttable th,.tqa .ttable td{text-align:left}

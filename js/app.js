@@ -132,7 +132,7 @@
     showOnboard(false);
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
-    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); $('rankTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work' || curView === 'rank')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork(); if (CSTeam.ready() && curView === 'rank') KBTeamRec.show();
+    CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); $('rankTab').hidden = !CSTeam.ready(); $('fbTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work' || curView === 'rank' || curView === 'fb')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork(); if (CSTeam.ready() && curView === 'rank') KBTeamRec.show();
     trackChanges(); rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();
@@ -141,7 +141,7 @@
   }
 
   /* ───── 화면 전환 ───── */
-  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work', 'rank'];
+  var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work', 'rank', 'fb'];
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts'; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
@@ -154,6 +154,7 @@
     if (v === 'board') loadBoard(true); else freshNow.clear();
     if (v === 'work') { renderWork(); loadWork(); }
     if (v === 'rank') KBTeamRec.show(); else KBTeamRec.hide(); // 2026-11-01 팀 기록(오늘만)
+    if (window.KBFeedback) { if (v === 'fb') KBFeedback.show(); else KBFeedback.hide(); } // 2026-11-06 내 피드백(본인 것만)
     if (focus !== false) { var input = v === 'scripts' ? $('q') : v === 'req' ? $('rq') : v === 'defect' ? $('dq') : null; if (input) setTimeout(function () { input.focus(); }, 0); }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { setView(t.dataset.v); }); });

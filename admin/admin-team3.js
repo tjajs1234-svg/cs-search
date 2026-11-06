@@ -555,6 +555,8 @@
     op.append(grid); box.append(op);
     // 2026-11-01 공지 확인 한 줄(그 기간 공지 중 확인한 것 · 안 한 것, 확인 시각)
     var np = mk('div', 'tpanel tnotice'); np.hidden = true; box.append(np); if (T2() && T2().noticeLine) T2().noticeLine(who, M.keys, np);
+    // 2026-11-06 근거: QA 감점(팀장이 적은 건 · 상담 링크)
+    var qp = mk('div', 'tpanel tqa'); qp.hidden = true; box.append(qp); if (window.KBInc && KBInc.qaLine) KBInc.qaLine(who, M.keys, qp);
     // 참고: 완료 기록
     box.append(mk('p', 'tivref', '참고 · 완료 기록 ' + (multi ? '하루 ' + n0(o.perDay) : String(o.rec)) + '건 (다른 사람 평균 ' + (cR ? numOf(cR, cR.avg) : '–') + '). 기록은 상담이 끝나야 늘어서 비교에 쓰지 않아요.' + (o.missN ? ' 답했는데 기록 안 한 상담이 지금 ' + o.missN + '건 있어요.' : '')));
     // 예전 면담 화면은 접어 둠

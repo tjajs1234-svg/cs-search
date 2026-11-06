@@ -550,3 +550,25 @@ button.wsr:hover{background:var(--surface2)}
 .ncard .nwho .no{color:var(--danger);font-weight:800;text-align:center}
 .ncard .nwho .tm{color:var(--ink3);font-variant-numeric:tabular-nums;font-size:12.5px}
 .ncard .nwho .tm.no{color:var(--danger);font-weight:600;text-align:left}
+/* 2026-11-06 내 피드백(본인 것만) · 새 피드백 창 */
+#fbList>.bhead,#fbList>.fbsum,#fbList>.fbcards,#fbList>.empty,#fbList>.scope{max-width:1000px}
+.fbhl{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.fbhl .sp{flex:1}
+.fbme{font-size:13px;color:var(--ink3)}
+.fbsw{display:flex;gap:6px}.fbsw button{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}
+.fbsw button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+.fbsum{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.fbsum span{font-size:13px;border:1px solid var(--line2);border-radius:99px;padding:4px 12px;color:var(--ink2)}.fbsum span.un{color:var(--accent);border-color:var(--accent-line)}
+.fbcards{display:flex;flex-direction:column;gap:10px}
+.fbcard{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface)}
+.fbcard.new{border-color:var(--accent-line);background:var(--accent-soft)}
+.fbtop{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink2);margin-bottom:8px;flex-wrap:wrap}.fbtop .sp{flex:1}
+.fbty{font-size:12px;font-weight:800;border-radius:6px;padding:1px 8px;background:var(--danger-soft);color:var(--danger)}
+.fbty.m{background:var(--warn-soft);color:var(--warn)}
+.fbwrong,.fbfix{font-size:14.5px;line-height:1.6;color:var(--ink)}
+.fbwrong .l,.fbfix .l{display:block;font-size:12px;font-weight:800;margin-bottom:2px}.fbwrong .l{color:var(--danger)}
+.fbfix{margin-top:8px;border-left:3px solid var(--good);background:var(--good-soft);border-radius:8px;padding:8px 12px}.fbfix .l{color:var(--good)}
+.fblink{font-weight:700;color:var(--accent);text-decoration:none;margin-right:6px}
+.fbok{color:var(--good);font-weight:700;font-size:13px}
+.fblk{margin-top:8px;font-size:13px}
+.fbpopd{width:min(560px,calc(100vw - 32px))}
+.fbpopd .fbcard{margin-top:10px}
