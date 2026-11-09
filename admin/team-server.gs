@@ -49,6 +49,7 @@
             기록 창 '이미 기록된 상담' 알림이 '오늘'만이 아니라 '마지막 기록 뒤 24시간(주말·공휴일 빼고)'까지 뜸(10/18 결정)
    · 1.3.25(주인 11/06): 팀장 PC가 '팀장'으로 보낸 기록(태그 여러 개일 때)을 [팀 기록]에서 팀장 이름 줄로 보이게 — team.get이 leadName을 줌
             (관리 [팀 기록]에서 고른 이름 lead.set › 팀장 PC가 다른 PC 없이 혼자 쓴 이름 중 가장 많이 쓴 이름 › 게시판 댓글 이름이 명단에 있을 때). 숫자 합치기는 검색기 웹이 함
+   · 1.3.28(주인 11/09): QA 피드백 두 칸 200자 → 1,000자(넘치면 몰래 자르지 않고 오류로 돌려보냄)
    · 1.3.27(주인 11/06): QA 피드백 종류에 '제안'(sg · 감점 없음 · 아쉬웠던 점 / 이렇게 하면 더 좋아요)
    · 1.3.26(주인 11/06): 이달의 상담사 'QA 감점 기록' — 팀장이 한 건씩 적는 감점(날짜 · 종류 오안내/오처리/공지 미반영/응대 미흡 ·
             상담 링크 · 무엇이 틀렸나 한 줄)을 inc.json 그 날짜의 달에 저장 · 지우기(inc.set qa: {add} / {del}) · 관리 열쇠로만 · 개수 제한 없음(한 달 2,000건까지)
@@ -56,7 +57,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.27';
+var TEAM_VERSION = '1.3.28';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -753,6 +754,7 @@ function qaOk_(req) {
    inc.json = { cfg: 배점·감점·제외 기준, months: { 'YYYY-MM': { people: { 이름: 팀장 입력 }, final: 확정한 점수표 } }, skip: 팀장 [빼기] }
    배점 숫자는 코드(공개 저장소)에 안 남기고 여기에만 둠 · 관리자 열쇠가 있어야 읽고 씀 */
 var INC_NUM = ['er', 'cl', 'nt', 'lt', 'pr', 'off'];
+var QA_TEXT = 1000; // 1.3.28(주인 11/09): QA 피드백 '무엇이 틀렸나' · '이렇게 했어야 해요' 칸마다 1,000자(넘치면 자르지 않고 오류)
 var INC_QA = ['wi', 'wp', 'nt', 'pq', 'sg']; // 1.3.26 QA 감점 종류: 오안내 · 오처리 · 공지 미반영 · 응대 미흡 · 1.3.27 제안(감점 없음)
 function incOut_(v) { v = v && typeof v === 'object' ? v : {}; return { cfg: v.cfg && typeof v.cfg === 'object' ? v.cfg : {}, months: v.months && typeof v.months === 'object' ? v.months : {}, skip: v.skip && typeof v.skip === 'object' ? v.skip : {} }; }
 function incPerson_(x) {
@@ -775,11 +777,12 @@ function incSet_(req) {
     if (req.qa.add && typeof req.qa.add === 'object') {
       var a = req.qa.add, nm2 = person_(a.n), t = String(a.t || ''), u = String(a.u || '').trim();
       if (!nm2 || !dateOk_(a.d) || INC_QA.indexOf(t) < 0) return { ok: false, error: '상담사 · 날짜 · 종류를 확인해 주세요' };
+      if (text_(a.memo, 1e5).length > QA_TEXT || text_(a.fix, 1e5).length > QA_TEXT) return { ok: false, error: 'QA 피드백은 칸마다 1,000자까지 적을 수 있어요' };
       if (u && !/^https:\/\/[^\s<>"]{3,}$/.test(u)) return { ok: false, error: '상담 링크는 https:// 로 시작하는 주소만 돼요' };
       var m3 = v.months[a.d.slice(0, 7)] || (v.months[a.d.slice(0, 7)] = {}), list = Array.isArray(m3.qa) ? m3.qa : (m3.qa = []);
       if (list.length >= 2000) return { ok: false, error: '한 달에 2,000건까지만 적을 수 있어요' };
       var item = { id: 'q' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), n: nm2, d: a.d, t: t, at: Date.now() };
-      if (u) item.u = u.slice(0, 300); var mm = text_(a.memo, 200); if (mm) item.memo = mm; var fx = text_(a.fix, 200); if (fx) item.fix = fx;
+      if (u) item.u = u.slice(0, 300); var mm = text_(a.memo, QA_TEXT); if (mm) item.memo = mm; var fx = text_(a.fix, QA_TEXT); if (fx) item.fix = fx;
       if (a.send) item.sent = Date.now(); // 상담사에게 보내기(검색기 [내 피드백])
       list.push(item); var added = item.id;
     }

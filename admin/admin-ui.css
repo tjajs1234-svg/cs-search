@@ -398,10 +398,14 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .iqa .qadd{grid-template-columns:140px 150px minmax(0,1fr)!important}
 .iqa .qtwo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .iqa .qtwo label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:800;color:var(--muted)}
-.iqa .qtwo textarea{height:58px;border:1px solid var(--line-2);border-radius:7px;padding:7px 8px;font:inherit;font-size:13px;background:var(--card);color:var(--ink);resize:vertical}
+.iqa .qtwo textarea{min-height:110px;height:110px;line-height:1.55;border:1px solid var(--line-2);border-radius:7px;padding:7px 8px;font:inherit;font-size:13px;background:var(--card);color:var(--ink);resize:vertical}
 .iqa .qacts{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
 .qfix{font-size:12px;color:var(--success);margin-top:3px}
 .qst{font-size:12px;font-weight:700;white-space:nowrap}.qst.s{color:var(--warning)}.qst.r{color:var(--success)}
 @media (max-width:900px){.iqa .qtwo{grid-template-columns:1fr}}
 .iqa .ttable th,.iqa .ttable td,.tqa .ttable th,.tqa .ttable td{text-align:left}
 .qty.s{background:var(--accent-soft);color:var(--accent)}
+
+/* 2026-11-09 QA 피드백 1,000자: 글자 수 · 줄 바꿈 그대로 */
+.iqa .qtwo .qcount{align-self:flex-end;font-size:11px;font-weight:700;color:var(--muted)}.iqa .qtwo .qcount.over{color:var(--danger)}
+.iqa .qmemo,.tqa .qmemo,.qfix{white-space:pre-line}

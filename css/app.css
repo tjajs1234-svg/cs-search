@@ -578,3 +578,7 @@ button.wsr:hover{background:var(--surface2)}
 .fbtab{border:0;background:none;font:inherit;font-size:14.5px;font-weight:700;color:var(--ink3);padding:9px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
 .fbtab.on{color:var(--accent);border-bottom-color:var(--accent)}
 .fbtab.hot:not(.on){color:var(--danger)}
+
+/* 2026-11-09 QA 피드백 1,000자: 적은 줄 바꿈 · 빈 줄 그대로 */
+.fbwrong>span:not(.l),.fbfix>span:not(.l){white-space:pre-line}
+.fbpopd .fbcard{max-height:56vh;overflow:auto}

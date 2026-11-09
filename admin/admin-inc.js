@@ -17,6 +17,26 @@
   var CFG_LABEL = [['wRph', '시간당 기록 배점'], ['wRsp', '시간당 응대 배점'], ['wDpd', '하루 평균 기록 배점'], ['wLate', '기다리게 한 정도 배점'], ['wOt', 'OT 기여 배점'], ['lateStep', '20분 넘김 1%마다 감점'], ['hardStep', '어려운 상담: 팀보다 10%p마다 기록 +%'], ['hardMax', '어려운 상담: 최대 +%'], ['qWi', 'QA 오안내 1건'], ['qWp', 'QA 오처리 1건'], ['qNt', 'QA 공지 미반영 1건'], ['qPq', 'QA 응대 미흡 1건'], ['tie', '공동 추천: 몇 점 차이 안'], ['gA', 'A 등급: 몇 점부터'], ['gB', 'B 등급: 몇 점부터']];
   // 2026-11-06 QA 감점 종류(팀 서버 1.3.26 INC_QA와 같은 키) · 배점 키 · 색(m = 노랑)
   // 2026-11-06 '제안'(주인): 감점이 아닌 아쉬운 점 · 0점 · 5번째 칸 1 = 점수 없음
+  // 2026-11-09 주인: QA 피드백 두 칸 1,000자(팀 서버 1.3.28부터 · 그 전 서버는 200자에서 자르니 웹도 200자로 막음 — 말없이 잘리지 않게)
+  var QA_MAX = 1000, QA_OLD = 200, qaLimP = null;
+  function qaLimit() {
+    if (!qaLimP) qaLimP = (async function () {
+      try { var r = await CSTeam.call('ping', {}, 15000), v = String(r.version || '').split('.').map(Number); return (v[0] * 1e6 + (v[1] || 0) * 1e3 + (v[2] || 0)) >= 1003028 ? QA_MAX : QA_OLD; }
+      catch (e) { qaLimP = null; return QA_OLD; }
+    })();
+    return qaLimP;
+  }
+  function qaLimMsg(lim) { return lim < QA_MAX ? '지금 팀 서버는 200자까지만 저장해요. 팀 서버 1.3.28을 붙이면 1,000자까지 돼요.' : '1,000자까지 적을 수 있어요(빈 줄 포함)'; }
+  function qaCount(ta) {
+    var c = document.createElement('span'); c.className = 'qcount';
+    var up = async function () {
+      var lim = await qaLimit(), n = ta.value.trim().length;
+      ta.style.height = 'auto'; ta.style.height = Math.min(Math.max(ta.scrollHeight + 2, 110), 420) + 'px';
+      c.textContent = n.toLocaleString() + ' / ' + lim.toLocaleString() + '자' + (lim < QA_MAX ? ' · 팀 서버 1.3.28을 붙이면 1,000자까지 돼요' : '');
+      c.classList.toggle('over', n > lim);
+    };
+    ta.addEventListener('input', up); up(); return c;
+  }
   var QT = [['wi', '오안내', 'qWi', ''], ['wp', '오처리', 'qWp', ''], ['nt', '공지 미반영', 'qNt', ''], ['pq', '응대 미흡', 'qPq', ' m'], ['sg', '제안', 'qSg', ' s', 1]], QTN = {}; QT.forEach(function (q) { QTN[q[0]] = q; });
   var HOLD_NOTE = '보류를 누르면 그 고객의 기다린 시간이 멈춰서 20분 넘김에 안 잡혀요. 참고하세요.';
   function isHard(c) { return HARD.test(String(c || '')); }
@@ -397,16 +417,17 @@
       di.type = 'date'; di.value = defD; di.setAttribute('aria-label', z.n + ' 날짜');
       var o0 = mk('option', null, '종류 고르기'); o0.value = ''; ts.append(o0); QT.forEach(function (q) { var o = mk('option', null, q[1] + (q[4] ? ' (감점 없음)' : ' (' + (C[q[2]] || 0) + ')')); o.value = q[0]; ts.append(o); }); ts.setAttribute('aria-label', z.n + ' 종류');
       ui.type = 'url'; ui.placeholder = '상담 링크 (https://…)'; ui.maxLength = 300; ui.setAttribute('aria-label', z.n + ' 상담 링크');
-      mi.maxLength = 200; mi.placeholder = '고객 이름·전화번호는 적지 마세요'; mi.setAttribute('aria-label', z.n + ' 무엇이 틀렸나');
-      fi.maxLength = 200; fi.placeholder = '예: 단순 변심 반품은 받은 날부터 7일로 안내'; fi.setAttribute('aria-label', z.n + ' 이렇게 했어야 해요');
+      mi.placeholder = '고객 이름·전화번호는 적지 마세요'; mi.setAttribute('aria-label', z.n + ' 무엇이 틀렸나');
+      fi.placeholder = '예: 단순 변심 반품은 받은 날부터 7일로 안내'; fi.setAttribute('aria-label', z.n + ' 이렇게 했어야 해요');
       var go = async function (send, b) {
         if (!di.value || !ts.value) { say('날짜와 종류를 골라 주세요', 'err'); return; }
+        var lim = await qaLimit(); if (mi.value.trim().length > lim || fi.value.trim().length > lim) { say(qaLimMsg(lim), 'err'); return; }
         if (send && !mi.value.trim()) { say('상담사에게 보낼 때는 ' + (QTN[ts.value][4] ? '아쉬웠던 점' : '무엇이 틀렸나') + '을 적어 주세요', 'err'); return; }
         add.disabled = addS.disabled = true; qaOpen[z.n] = true;
         try { await setInc({ qa: { add: { n: z.n, d: di.value, t: ts.value, u: ui.value.trim(), memo: mi.value.trim(), fix: fi.value.trim(), send: !!send } } }); say((di.value.slice(0, 7) === month ? '' : Number(di.value.slice(5, 7)) + '월 기록에 ') + (send ? '추가하고 ' + z.n + ' 님에게 보냈어요' : '추가했어요'), 'ok'); st.again(); } catch (er) { say(er.message, 'err'); add.disabled = addS.disabled = false; }
       };
       var add = btn('추가만', 'ghost sm qonly', function () { go(false); }), addS = btn('추가 후 상담사에게 보내기', 'primary sm qaddsend', function () { go(true); });
-      var two = mk('div', 'qtwo'), l1 = mk('label'), l2 = mk('label'), s1 = mk('span', null, '무엇이 틀렸나'), s2 = mk('span', null, '이렇게 했어야 해요 (상담사에게 같이 가요)'); l1.append(s1, mi); l2.append(s2, fi); two.append(l1, l2);
+      var two = mk('div', 'qtwo'), l1 = mk('label'), l2 = mk('label'), s1 = mk('span', null, '무엇이 틀렸나'), s2 = mk('span', null, '이렇게 했어야 해요 (상담사에게 같이 가요)'); l1.append(s1, mi, qaCount(mi)); l2.append(s2, fi, qaCount(fi)); two.append(l1, l2);
       ts.addEventListener('change', function () { var fr = QTN[ts.value] && QTN[ts.value][4]; s1.textContent = fr ? '아쉬웠던 점' : '무엇이 틀렸나'; s2.textContent = (fr ? '이렇게 하면 더 좋아요' : '이렇게 했어야 해요') + ' (상담사에게 같이 가요)'; fi.placeholder = fr ? '예: 교환 안내 때 접수 링크를 같이 보내면 고객이 덜 헤매요' : '예: 단순 변심 반품은 받은 날부터 7일로 안내'; });
       var acts = mk('div', 'qacts'); acts.append(add, addS);
       f.append(di, ts, ui); bd.append(f, two, acts); d.append(bd); accs.push(d); p.append(d);
