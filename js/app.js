@@ -1233,8 +1233,8 @@
         r.append(el('span', 'd', Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' (' + '일월화수목금토'[WorkClock.weekday(x.date)] + ')'));
         if (!o.lv) {
           r.append(el('span', 't', x.to), el('span', 'grow'), el('span', 'm', hm(x.mins || 0)));
-          // 2026-11-10(주인): 메인 화면 ×는 관리 PC여도 내 것만 — 남의 것은 관리 화면 근무 달력에서 지움
-          if (!x._p && x.name === me) { var del = el('button', 'wdel', '×'); del.type = 'button'; del.title = '이 날 지우기'; del.setAttribute('aria-label', '이 날 지우기'); del.addEventListener('click', function () {
+          // 2026-11-10(주인): 메인 화면 ×는 관리 PC(관리 열쇠)에만 — 상담사 화면엔 지우기 없음(야근은 같은 날 다시 적으면 고쳐짐)
+          if (!x._p && adm) { var del = el('button', 'wdel', '×'); del.type = 'button'; del.title = '이 날 지우기'; del.setAttribute('aria-label', '이 날 지우기'); del.addEventListener('click', function () {
             if (!confirm((adm ? nm(x.name) + ' ' : '') + Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' 기록을 지울까요?')) return;
             var before = (work.items || []).slice();
             workOp(function () { work.items = (work.items || []).filter(function (y) { return y !== x; }); }, function () { work.items = before; },
@@ -1243,7 +1243,7 @@
         } else {
           r.append(el('span', 't' + (x.status === '반려' ? ' rej' : leaveCls(x)), leaveLabel(x)), el('span', 'grow'));
           var mk3 = leaveMark(x); if (mk3) r.append(mk3);
-          var canDel = !x._p && x.name === me;
+          var canDel = !x._p && !!adm;
           if (canDel) { var del2 = el('button', 'wdel', '×'); del2.type = 'button'; var lbl = '이 날 지우기'; del2.title = lbl; del2.setAttribute('aria-label', lbl); del2.addEventListener('click', function () {
             if (!confirm((adm ? nm(x.name) + ' ' : '') + Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' ' + leaveLabel(x) + '을(를) 지울까요?')) return;
             var before = (work.leaves || []).slice();
