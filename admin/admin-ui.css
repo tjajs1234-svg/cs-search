@@ -409,3 +409,12 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 /* 2026-11-09 QA 피드백 1,000자: 글자 수 · 줄 바꿈 그대로 */
 .iqa .qtwo .qcount{align-self:flex-end;font-size:11px;font-weight:700;color:var(--muted)}.iqa .qtwo .qcount.over{color:var(--danger)}
 .iqa .qmemo,.tqa .qmemo,.qfix{white-space:pre-line}
+
+/* 2026-11-10.4 공지 한 줄에 한 번만: [중요][띠][고정] 켜면 파랗게 채움 · 빨강은 [지우기]에만 · [⋯] 안에 숨기기·지우기 */
+.nract{position:relative;align-items:center}
+.btn.ntog{border:1.5px solid var(--line);color:var(--ink,#1c2333);font-weight:700}
+.btn.ntog.on{background:#2c52c0;border-color:#2c52c0;color:#fff}
+.btn.nmore{min-width:34px;font-weight:800;letter-spacing:1px}
+.nmenu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--card,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.nmenu[hidden]{display:none}
+.nreads .nrs{grid-template-columns:minmax(0,1fr) 72px 84px minmax(120px,auto) auto}

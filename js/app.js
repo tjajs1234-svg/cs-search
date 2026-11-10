@@ -803,7 +803,7 @@
     var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
     if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
     // 공지마다 읽고 [확인했어요] — 한꺼번에 확인 처리는 없음(팀장 화면의 '누가 읽었나'가 정확하게)
-    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개 · 읽고 공지마다 [확인했어요] 체크'));
+    if (un.length) info.append(el('span', null, '· 새 공지 ' + un.length + '개')); // 2026-11-10.4 안내 말 빼기(주인 11/10)
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
@@ -813,7 +813,7 @@
       if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
       if (n.top) h.prepend(el('span', 'ptag ptop', '📌 고정'));
-      if (n.band) h.append(el('span', 'ptag band', '읽어 주세요')); // 2026-11-05.8 압박 말 '꼭' 빼기(주인 11/05)
+      // 2026-11-10.4 '읽어 주세요' 꼬리표 없앰(주인 11/10: 상담사 화면에 '꼭 읽어 주세요' 같은 말 빼기) — 띠 공지는 위 빨간 띠로 이미 알림
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));
@@ -1373,10 +1373,9 @@
   function renderBandBox(bs) {
     var box = $('bandBox'); if (!box) return;
     box.replaceChildren(); box.hidden = !bs.length; if (!bs.length) return;
-    var hd = el('div', 'bh'); var kinds = bs.map(bandTag).filter(function (k, i, a) { return a.indexOf(k) === i; }); hd.append(ic('warn'), el('span', null, '아직 안 읽은 ' + (kinds.length === 1 ? kinds[0] : '공지') + ' ' + bs.length + '개'));
+    var hd = el('div', 'bh'); var kinds = bs.map(bandTag).filter(function (k, i, a) { return a.indexOf(k) === i; }); hd.append(ic('warn'), el('span', null, (kinds.length === 1 ? kinds[0] : '새 공지') + ' ' + bs.length + '개'));
     box.append(hd);
     bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', '[' + bandTag(n) + '] ' + n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });
-    box.append(el('div', 'bm', '눌러서 읽고 [확인했어요]를 체크하면 사라져요'));
   }
   function renderBanner() {
     var b = $('banner'), st = CSContent.status(); b.replaceChildren(); b.className = 'banner'; b.onclick = null;
@@ -1397,7 +1396,7 @@
     if (bs.length) {
       b.className = 'banner tape'; var inr = el('div', 'tin');
       inr.append(ic('warn'), el('span', 'tg', bandTag(bs[0])), el('span', 't', bs.slice(0, 2).map(function (n) { return n.title; }).join('  ·  ') + (bs.length > 2 ? '  외 ' + (bs.length - 2) + '개' : '')));
-      var go = el('button', null, '지금 읽기 →'); go.type = 'button'; inr.append(go);
+      var go = el('button', null, '보기 →'); go.type = 'button'; inr.append(go);
       b.append(inr); b.onclick = function () { goNotice(bs[0].id); }; b.hidden = false; return;
     }
     b.hidden = true;

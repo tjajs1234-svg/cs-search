@@ -152,10 +152,11 @@
     return { reads: reads, team: team, list: noticeList(reads, cp ? cp.notices : null, cp && cp.sources && cp.sources.nhide || []), nhide: cp && cp.sources && cp.sources.nhide || [], ntop: cp && cp.sources && cp.sources.ntop || [], topA: cp ? (cp.notices || []).filter(function (x) { return x.top && !x.hidden; }).length : 0, hasAdmin: !!cp, roster: !!(cfg && cfg.roster && cfg.roster.length), P: P };
   }
   function whoRead(D, id) { var o = (D.reads[id] || {}).reads || {}, m = {}; Object.keys(o).forEach(function (k) { var n = D.P(k); if (!m[n] || o[k] > m[n]) m[n] = o[k]; }); return m; }
-  async function noticeReads(w) {
+  async function noticeReads(w, H) {
     if (!(await T().ensureUrl())) return;
     var D; try { D = await noticeData(); } catch (e) { return; }
-    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', '공지 확인'), mk('p', 'muted', '공지를 누르면 사람마다 확인 시각이 보여요'));
+    var one1 = !!(H && D.hasAdmin); // 2026-11-10.4 공지 한 줄에 한 번만: 올린 공지 버튼을 이 줄에 붙임
+    var p4 = mk('div', 'panel wide nreads'); p4.append(mk('h3', 'qh', one1 ? '공지 목록' : '공지 확인'), mk('p', 'muted', '공지를 누르면 사람마다 확인 시각이 보여요'));
     // 2026-11-02 공지 확인에서도 [숨기기](족보·관리 공지) · [지우기](관리 공지) — 숨기면 상담사 화면에서 빠지고 아래 '숨긴 공지'에서 되돌림
     var redraw = function () { if (window.KBAdminExtra && KBAdminExtra.views && KBAdminExtra.views.notices) KBAdminExtra.views.notices(w); else noticeReads(w); };
     var act = async function (n, what) {
@@ -183,13 +184,34 @@
     var acts = function (n) {
       var a = mk('span', 'nract'); if (!D.hasAdmin || (n.from === '관리자' && !n.raw)) return a;
       var b = function (label, cls, what) { var x = btn(label, cls, function (e) { e.preventDefault(); e.stopPropagation(); act(n, what); }); x.classList.add('sm'); return x; };
+      var hb = function (label, cls, fn) { var x = btn(label, cls, function (e) { e.preventDefault(); e.stopPropagation(); fn(); }); x.classList.add('sm'); return x; };
+      if (one1) {
+        // [중요] [띠] [고정] [고치기] [⋯ → 숨기기 · 지우기] — 켜진 것은 파랗게 채움, 빨강은 [지우기]에만
+        var r = n.raw, tog = function (label, on, fn, cls) { var x = hb(label, 'ghost ntog' + (on ? ' on' : '') + (cls ? ' ' + cls : ''), fn); x.setAttribute('aria-pressed', on ? 'true' : 'false'); x.title = on ? label + ' 끄기' : label + ' 켜기'; return x; };
+        var menu = mk('span', 'nmenu'); menu.hidden = true;
+        var more = hb('⋯', 'ghost nmore', function () { var open = menu.hidden; w.querySelectorAll('.nmenu').forEach(function (m) { m.hidden = true; }); menu.hidden = !open; });
+        more.title = '숨기기 · 지우기'; more.setAttribute('aria-label', '숨기기 · 지우기');
+        if (n.from === '관리자' && r) {
+          if (!n.hidden) {
+            a.append(tog('중요', !!r.important, function () { H.flag(r, 'important', !r.important); }), tog('띠', !!r.band, function () { H.flag(r, 'band', !r.band); }, 'nbandbtn'), tog('고정', !!r.top, function () { H.top(r, !r.top); }, 'ntopbtn'), hb('고치기', 'ghost', function () { H.edit(r); }));
+            menu.append(hb('숨기기', 'ghost nhide', function () { H.hide(r, true); }));
+          } else a.append(hb('되돌리기', 'ghost nunhide', function () { H.hide(r, false); }));
+          menu.append(hb('지우기', 'danger-ghost', function () { H.del(r); }));
+          a.append(more, menu); return a;
+        }
+        if (n.hidden) { a.append(b('되돌리기', 'ghost nunhide', 'show')); return a; }
+        var on2 = D.ntop.some(function (x) { return x.split('|')[0] === n.base; });
+        a.append(tog('고정', on2, function () { act(n, on2 ? 'untop' : 'top'); }, 'ntopbtn'));
+        menu.append(b('숨기기', 'ghost nhide', 'hide')); a.append(more, menu); return a;
+      }
       if (n.from === '족보' && !n.hidden) { var on = D.ntop.some(function (x) { return x.split('|')[0] === n.base; }); a.append(b(on ? '고정 풀기' : '고정', on ? 'nflag on ntopbtn' : 'ghost nflag ntopbtn', on ? 'untop' : 'top')); }
       if (n.hidden) a.append(b('되돌리기', 'ghost nunhide', 'show')); else a.append(b('숨기기', 'ghost nhide', 'hide'));
       if (n.from === '관리자') a.append(b('지우기', 'danger-ghost', 'del'));
       return a;
     };
     var shownAll = D.list.filter(function (n) { return !n.hidden; }), hidAll = D.list.filter(function (n) { return n.hidden; });
-    var rows = shownAll.slice(0, 30);
+    var pinOf = function (n) { if (n.raw) return n.raw.top || 0; var t = D.ntop.filter(function (x) { return x.split('|')[0] === n.base; })[0]; return t ? Number(t.split('|')[1]) || 1 : 0; };
+    var rows = one1 ? shownAll.filter(function (n, i) { return n.raw || i < 30; }).sort(function (a, b) { return pinOf(b) - pinOf(a) || (b.at || 0) - (a.at || 0); }) : shownAll.slice(0, 30);
     if (!rows.length) p4.append(mk('div', 'empty', '아직 공지가 없어요.'));
     var box = mk('div', 'nrl');
     var one = function (n, into) {
@@ -197,6 +219,7 @@
       var extra = Object.keys(m).filter(function (x) { return D.team.indexOf(x) < 0; });
       var det = mk('details', 'nrd'), sm = mk('summary', 'nrs');
       var tt = mk('span', 'nrt'); tt.append(mk('b', null, n.title || '(제목 없음)')); if (n.ed) tt.append(mk('span', 'ntag', dayTxt(n.ed) + ' 고침')); if (n.from === '족보') tt.append(mk('span', 'ntag g', '족보')); if (n.hidden) tt.append(mk('span', 'ntag g', '숨김'));
+      if (one1 && n.raw && n.raw.links && n.raw.links.length) tt.append(mk('span', 'ntag g', '사진·영상 ' + n.raw.links.length));
       sm.append(tt, mk('span', 'muted nrdt', n.at ? dayTxt(n.at) : ''), mk('span', 'nrc', '확인 ' + done.length + ' / ' + D.team.length), mk('span', 'nrn ' + (not.length ? 'warnc' : 'okc'), not.length ? (not.length === D.team.length && D.team.length > 1 ? D.team.length + '명 모두 아직' : '아직: ' + not.join(' · ')) : '모두 확인'));
       det.append(sm);
       var ul = mk('div', 'nrp');
@@ -210,7 +233,7 @@
     if (hidAll.length) { var hb = mk('details', 'nrhid'); hb.open = true; hb.append(mk('summary', 'colhd', '숨긴 공지 ' + hidAll.length + '개 · [되돌리기]를 누르면 상담사 화면에 다시 보여요')); var hl = mk('div', 'nrl'); hidAll.forEach(function (n) { one(n, hl); }); hb.append(hl); p4.append(hb); }
     p4.append(mk('p', 'muted', '[숨기기]: 상담사 화면에서만 빠지고 확인 기록은 남아요 · 족보 공지는 시트에서 지워야 아예 사라져요(여기선 숨기기만)'));
     if (!D.roster) p4.append(mk('p', 'muted', '‘아직’은 근무 달력의 상담사 명단으로 셈 — 명단이 비어 있으면 팀 현황에 신호를 보낸 사람으로 셈'));
-    if (w.isConnected) { var old = w.querySelector('.nreads'); if (old) old.remove(); w.append(p4); }
+    if (w.isConnected) { var old = w.querySelector('.nreads'); if (old) old.remove(); if (one1) { var adm = w.querySelector('.nadm'); if (adm) adm.remove(); } w.append(p4); }
   }
   /* 면담 화면 한 줄: 그 기간에 올라온(고친) 공지 중 이 사람이 확인한 것 · 안 한 것 */
   async function noticeLine(who, keys, el) {

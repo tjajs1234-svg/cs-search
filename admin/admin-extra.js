@@ -107,20 +107,28 @@
     var tk = function (x) { return x.hidden ? 0 : x.top || 0; };
     list.sort(function (a, b) { return tk(b) - tk(a) || (b.at || 0) - (a.at || 0); });
     var shown = list.filter(function (n) { return !n.hidden; }), hid = list.filter(function (n) { return n.hidden; });
-    p.append(mk('div', 'colhd', '올린 공지 ' + shown.length + '개'));
-    if (!shown.length) p.append(mk('div', 'empty', hid.length ? '상담사 화면에 보이는 공지가 없어요.' : '아직 올린 공지가 없어요.'));
-    shown.forEach(function (n) { p.append(row(n)); });
+    // 2026-11-10.4 공지는 한 줄에 한 번만(주인 ㄱ): 아래 '공지 확인' 목록이 불러와지면 이 목록(.nadm)은 빠지고 그 줄에 버튼이 붙음 · 팀 서버가 없으면 이 목록 그대로
+    var adm = mk('div', 'nadm'); p.append(adm);
+    adm.append(mk('div', 'colhd', '올린 공지 ' + shown.length + '개'));
+    if (!shown.length) adm.append(mk('div', 'empty', hid.length ? '상담사 화면에 보이는 공지가 없어요.' : '아직 올린 공지가 없어요.'));
+    shown.forEach(function (n) { adm.append(row(n)); });
     // 족보 공지 고정(공지 확인 줄에서 켬) — 시트에서 그 공지가 지워져도 풀 수 있게
     var ntop = (cur.parsed && cur.parsed.sources && cur.parsed.sources.ntop) || [];
     if (ntop.length) { var tr = mk('div', 'hrow'); tr.style.gridTemplateColumns = 'minmax(0,1fr) auto'; tr.append(mk('span', 'muted', '족보 공지 고정 ' + ntop.length + '개 (아래 ‘공지 확인’에서 공지마다 켜고 꺼요)'), btn('족보 고정 모두 풀기', 'ghost sm', function () { KBAdmin.saveSources({ ntop: [] }, '족보 공지 고정 모두 풀기').then(function () { say('족보 공지 고정을 모두 풀었어요', 'ok'); notices(w); }).catch(function (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); }); })); p.append(tr); }
     if (hid.length) {
       var hd = mk('details', 'nhidbox'); hd.open = true; hd.append(mk('summary', 'colhd', '숨긴 공지 ' + hid.length + '개 · [되돌리기]를 누르면 상담사 화면에 다시 보여요'));
       hid.sort(function (a, b) { return (b.hid || 0) - (a.hid || 0); }).forEach(function (n) { hd.append(row(n)); });
-      p.append(hd);
+      adm.append(hd);
     }
     w.append(p);
     // 공지 확인(누가 [확인했어요]를 눌렀는지 · 예전 '확인할 상담' 화면에서 옮김)
-    if (window.KBTeam2 && KBTeam2.noticeReads) KBTeam2.noticeReads(w);
+    var delN = async function (n) {
+      if (!(await A().confirmDlg('이 공지를 지울까요?', '‘' + n.title + '’ 공지가 아예 사라져요. 잠깐 안 보이게만 하려면 [숨기기]를 쓰세요. (깃허브 이전 판에는 남아 있어요)', '지우기', true))) return;
+      try { await KBAdmin.saveNotices(function (ns) { return ns.filter(function (x) { return x.id !== n.id; }); }, '공지 지움: ' + n.title); say('지웠어요', 'ok'); notices(w); }
+      catch (e) { say(e.message || '지우지 못했어요', 'err'); }
+    };
+    var H = { flag: setFlag, top: setTop, hide: setHidden, del: delN, edit: function (n) { editing = n; notices(w); w.scrollTop = 0; } };
+    if (window.KBTeam2 && KBTeam2.noticeReads) KBTeam2.noticeReads(w, H);
   }
 
   /* ───── 요청시트 연결 ───── */
