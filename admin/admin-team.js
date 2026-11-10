@@ -26,7 +26,7 @@
   /* ───── 요청·건의: 커뮤니티처럼(상태 없음 · 댓글로 주고받기) ───── */
   async function board(w) {
     var T = '요청·건의';
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사들이 검색기 [요청·건의]에 올린 글과 댓글이에요. 여기서 단 댓글도 상담사 화면에는 이름으로만 보여요.'), mk('div', 'empty', '불러오는 중…'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '상담사가 올린 글과 댓글이에요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     var r; try { r = await CSTeam.call('board.list', {}); } catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     var posts = r.posts || [];
@@ -121,7 +121,7 @@
 
   /* ───── 못 찾은 검색어(최근 30일): 상담사가 스크립트에서 찾다가 꼭 맞는 멘트가 없던 짧은 검색어 ───── */
   async function misses(w) {
-    var T = '못 찾은 검색어', D = '상담사가 검색기 [스크립트]에서 찾았는데 꼭 맞는 멘트가 없던 검색어예요(최근 30일 · 많이 나온 순). 짧은 검색어만 이름 없이 모아요 — 고객 문장을 붙여 넣은 긴 글, 숫자 4자리 이상, 메일 주소는 안 모아요.';
+    var T = '못 찾은 검색어', D = '스크립트에서 찾았는데 맞는 멘트가 없던 검색어예요(최근 30일, 많이 나온 순).';
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', D), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     var r; try { r = await CSTeam.call('miss.get', { days: 30 }); } catch (e) { w.lastChild.textContent = /모르는 요청/.test(e.message || '') ? '팀 서버를 1.3.7로 배포하면 모이기 시작해요([팀 현황]의 노란 상자).' : '불러오지 못했어요. ' + e.message; return; }
@@ -192,7 +192,7 @@
   /* ───── 팀 서버 연결(처음 한 번) ───── */
   async function setup(w) {
     var T = '팀 서버 연결';
-    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '요청·건의 게시판 · 멘트 사용 통계 · 팀 현황에 쓰는 작은 서버예요. 구글 시트를 쓰지 않고, 문의기록 시트·기록 서버와도 상관없어요. 처음 한 번만 아래대로 만들면 돼요(5분).'));
+    w.replaceChildren(mk('h2', null, T), mk('p', 'desc', '요청·건의 · 팀 현황에 쓰는 서버예요. 처음 한 번만 아래대로 만들면 돼요.'));
     await ensureUrl();
     var ub = await updateBox(); if (ub) w.append(ub);
     var p = mk('div', 'panel');
@@ -230,7 +230,7 @@
     if (tab) cTab = tab;
     var bar = mk('div', 'ctabs'), sub = mk('div', 'csub');
     CONN_TABS.forEach(function (t) { var b = mk('button', 'ctab' + (cTab === t[0] ? ' on' : ''), t[1]); b.type = 'button'; b.dataset.tab = t[0]; if (t[0] === 'teamsetup' && !CSTeam.url) { b.append(mk('i', 'cdot')); b.title = '아직 연결 안 됨'; } b.addEventListener('click', function () { conn(w, t[0]); }); bar.append(b); });
-    w.replaceChildren(mk('h2', null, '연결 설정'), mk('p', 'desc', '처음 한 번 맞추면 거의 안 들어오는 곳이라 한 메뉴로 묶었어요.'), bar, sub);
+    w.replaceChildren(mk('h2', null, '연결 설정'), mk('p', 'desc', ''), bar, sub);
     if (cTab === 'teamsetup') ensureUrl().then(function () { var d = bar.querySelector('[data-tab="teamsetup"] .cdot'); if (d && CSTeam.url) d.remove(); });
     ORIG[cTab](sub);
   }

@@ -16,7 +16,7 @@
   /* ───── 공지 ───── */
   var editing = null, TOP_MAX = 3;
   async function notices(w) {
-    var T = '공지', D = '상담사 화면 맨 위 [공지] 탭에 보여요. 새 공지는 빨간 숫자로 알리고, 상담사가 [확인했어요]를 체크하면 꺼져요(체크한 시각은 아래 ‘공지 확인’에). 사진·영상은 구글 드라이브 주소를 붙여 넣어요. [공지 올리기]를 누르면 2분 안에 모든 PC에 반영돼요(멘트 보내기와 따로).';
+    var T = '공지', D = '[공지 올리기]를 누르면 2분 안에 상담사 공지 탭에 보여요.';
     loading(w, T, D);
     var cur; try { cur = await KBAdmin.latest(); } catch (e) { failed(w, T, e); return; }
     var list = cur.parsed ? cur.parsed.notices.slice() : [];
@@ -133,7 +133,7 @@
 
   /* ───── 요청시트 연결 ───── */
   async function sources(w) {
-    var T = '요청시트 연결', D = '상담사 화면의 [문의 검색]·[불량가이드]·[공지]가 읽을 구글 시트예요. 앱스크립트 없이, 각 상담사 PC의 ‘검색기 연결’ 확장이 그 PC 크롬에 로그인된 회사 구글 계정으로 5분마다 읽어요(시트에는 아무것도 쓰지 않고, 고객 이름·연락처·주문번호 열은 읽지 않아요). 2024·2025년 요청시트는 확장에 이미 들어 있어요.';
+    var T = '요청시트 연결', D = '문의 검색·불량가이드·공지가 읽는 구글 시트예요(읽기만 해요).';
     loading(w, T, D);
     var cur; try { cur = await KBAdmin.latest(); } catch (e) { failed(w, T, e); return; }
     var src = cur.parsed ? cur.parsed.sources : { requests: [], defects: null };
@@ -270,7 +270,7 @@
   }
   async function github(w) {
     var c = await KBAdmin.getConn();
-    w.replaceChildren(mk('h2', null, '깃허브 연결'), mk('p', 'desc', '멘트·공지·요청시트 주소는 깃허브의 비공개 저장소 파일 하나(cs-content.json)에 보관돼요. 올릴 때마다 한 판씩 남아서 언제든 되돌릴 수 있어요. 상담사 PC는 ‘상담사용 연결 코드’로 읽기만 해요.'));
+    w.replaceChildren(mk('h2', null, '깃허브 연결'), mk('p', 'desc', '멘트·공지를 보관하는 곳이에요. 올릴 때마다 한 판씩 남아요.'));
     var p = mk('div', 'panel');
     if (c) {
       var st = mk('div', 'clrow'); st.style.gridTemplateColumns = 'minmax(0,1fr)';
@@ -333,7 +333,7 @@
   /* ───── 계산기: 유상 AS 요율 · 왕복 배송비 · 반품·교환 기한(상담사 검색기 [계산기]) ───── */
   var CALC0 = { asFee: 6000, returnDays: 7, rates: [{ label: '1~12개월', rate: 30 }, { label: '13~24개월', rate: 60 }, { label: '25~36개월', rate: 80 }, { label: '37~48개월', rate: 90 }, { label: '49개월 이상', rate: 100, blocked: true }] };
   async function calc(w) {
-    var T = '계산기', D = '상담사 검색기 오른쪽 위 [계산기]의 숫자예요. 정책이 바뀌면 여기서 고치고 [올리기]를 누르면 2분 안에 모든 PC에 반영돼요(멘트 보내기와 따로).';
+    var T = '계산기', D = '검색기 [계산기]의 숫자예요. [올리기]를 누르면 2분 안에 바뀌어요.';
     loading(w, T, D);
     var cur; try { cur = await KBAdmin.latest(); } catch (e) { failed(w, T, e); return; }
     var c = JSON.parse(JSON.stringify(cur.parsed && cur.parsed.sources && cur.parsed.sources.calc || CALC0));

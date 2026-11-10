@@ -266,7 +266,7 @@
   }
  }
  function renderEdit(){
-  const box=$('edit');$('mid').hidden=view!=='cards';box.hidden=view!=='cards';$('wide').hidden=view==='cards';
+  const box=$('edit');$('mid').hidden=view!=='cards';box.hidden=view!=='cards';$('wide').hidden=view==='cards';document.body.classList.toggle('vnoment',!/^(cards|closings|guide)$/.test(view));
   if(view!=='cards'){renderWide();return;}
   const f=sel?findCard(sel):null;
   if(!f){box.replaceChildren(hello());return;}
@@ -343,7 +343,7 @@
  function renderWide(){
   const w=$('wide');w.replaceChildren();
   if(view==='closings'){
-   w.append(mk('h2',null,'끝인사'),mk('p','desc','대화를 마칠 때 쓰는 인사예요. 작성 공간의 초성 단축어를 처음 만들 때 기본값으로 들어가요. 이름과 내용을 고치면 바로 임시 저장돼요.'));
+   w.append(mk('h2',null,'끝인사'),mk('p','desc','대화를 마칠 때 쓰는 인사예요.'));
    const p=mk('div','panel');const list=draft.closings;
    list.forEach((c,i)=>{const r=mk('div','clrow');const t=mk('input','in');t.type='text';t.value=c.title;t.placeholder='이름 (예: 일반 끝인사)';t.setAttribute('aria-label','끝인사 이름');
     const b=mk('textarea','ta');b.value=c.body;b.placeholder='끝인사 내용';b.setAttribute('aria-label','끝인사 내용');
@@ -358,7 +358,7 @@
   }
   if(view==='guide'){
    let uses=0;for(const c of cats())for(const k of c.cards)if(String(k.script).includes(T_GUIDE))uses++;
-   w.append(mk('h2',null,'공통 문구'),mk('p','desc','계좌번호·매장 안내·카톡 링크처럼 여러 멘트에 똑같이 들어가는 글을 여기 한 곳에 적어 두세요. 멘트 내용에 {이름}을 넣으면(고치는 칸의 단추로 넣을 수 있어요) 상담사 화면에서는 아래 글로 바뀌어 보여요. 여기만 고치면 그 멘트가 모두 바뀌어요.'));
+   w.append(mk('h2',null,'공통 문구'),mk('p','desc','여러 멘트에 똑같이 들어가는 글이에요. 여기만 고치면 그 멘트가 모두 바뀌어요.'));
    const p=mk('div','panel');const list=phrases();
    list.forEach((ph,i)=>{const r=mk('div','phrow');
     const key=mk('input','in');key.type='text';key.value=ph.key||'';key.placeholder='이름 (예: 계좌)';key.maxLength=20;key.setAttribute('aria-label','공통 문구 이름');
@@ -385,7 +385,7 @@
   }
   if(KBAdminExtra.views[view]){KBAdminExtra.views[view](w);return;}
   // 이전 판
-  w.append(mk('h2',null,'이전 판 · 되돌리기'),mk('p','desc','[상담사에게 보내기]를 누를 때마다 그 전 멘트가 한 판씩 남아요(최근 60판). 잘못 보냈다면 예전 판으로 되돌릴 수 있어요. 되돌린 것도 새 판으로 남아서 다시 되돌릴 수 있어요.'));
+  w.append(mk('h2',null,'이전 판 · 되돌리기'),mk('p','desc','보낼 때마다 한 판씩 남아요(최근 60판). 잘못 보냈으면 되돌려요.'));
   const p=mk('div','panel');
   if(histItems===null)p.append(mk('div','empty','불러오는 중…'));
   else if(histItems==='err')p.append(mk('div','empty','이전 판을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.'));

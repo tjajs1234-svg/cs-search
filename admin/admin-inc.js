@@ -366,7 +366,7 @@
   }
   async function qaView(w) {
     var title = 'QA 피드백';
-    w.replaceChildren(mk('h2', null, title), mk('p', 'desc', '상담을 QA해서 틀린 건을 한 건씩 적어요. 이달의 상담사 점수에서 깎이고, [상담사에게 보내기]를 누른 건은 그 상담사 검색기 [내 피드백]에 떠요(점수는 안 보여요).'), mk('div', 'empty', '불러오는 중…'));
+    w.replaceChildren(mk('h2', null, title), mk('p', 'desc', '틀린 상담을 한 건씩 적어요. [상담사에게 보내기]를 누르면 그 사람 [내 피드백]에 떠요.'), mk('div', 'empty', '불러오는 중…'));
     if (!(await T().ensureUrl())) { T().needServer(w, title); return; }
     var inc, extra = [];
     try { inc = await getInc(); } catch (e) { w.lastChild.textContent = e.message; return; }
