@@ -268,6 +268,22 @@ dialog.dlg .in{margin-top:4px}
 .wcal .ot.ok{background:var(--success-soft);color:var(--success)}
 .wcal .ot.wait{background:var(--warning-soft);color:var(--warning)}
 .wcal .ot.no{background:var(--raised);color:var(--faint);text-decoration:line-through}
+.wcal .ot.lv{display:flex;align-items:center;gap:3px;background:var(--raised);color:var(--ink-2)}
+.wcal .ot.lv b{font-weight:700}
+.lvok{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;background:var(--success);color:#fff;font-size:9px;font-weight:900;line-height:1;flex:none}
+.lvwait{display:inline-flex;align-items:center;background:var(--warning-soft);color:var(--warning);border-radius:4px;padding:0 3px;font-size:10.5px;font-weight:700;flex:none;white-space:nowrap}
+.lvrej{font-size:11px;font-weight:700;color:var(--danger)}
+/* 2026-11-10 승인 기다리는 휴가 */
+.lvp .cnt{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:999px;background:var(--danger);color:#fff;font-size:12px;padding:0 6px;margin-left:6px;vertical-align:2px}
+.lvrow{display:grid;grid-template-columns:70px 96px minmax(150px,1.3fr) minmax(110px,1fr) minmax(120px,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+.lvrow .k{font-weight:700}
+.lvrow .tagk{justify-self:start;display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:0 6px;background:var(--raised)}
+.lvrow .mu{color:var(--faint);font-size:12px}
+.lvrow .why{display:block;color:var(--faint);font-size:12px}
+.lvrow .clash{color:var(--danger);font-size:12px;font-weight:700}
+.lvrow .acts{display:flex;gap:6px;justify-content:flex-end}
+.lvrow.pend{opacity:.55}
+.btn.okb{background:var(--success);border-color:var(--success);color:#fff}
 /* 상담사별 보기(팀 현황 · 업무 흐름 · 확인할 상담) */
 .panel.wide{max-width:1100px}
 .pbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;width:max-content;max-width:100%}

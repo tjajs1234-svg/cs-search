@@ -50,6 +50,9 @@
    · 1.3.25(주인 11/06): 팀장 PC가 '팀장'으로 보낸 기록(태그 여러 개일 때)을 [팀 기록]에서 팀장 이름 줄로 보이게 — team.get이 leadName을 줌
             (관리 [팀 기록]에서 고른 이름 lead.set › 팀장 PC가 다른 PC 없이 혼자 쓴 이름 중 가장 많이 쓴 이름 › 게시판 댓글 이름이 명단에 있을 때). 숫자 합치기는 검색기 웹이 함
    · 1.3.28(주인 11/09): QA 피드백 두 칸 200자 → 1,000자(넘치면 몰래 자르지 않고 오류로 돌려보냄)
+   · 1.3.29(주인 11/10): 연차·공가·결근(leave.json, 야근 ot.json과 따로) — leave.add(날짜 여러 개 · 하루/오전/오후)
+            · 연차·공가는 '대기' → 관리 [승인]/[반려](leave.decide) · 결근과 관리 열쇠로 적은 건 바로 '승인'
+            · 사유(note)는 관리 열쇠로 부를 때만 내려 줌 · work.get에 leaves · 쓰기는 바뀐 줄만 돌려줌(화면이 다시 받지 않게)
    · 1.3.27(주인 11/06): QA 피드백 종류에 '제안'(sg · 감점 없음 · 아쉬웠던 점 / 이렇게 하면 더 좋아요)
    · 1.3.26(주인 11/06): 이달의 상담사 'QA 감점 기록' — 팀장이 한 건씩 적는 감점(날짜 · 종류 오안내/오처리/공지 미반영/응대 미흡 ·
             상담 링크 · 무엇이 틀렸나 한 줄)을 inc.json 그 날짜의 달에 저장 · 지우기(inc.set qa: {add} / {del}) · 관리 열쇠로만 · 개수 제한 없음(한 달 2,000건까지)
@@ -57,7 +60,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.28';
+var TEAM_VERSION = '1.3.29';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -99,7 +102,12 @@ function handle_(req) {
   if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
   if (a === 'tags.get') return { ok: true, list: tagsGet_() };
   if (a === 'qa.get') return { ok: true, days: qaDays_(Number(req.days) || 7), live: qaLive_(), now: Date.now() };
-  if (a === 'work.get') { var st = settings_(); return { ok: true, items: otList_(req), cfg: cfgOut_(st), roster: st.roster || [] }; }
+  if (a === 'work.get') { var st = settings_(); return { ok: true, items: otList_(req), leaves: leaveList_(req, false), cfg: cfgOut_(st), roster: st.roster || [] }; }
+  // 1.3.29 연차·공가·결근 — 사유는 관리 열쇠가 있을 때만
+  if (a === 'leave.list') { var la = !!req.adminToken && isAdmin_(req.adminToken); if (req.adminToken && !la) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' }; return { ok: true, items: leaveList_(req, la) }; }
+  if (a === 'leave.add') return withLock_(function () { return leaveAdd_(req); });
+  if (a === 'leave.cancel') return withLock_(function () { return leaveCancel_(req); });
+  if (a === 'leave.decide') return withLock_(function () { return leaveDecide_(req); });
   if (a === 'cfg.get') return { ok: true, cfg: cfgOut_(settings_()), roster: settings_().roster || [] };
   if (a === 'cfg.set') return withLock_(function () { return cfgSet_(req); });
   if (a === 'ot.list') return { ok: true, items: otList_(req) };
@@ -874,6 +882,69 @@ function otDecide_(req) {
   list.forEach(function (o) { if (o.id === id) x = o; }); if (!x) return { ok: false, error: '신청을 찾지 못했어요' };
   x.status = st; x.decidedAt = Date.now(); if (req.reply != null) x.reply = text_(req.reply, 200);
   writeJson_('ot.json', list); return { ok: true, item: x };
+}
+
+/* ── 1.3.29 연차·공가·결근(주인 11/10) ──
+   한 줄 = 한 사람 하루(grp가 같으면 한 번에 신청한 묶음) · 연차·공가는 '대기'로 들어와 관리 [승인]/[반려]
+   결근(이미 일어난 일)과 관리 열쇠로 적은 건 바로 '승인' · 사유는 관리 화면에만 · 주말·공휴일은 못 적음 */
+var LEAVE_KINDS = ['연차', '공가', '결근'], LEAVE_PARTS = ['하루', '오전', '오후'], LEAVE_STATUS = ['대기', '승인', '반려'];
+function leaves_() { var v = readJson_('leave.json', []); return Array.isArray(v) ? v : []; }
+function leaveOut_(x, admin) { var o = Object.assign({}, x); if (!admin) delete o.note; return o; }
+function leaveList_(req, admin) {
+  var from = dateOk_(req.from) ? req.from : '', to = dateOk_(req.to) ? req.to : '9999';
+  return leaves_().filter(function (x) { return x.date >= from && x.date <= to; }).map(function (x) { return leaveOut_(x, admin); })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.at || 0) - (b.at || 0); });
+}
+function leaveAdd_(req) {
+  var raw = name_(req.name).replace(/\s+/g, ''), name = person_(raw), kind = String(req.kind || ''), part = String(req.part || '하루');
+  if (!name) return { ok: false, error: '이름이 없어요' };
+  if (LEAVE_KINDS.indexOf(kind) < 0) return { ok: false, error: '종류를 골라 주세요(연차·공가·결근)' };
+  if (LEAVE_PARTS.indexOf(part) < 0 || (part !== '하루' && kind !== '연차')) part = '하루';
+  var dates = (Array.isArray(req.dates) ? req.dates : [req.date]).map(String).filter(dateOk_);
+  dates = dates.filter(function (d, i) { return dates.indexOf(d) === i; }).sort();
+  if (!dates.length) return { ok: false, error: '날짜를 골라 주세요' };
+  if (dates.length > 31) return { ok: false, error: '한 번에 31일까지 적을 수 있어요' };
+  if (part !== '하루' && dates.length > 1) return { ok: false, error: '반차는 하루만 고를 수 있어요' };
+  var hol = cfgOut_(settings_()).holidays;
+  for (var i = 0; i < dates.length; i++) { var wd = new Date(dates[i] + 'T00:00:00Z').getUTCDay(); if (wd === 0 || wd === 6 || hol[dates[i]]) return { ok: false, error: '주말·공휴일은 근무일이 아니라 적을 수 없어요(' + dates[i].slice(5).replace('-', '/') + ')' }; }
+  var admin = !!req.adminToken && isAdmin_(req.adminToken);
+  if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
+  var full = /^[가-힣]{3}$/.test(raw) ? raw : ''; if (!full) (settings_().roster || []).forEach(function (r) { if (r.name === name && r.full) full = r.full; });
+  var list = leaves_(), now = Date.now();
+  // 같은 사람 같은 날 이미 있으면(반려 빼고) 안 됨 — 지우고 다시 적기
+  var dup = list.filter(function (o) { return o.name === name && o.status !== '반려' && dates.indexOf(o.date) >= 0; })[0];
+  if (dup) return { ok: false, error: Number(dup.date.slice(5, 7)) + '/' + Number(dup.date.slice(8, 10)) + '에 이미 ' + dup.kind + '이(가) 있어요' };
+  // 같은 날 예전에 반려된 줄은 새 신청으로 바꿈
+  list = list.filter(function (o) { return !(o.name === name && o.status === '반려' && dates.indexOf(o.date) >= 0); });
+  var st = admin || kind === '결근' ? '승인' : '대기', grp = id_(), note = text_(req.note, 200), made = [];
+  dates.forEach(function (d) { var x = { id: id_(), grp: grp, name: name, full: full, kind: kind, part: part, date: d, note: note, status: st, at: now, by: admin ? '팀장' : name }; if (st === '승인') x.decidedAt = now; list.push(x); made.push(x); });
+  var cut = dayKey_(now - TEAM_KEEP_DAYS * 864e5); list = list.filter(function (o) { return o.date >= cut; });
+  writeJson_('leave.json', list);
+  return { ok: true, items: made.map(function (x) { return leaveOut_(x, admin); }) };
+}
+// 지우기: 한 줄(id) 또는 한 묶음(grp) · 상담사는 내 것 중 대기·반려·결근만(승인된 연차·공가는 관리 화면에서)
+function leaveCancel_(req) {
+  var list = leaves_(), id = String(req.id || ''), grp = String(req.grp || ''), who = person_(req.name), admin = !!req.adminToken && isAdmin_(req.adminToken);
+  if (req.adminToken && !admin) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' };
+  var hit = list.filter(function (o) { return (id && o.id === id) || (grp && o.grp === grp); });
+  if (!hit.length) return { ok: true, ids: [] };
+  if (!admin) {
+    if (hit.some(function (o) { return !who || o.name !== who; })) return { ok: false, error: '내 것만 지울 수 있어요' };
+    if (hit.some(function (o) { return o.status === '승인' && o.kind !== '결근'; })) return { ok: false, error: '승인된 ' + hit[0].kind + '은(는) 관리 화면에서만 지울 수 있어요' };
+  }
+  writeJson_('leave.json', list.filter(function (o) { return hit.indexOf(o) < 0; }));
+  return { ok: true, ids: hit.map(function (o) { return o.id; }) };
+}
+// 승인·반려·되돌리기(대기) — 묶음(grp) 또는 한 줄(id)
+function leaveDecide_(req) {
+  if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 승인할 수 있어요' };
+  var st = String(req.status || ''); if (LEAVE_STATUS.indexOf(st) < 0) return { ok: false, error: '모르는 상태예요' };
+  var list = leaves_(), id = String(req.id || ''), grp = String(req.grp || ''), now = Date.now();
+  var hit = list.filter(function (o) { return (id && o.id === id) || (grp && o.grp === grp); });
+  if (!hit.length) return { ok: false, error: '신청을 찾지 못했어요(지워졌을 수 있어요)' };
+  hit.forEach(function (o) { o.status = st; o.decidedAt = st === '대기' ? 0 : now; });
+  writeJson_('leave.json', list);
+  return { ok: true, items: hit.map(function (x) { return leaveOut_(x, true); }) };
 }
 
 /* ── 1.3.0 공지 확인: 상담사가 [확인했어요]를 누른 공지(번호 · 제목만) ── */

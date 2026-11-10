@@ -582,3 +582,27 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-09 QA 피드백 1,000자: 적은 줄 바꿈 · 빈 줄 그대로 */
 .fbwrong>span:not(.l),.fbfix>span:not(.l){white-space:pre-line}
 .fbpopd .fbcard{max-height:56vh;overflow:auto}
+/* 2026-11-10 근태: 종류 고르기 · 연차·공가·결근 · 승인 ✓ / ⏳ 대기 · 저장 중(흐리게) */
+.wkinds{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wkinds .wkl{font-size:12.5px;color:var(--ink2);margin-right:2px}
+.wkinds .fchip:disabled{opacity:.45;cursor:not-allowed}
+.wparts{display:inline-flex;gap:6px;margin-left:12px}
+.fchip.sub{height:32px;font-size:13px}
+.fchip.sub[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+.lvok{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;background:var(--good);color:#fff;font-size:9px;font-weight:900;line-height:1;flex:none}
+.lvwait{display:inline-flex;align-items:center;gap:2px;background:var(--warn-soft);color:var(--warn);border-radius:4px;padding:0 3px;font-size:10.5px;font-weight:700;flex:none;white-space:nowrap}
+.lvrej{font-size:11px;font-weight:700;color:var(--danger)}
+.wcal .ot.lv{display:flex;align-items:center;gap:3px}
+.wcal .ot.lv b{font-weight:700}
+.wpend{opacity:.5}
+.wlegend{display:inline-flex;gap:14px;margin-left:14px;font-size:12.5px;color:var(--ink2);align-items:center;flex-wrap:wrap}
+.wlegend>span{display:inline-flex;align-items:center;gap:5px}
+.wsums{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.wsums .wsum{flex:1 1 220px;max-width:340px}
+.wlvsum .wsr b{font-weight:600}
+.wlvsum .lvwaitn{color:var(--warn);font-weight:700}
+.wcr.lvr .t{font-weight:600}
+.wcr.lvr .t.pend{color:var(--warn)}
+.wcr.lvr .t.rej{color:var(--danger);text-decoration:line-through}
+.wlvhint{color:var(--warn)}
+.wnote{height:38px}

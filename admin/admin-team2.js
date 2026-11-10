@@ -1,6 +1,6 @@
 /* 멘트 관리에 더한 화면 3 (팀 서버 1.3.0 · 기록기 2.4.0)
    · 팀 현황(admin-team3.js)이 쓰는 도구: 하루 흐름(flowOf) · 숫자 점검 · 연결 상태 · 기간 · 채널별 CSV · 게시판 구매처별 표
-   · 공지 확인(공지 화면 아래) · 근무 달력: 야근 신청 승인 · 이달 합계 · 공휴일 · 상담사 명단 · 비수기 */
+   · 공지 확인(공지 화면 아래) · 근무 달력: 연차·공가 승인(2026-11-10) · 야근 · 이달 합계 · 공휴일 · 상담사 명단 · 비수기 */
 (function () {
   'use strict';
   var A = function () { return window.KBAdminApp; }, T = function () { return window.KBTeam; };
@@ -235,8 +235,11 @@
     if (!(await ready(w, title, '퇴근 시각을 적으면 바로 야근으로 쌓여요(19:00 뒤).'))) return;
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
-    var got;
-    try { got = await Promise.all([getCfg(true), CSTeam.get('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.get('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; })]); }
+    var got, tok = await T().adminToken();
+    // 2026-11-10 연차·공가·결근(팀 서버 1.3.29): 승인 기다리는 건 달과 상관없이 다 · 사유는 관리 열쇠로만 받음 · 예전 서버면 null
+    var lvFrom = W.addDays(from < td ? from : td, -62);
+    try { got = await Promise.all([getCfg(true), CSTeam.get('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.get('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; }),
+      CSTeam.call('leave.list', { from: lvFrom, to: '9999-12-31', adminToken: tok }, 25000).then(function (r) { return r.items || []; }).catch(function () { return null; })]); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
     w.lastChild.remove();
     var cfgAll = got[0], cfg = cfgAll.cfg || {}, roster = (cfgAll.roster || []).slice(), items = (got[1].items || []).filter(function (x) { return x.status !== '반려'; }), qd = got[2].days || {}, P = T().person;
@@ -246,7 +249,7 @@
     var liveNames = (got[3].live || []).map(function (x) { return P(x.name); });
     var hol = W.holidays(cfg);
     var lastRec = function (name, day) { var x = qd[day] || {}, best = -1; Object.keys(x).forEach(function (n) { if (P(n) === name) (x[n].rt || []).forEach(function (v) { best = Math.max(best, v); }); }); return best >= 0 ? hhmm(best) : ''; };
-    var tok = await T().adminToken();
+    var leaves = got[4];
     // 달 넘기기 · 내려받기
     var nav = mk('div', 'ins qnav');
     nav.append(btn('◀', '', function () { cMonth = addMonth(m, -1); cal(w); }), mk('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5)) + '월'), btn('▶', '', function () { cMonth = addMonth(m, 1); cal(w); }), btn('이번 달', m === td.slice(0, 7) ? 'on' : '', function () { cMonth = td.slice(0, 7); cal(w); }),
@@ -257,6 +260,61 @@
       }));
     Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) { b.className = b.className.replace('btn ghost', '').replace('btn ', '').trim(); });
     w.append(nav);
+    // 2026-11-10 승인 기다리는 휴가(연차·공가) — 누르는 순간 화면에 먼저 반영, 저장은 뒤에서(안 되면 되돌리고 알림)
+    var lvP = mk('div', 'panel lvp'); lvP.style.maxWidth = '1100px';
+    var lvKey = function (x) { return x.grp || x.id; };
+    var groups = function (list) { var g = {}, order = []; list.forEach(function (x) { var k2 = lvKey(x); if (!g[k2]) { g[k2] = []; order.push(k2); } g[k2].push(x); }); return order.map(function (k2) { return g[k2].sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }); };
+    var lvLabel = function (x) { return x.kind === '연차' && x.part && x.part !== '하루' ? x.part + ' 반차' : x.kind === '연차' ? '연차 · 하루' : x.kind; };
+    var lvDays = function (g) { return g.reduce(function (n, x) { return n + (x.kind === '연차' && x.part && x.part !== '하루' ? 0.5 : 1); }, 0); };
+    var when = function (ms) { if (!ms) return ''; var k2 = W.dayKey(ms), d2 = new Date(ms); return md(k2) + ' ' + String(d2.getHours()).padStart(2, '0') + ':' + String(d2.getMinutes()).padStart(2, '0'); };
+    var lvAct = async function (g, apply, send, okMsg) {
+      var keep = g.map(function (x) { return Object.assign({}, x); }), keepList = leaves.slice();
+      apply(); g.forEach(function (x) { x._p = true; }); drawLv(); drawCalLv();
+      try { var r = await send(); (r && r.items || []).forEach(function (y) { leaves.forEach(function (x, i) { if (x.id === y.id) leaves[i] = y; }); }); g.forEach(function (x) { delete x._p; }); say(okMsg, 'ok'); }
+      catch (e) { leaves = keepList; keep.forEach(function (y) { leaves.forEach(function (x, i) { if (x.id === y.id) leaves[i] = y; }); }); say(e.message, 'err'); }
+      drawLv(); drawCalLv();
+    };
+    var lvRow = function (g, pending) {
+      var x = g[0], r = mk('div', 'lvrow' + (x._p ? ' pend' : '')), dates = g.length > 1 ? md(g[0].date) + ' ~ ' + md(g[g.length - 1].date) : md(x.date);
+      var dCell = mk('span'); dCell.append(document.createTextNode(dates + ' · '), mk('b', null, String(lvDays(g)) + '일')); if (x.note) dCell.append(mk('span', 'why', '사유: ' + x.note));
+      var others = []; leaves.forEach(function (y) { if (y.name !== x.name && y.status !== '반려' && g.some(function (z) { return z.date === y.date; })) others.push(nmOf(y.name) + ' ' + y.kind + ' ' + md(y.date)); });
+      var info = pending ? (others.length ? mk('span', 'clash', '같은 날 ' + others.slice(0, 2).join(', ') + (others.length > 2 ? ' 외 ' + (others.length - 2) : '')) : mk('span', 'mu', '같은 날 쉬는 사람 없음'))
+        : mk('span', 'mu', x.status === '반려' ? '반려' : x.kind === '결근' && x.by !== '팀장' ? '본인이 적음(승인 없음)' : x.by === '팀장' ? '관리에서 적음' : (x.decidedAt ? md(W.dayKey(x.decidedAt)) + ' 승인' : '승인'));
+      var acts = mk('span', 'acts');
+      if (pending) {
+        acts.append(btn('✓ 승인', 'sm okb', function () { lvAct(g, function () { g.forEach(function (y) { y.status = '승인'; y.decidedAt = Date.now(); }); }, function () { return CSTeam.call('leave.decide', { grp: x.grp, id: x.grp ? '' : x.id, status: '승인', adminToken: tok }, 25000); }, nmOf(x.name) + ' ' + x.kind + ' 승인했어요'); }),
+          btn('반려', 'danger-ghost sm', function () { lvAct(g, function () { g.forEach(function (y) { y.status = '반려'; }); }, function () { return CSTeam.call('leave.decide', { grp: x.grp, id: x.grp ? '' : x.id, status: '반려', adminToken: tok }, 25000); }, nmOf(x.name) + ' ' + x.kind + ' 반려했어요'); }));
+      } else {
+        if (x.kind !== '결근' && x.by !== '팀장') acts.append(btn('되돌리기', 'ghost sm', function () { lvAct(g, function () { g.forEach(function (y) { y.status = '대기'; }); }, function () { return CSTeam.call('leave.decide', { grp: x.grp, id: x.grp ? '' : x.id, status: '대기', adminToken: tok }, 25000); }, '승인 기다리는 곳으로 되돌렸어요'); }));
+        acts.append(btn('지우기', 'danger-ghost sm', function () { if (!confirm(nmOf(x.name) + ' ' + dates + ' ' + x.kind + '을(를) 지울까요?')) return; lvAct(g, function () { leaves = leaves.filter(function (y) { return g.indexOf(y) < 0; }); }, function () { return CSTeam.call('leave.cancel', { grp: x.grp, id: x.grp ? '' : x.id, adminToken: tok }, 25000); }, '지웠어요'); }));
+      }
+      r.append(mk('span', 'k', nmOf(x.name)), mk('span', 'tagk', lvLabel(x)), dCell, mk('span', 'mu', '신청 ' + when(x.at)), info, acts);
+      return r;
+    };
+    var drawLv = function () {
+      lvP.replaceChildren();
+      if (!leaves) { lvP.append(mk('h3', 'qh', '연차·공가·결근'), mk('p', 'muted', '팀 서버를 1.3.29로 바꿔 붙이면 상담사가 검색기 [근태]에서 신청한 연차·공가가 여기에 나오고 승인할 수 있어요.')); return; }
+      var pend = groups(leaves.filter(function (x) { return x.status === '대기'; })).sort(function (a, b) { return a[0].date < b[0].date ? -1 : 1; });
+      var h = mk('h3', 'qh', '승인 기다리는 휴가'); h.append(mk('span', 'cnt', String(pend.length))); lvP.append(h);
+      if (!pend.length) lvP.append(mk('p', 'muted', '지금 기다리는 신청이 없어요'));
+      pend.forEach(function (g) { lvP.append(lvRow(g, true)); });
+      var done = groups(leaves.filter(function (x) { return x.status !== '대기' && x.date >= from && x.date <= to; }));
+      if (done.length) { var det = mk('details', 'qdet'); det.append(mk('summary', null, Number(m.slice(5)) + '월 처리한 휴가 ' + done.length + '건 보기 · 되돌리기 · 지우기')); done.forEach(function (g) { det.append(lvRow(g, false)); }); lvP.append(det); }
+      lvP.append(mk('p', 'muted', '승인·반려는 [되돌리기]로 다시 고를 수 있어요. 같은 날 이미 쉬는 사람이 있으면 빨간 글씨로 알려 줘요. 사유는 이 화면에만 보여요.'));
+    };
+    var cellOf = {};
+    var drawCalLv = function () {
+      Object.keys(cellOf).forEach(function (k2) {
+        Array.prototype.slice.call(cellOf[k2].querySelectorAll('.ot.lv')).forEach(function (n) { n.remove(); });
+        (leaves || []).filter(function (x) { return x.date === k2 && x.status !== '반려'; }).forEach(function (x) {
+          var o = mk('span', 'ot lv'); o.append(document.createTextNode(nmOf(x.name) + ' '), mk('b', null, x.kind === '연차' && x.part && x.part !== '하루' ? x.part + '반차' : x.kind));
+          if (x.kind !== '결근') o.append(x.status === '승인' ? mk('span', 'lvok', '✓') : mk('span', 'lvwait', '⏳ 대기'));
+          if (x.note) o.title = '사유: ' + x.note; cellOf[k2].append(o);
+        });
+      });
+    };
+    if (leaves) leaves.forEach(function (x) { if (x.full && !fullOf[x.name]) fullOf[x.name] = x.full; });
+    drawLv(); w.append(lvP);
     // 달력
     var p2 = mk('div', 'panel'); p2.style.maxWidth = '1100px'; p2.append(mk('h3', 'qh', '달력'));
     // 평일만(토·일 칸은 뺌)
@@ -268,15 +326,16 @@
       var cell = mk('div', 'wc' + (hol[k] || wd === 0 ? ' off' : wd === 6 ? ' sat' : '') + (k === td ? ' today' : ''));
       cell.append(mk('span', 'n', String(d))); if (hol[k]) cell.append(mk('span', 'h', hol[k]));
       items.filter(function (x) { return x.date === k; }).forEach(function (x) { var o = mk('span', 'ot ok', nmOf(x.name) + ' ' + x.to); o.title = '야근 ' + hm(x.mins || 0) + (x.by === '팀장' ? ' · 팀장이 적음' : ''); cell.append(o); });
-      grid.append(cell);
+      cellOf[k] = cell; grid.append(cell);
     }
+    drawCalLv();
     p2.append(grid);
     // 팀장이 대신 적기
     var names = activeNames(roster, td, liveNames);
     var f = mk('div', 'facts'), sel = mk('select', 'sel'); sel.style.width = '120px'; sel.setAttribute('aria-label', '이름'); names.forEach(function (n) { sel.append(new Option(n, n)); });
     var di = mk('input', 'in'); di.type = 'date'; di.value = td.slice(0, 7) === m ? td : from; di.style.width = '150px';
     var ti = mk('input', 'in'); ti.type = 'time'; ti.value = '20:00'; ti.step = 600; ti.style.width = '120px'; ti.title = '퇴근 시각';
-    f.append(sel, di, ti, btn('대신 적기', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } }));
+    f.append(sel, di, ti, btn('대신 적기', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } var k3 = di.value; if (cellOf[k3]) { var tmp = mk('span', 'ot ok', nmOf(sel.value) + ' ' + ti.value.slice(0, 5)); tmp.style.opacity = '.5'; tmp.title = '저장 중…'; cellOf[k3].append(tmp); } say('적는 중…'); try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { if (tmp) tmp.remove(); say(e.message, 'err'); } }));
     p2.append(mk('p', 'muted', '팀장이 대신 적기(퇴근 시각 · 같은 날 다시 적으면 고쳐져요)'), f);
     w.append(p2);
     // 이달 합계
@@ -288,7 +347,7 @@
     p3.append(table(['상담사', '야근', '일수'], sn.map(function (n) { var s2 = sum[n]; all += s2.ok; return { cells: [nmOf(n), { text: s2.ok ? hm(s2.ok) : '–' }, String(s2.okN)] }; }).concat([{ cls: 'total', cells: ['합계', hm(all), ''] }])));
     if (items.length) {
       var det = mk('details', 'qdet'); det.append(mk('summary', null, '적힌 야근 ' + items.length + '건 보기 · 지우기'));
-      items.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('b', null, nmOf(x.name)), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)), mk('span', 'muted', x.by === '팀장' ? '팀장이 적음' : ''), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); cal(w); } catch (e) { say(e.message, 'err'); } })); det.append(r3); });
+      items.forEach(function (x) { var r3 = mk('div', 'qrow'); r3.append(mk('b', null, nmOf(x.name)), mk('span', null, md(x.date) + ' 퇴근 ' + x.to + ' · 야근 ' + hm(x.mins || 0)), mk('span', 'muted', x.by === '팀장' ? '팀장이 적음' : ''), mk('span', 'sp'), btn('지우기', 'danger-ghost sm', async function () { r3.style.opacity = '.4'; try { await CSTeam.call('ot.cancel', { id: x.id, adminToken: tok }); r3.remove(); say('지웠어요', 'ok'); cal(w); } catch (e) { r3.style.opacity = ''; say(e.message, 'err'); } })); det.append(r3); });
       p3.append(det);
     }
     w.append(p3);
