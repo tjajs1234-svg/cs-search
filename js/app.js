@@ -1006,7 +1006,7 @@
   // 1.3.3: 한 번에 받기(work.get) · 지난번 받은 것을 먼저 바로 보여 주고 뒤에서 새로 받음
   // 2026-11-10(주인): 빠릿하게 — 적기·지우기·신청·취소는 누르는 순간 화면에 먼저 반영하고 저장은 뒤에서(실패하면 되돌리고 이유 알림)
   //   · 저장 뒤 달 전체를 다시 받지 않음(서버가 돌려준 줄만 끼움) · 탭을 열어 두면 1분마다 조용히 새로 받음
-  // 2026-11-10(주인): 연차·공가·결근(팀 서버 1.3.29) — 연차·공가는 '⏳ 대기' → 관리 화면 승인 뒤 녹색 ✓ · 결근은 바로 · 사유는 관리 화면에만
+  // 2026-11-10(주인): 연차·공가·결근(팀 서버 1.3.29) — 승인 없이 적으면 바로 녹색 ✓(주인 11/10 2차) · 사유는 관리 화면에만 · 지우기는 내 것(관리 화면은 누구 것이든)
   var WK = 'csx:work:', TAB_NAME = '근태';
   function workCache(m) { var c = S.json(WK + m, null); return c && Array.isArray(c.items) ? c : null; }
   function workSave() { if (work.month) S.put(WK + work.month, { items: (work.items || []).filter(function (x) { return !x._p; }), leaves: work.leaves ? work.leaves.filter(function (x) { return !x._p; }) : null, cfg: work.cfg, roster: work.roster, at: Date.now() }); }
@@ -1049,20 +1049,20 @@
     var c = workCache(mo); work.month = mo; work.items = c ? c.items : [];
     work.leaves = c && Array.isArray(c.leaves) ? c.leaves : Array.isArray(work.leaves) ? [] : null; return true;
   }
-  function leaveLabel(x) { return x.kind === '연차' && x.part && x.part !== '하루' ? x.part + ' 반차' : x.kind; }
+  function nmFull(x) { var f = x.full; (work.roster || []).forEach(function (r) { if (r && r.name === x.name && r.full) f = r.full; }); return f || x.name; }
+  function leaveLabel(x) { return x.kind === '연차' && x.part && x.part !== '하루' ? x.part + ' 반차' : x.kind === '지각' ? '지각' + (x.mins ? ' ' + x.mins + '분' : '') : x.kind; }
   function leaveDays(x) { return x.kind === '연차' && x.part && x.part !== '하루' ? 0.5 : 1; }
-  function leaveMark(x) {
-    if (x.status === '반려') return el('span', 'lvrej', '반려');
-    if (x.kind === '결근') return null;
-    if (x.status === '승인') { var o = el('span', 'lvok', '✓'); o.title = '승인됨'; return o; }
-    var w = el('span', 'lvwait', '⏳ 대기'); w.title = '승인 기다리는 중'; return w;
-  }
+  function leaveCls(x) { return x.kind === '결근' ? ' absent' : x.kind === '지각' ? ' late' : ''; }
+  // 결근은 ✓ 없이 빨간 이름(주인 11/10)
+  function leaveMark(x) { return x.kind === '결근' || x.kind === '지각' ? null : el('span', 'lvok', '✓'); }
+  // 연차는 한 날에 한 사람(먼저 적은 사람) — 내가 아닌 사람이 그날 연차를 썼으면 그 줄
+  function leaveTaken(ds, p) { return (work.leaves || []).filter(function (x) { return x.kind === '연차' && x.status !== '반려' && x.name !== p && ds.indexOf(x.date) >= 0; })[0]; }
   // 고른 기간에서 근무일만(주말·공휴일 빼고)
   function leaveDates(from, to) { var out = []; if (!from) return out; if (!to || to < from) to = from; for (var k = from, i = 0; k <= to && i < 62; k = WorkClock.addDays(k, 1), i++) if (isWorkday(k)) out.push(k); return out; }
   function fmtNum(n) { return String(Math.round(n * 10) / 10); }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
-    var head = el('div', 'bhead'); head.append(el('h2', null, TAB_NAME), el('p', null, '야근은 퇴근 시각만, 연차·공가·결근은 날짜만 골라 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
+    var head = el('div', 'bhead'); head.append(el('h2', null, TAB_NAME), el('p', null, '야근은 퇴근 시각만, 연차·결근은 날짜만 골라 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
     // 2026-11-02 승인 없음(야근) · 이 PC에 관리 열쇠가 있으면(관리 화면을 연 PC) 아무 이름으로나 적고 지움 · 아니면 내 것만
     var adm = (S.json('csx:kbAdmin', null) || {}).token || '';
     var w = el('div', 'bwrite wform'), who;
@@ -1078,11 +1078,11 @@
     };
     // 종류: 야근 · 연차 · 공가 · 결근 (팀 서버가 예전 판이면 연차·공가·결근은 잠금)
     var kind = work.kind || '야근', canLeave = Array.isArray(work.leaves);
-    if (!canLeave && kind !== '야근' && work.items) kind = work.kind = '야근';
+    if ((!canLeave && kind !== '야근' && work.items) || kind === '공가') kind = work.kind = '야근'; // 공가는 뺌(주인 11/10)
     var kinds = el('div', 'wkinds'); kinds.append(el('span', 'wkl', '종류'));
-    ['야근', '연차', '공가', '결근'].forEach(function (k) {
-      var b = el('button', 'fchip', k); b.type = 'button'; b.setAttribute('aria-pressed', String(kind === k));
-      if (k !== '야근' && !canLeave) { b.disabled = true; b.title = work.items ? '팀 서버를 새 판(1.3.29)으로 바꾸면 쓸 수 있어요' : '불러오는 중…'; }
+    ['야근', '연차', '결근'].forEach(function (k) {
+      var b = el('button', 'fchip', k === '결근' ? '지각·결근' : k); b.type = 'button'; b.setAttribute('aria-pressed', String(kind === k));
+      if (k !== '야근' && !canLeave) { b.disabled = true; b.title = work.items ? '팀 서버를 새 판(1.3.30)으로 바꾸면 쓸 수 있어요' : '불러오는 중…'; }
       b.addEventListener('click', function () { work.kind = k; renderWork(); });
       kinds.append(b);
     });
@@ -1117,41 +1117,56 @@
       var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', days2), lab2('퇴근 시각', t), pv, el('span', 'grow'), who, go);
       w.append(r1, el('p', 'whint', '퇴근 시각을 숫자 4자리로 적어 주세요. 예: 19시 40분 퇴근 → 1940'));
     } else {
-      // 연차·공가·결근: 시작~끝 날짜(주말·공휴일 빼고 셈) · 연차는 하루/오전 반차/오후 반차 · 공가·결근은 사유(관리 화면에만)
-      var part = kind === '연차' ? (work.lp || '하루') : '하루';
+      // 연차·지각·결근: 시작~끝 날짜(주말·공휴일 빼고 셈) · 연차는 하루/오전 반차/오후 반차 · 결근은 사유(관리 화면에만)
+      // 2026-11-10 [지각·결근] 칸: [결근] [지각] — 지각은 관리 PC(관리 열쇠)에서만 몇 분까지 적음(주인 11/10)
+      if (kind === '결근' && work.ak === '지각' && adm) kind = '지각';
+      var late = kind === '지각', part = kind === '연차' ? (work.lp || '하루') : '하루';
+      if (kind === '결근' || late) {
+        var aks = el('div', 'wparts');
+        ['결근', '지각'].forEach(function (k3) { var b = el('button', 'fchip sub', k3); b.type = 'button'; b.setAttribute('aria-pressed', String(kind === k3)); if (k3 === '지각' && !adm) { b.disabled = true; b.title = '지각은 관리 화면 PC에서 적어요'; } b.addEventListener('click', function () { work.ak = k3; renderWork(); }); aks.append(b); });
+        kinds.append(aks);
+      }
       if (kind === '연차') {
         var parts = el('div', 'wparts');
         [['하루', '하루'], ['오전', '오전 반차'], ['오후', '오후 반차']].forEach(function (pp) { var b = el('button', 'fchip sub', pp[1]); b.type = 'button'; b.setAttribute('aria-pressed', String(part === pp[0])); b.addEventListener('click', function () { work.lp = pp[0]; renderWork(); }); parts.append(b); });
         kinds.append(parts);
       }
-      var dk2 = kstToday(), lf = work.lf || (isWorkday(dk2) ? dk2 : WorkClock.addDays(dk2, 1)), lt = part === '하루' ? (work.lt && work.lt >= lf ? work.lt : lf) : lf;
-      var fi = el('input', 'win wdate'); fi.type = 'date'; fi.value = lf; fi.setAttribute('aria-label', '시작 날짜');
+      var dk2 = kstToday(), lf = work.lf || (isWorkday(dk2) ? dk2 : WorkClock.addDays(dk2, 1)), lt = part === '하루' && !late ? (work.lt && work.lt >= lf ? work.lt : lf) : lf, one = part !== '하루' || late;
+      var fi = el('input', 'win wdate'); fi.type = 'date'; fi.value = lf; fi.setAttribute('aria-label', one ? '날짜' : '시작 날짜');
       var ti2 = el('input', 'win wdate'); ti2.type = 'date'; ti2.value = lt; ti2.min = lf; ti2.setAttribute('aria-label', '끝 날짜');
       var cnt = el('span', 'wprev');
-      var count = function () { var ds = leaveDates(fi.value, part === '하루' ? ti2.value : fi.value); cnt.className = 'wprev' + (ds.length ? ' ok' : ' bad'); cnt.textContent = ds.length ? (ds.length > 1 || (ti2.value && ti2.value !== fi.value) ? '주말·공휴일 빼고 ' : '') + (part === '하루' ? ds.length + '일' : '0.5일') : '근무일이 아니에요(주말·공휴일)'; return ds; };
+      var count = function () { var ds = leaveDates(fi.value, !one ? ti2.value : fi.value);
+        var tk = kind === '연차' && ds.length ? leaveTaken(part === '하루' ? ds : ds.slice(0, 1), wPerson(who._any ? who._any.value : myName())) : null;
+        if (tk) { cnt.className = 'wprev bad'; cnt.textContent = Number(tk.date.slice(5, 7)) + '/' + Number(tk.date.slice(8, 10)) + '은 ' + nmFull(tk) + '이(가) 이미 연차를 썼어요'; ds._taken = tk; return ds; }
+        cnt.className = 'wprev' + (ds.length ? ' ok' : ' bad'); cnt.textContent = ds.length ? (ds.length > 1 || (ti2.value && ti2.value !== fi.value) ? '주말·공휴일 빼고 ' : '') + (late ? '' : part === '하루' ? ds.length + '일' : '0.5일') : '근무일이 아니에요(주말·공휴일)'; return ds; };
       fi.addEventListener('change', function () { work.lf = fi.value; if (!ti2.value || ti2.value < fi.value) { ti2.value = fi.value; work.lt = fi.value; } ti2.min = fi.value; count(); });
       ti2.addEventListener('change', function () { work.lt = ti2.value; count(); });
       var note = null;
-      if (kind !== '연차') { note = el('input', 'win wnote'); note.type = 'text'; note.maxLength = 200; note.placeholder = '사유(안 적어도 돼요 · 관리 화면에만 보여요)'; note.value = work.ln || ''; note.setAttribute('aria-label', '사유'); note.addEventListener('input', function () { work.ln = note.value; }); }
-      var go2 = btn(kind === '결근' ? '적기' : '신청하기', 'primary', 'plus', function () {
+      var lm = null;
+      if (late) { lm = el('input', 'win wtime'); lm.type = 'text'; lm.inputMode = 'numeric'; lm.maxLength = 3; lm.placeholder = '예: 15'; lm.autocomplete = 'off'; lm.setAttribute('aria-label', '몇 분 지각'); lm.value = work.lm || ''; lm.addEventListener('input', function () { work.lm = lm.value; }); }
+      if (kind === '결근' || late) { note = el('input', 'win wnote'); note.type = 'text'; note.maxLength = 200; note.placeholder = '사유(안 적어도 돼요 · 관리 화면에만 보여요)'; note.value = work.ln || ''; note.setAttribute('aria-label', '사유'); note.addEventListener('input', function () { work.ln = note.value; }); }
+      var go2 = btn('적기', 'primary', 'plus', function () {
         var name = whoName(); if (!name) return;
         var ds = count(); if (!ds.length) { toast('근무일을 골라 주세요(주말·공휴일은 못 적어요)', { warn: true }); return; }
-        if (part !== '하루') ds = ds.slice(0, 1);
+        if (ds._taken) { toast(cnt.textContent, { warn: true }); return; }
+        if (one) ds = ds.slice(0, 1);
+        var mins = late ? Number(String(lm.value).replace(/[^0-9]/g, '')) : 0;
+        if (late && !(mins >= 1 && mins <= 600)) { toast('몇 분 지각했는지 숫자로 적어 주세요(예: 15)', { warn: true }); lm.focus(); return; }
         var p = wPerson(name), full = /^[가-힣]{3}$/.test(name.replace(/\s+/g, '')) ? name.replace(/\s+/g, '') : '';
         var dup = (work.leaves || []).filter(function (x) { return x.name === p && x.status !== '반려' && ds.indexOf(x.date) >= 0; })[0];
         if (dup) { toast(Number(dup.date.slice(5, 7)) + '/' + Number(dup.date.slice(8, 10)) + '에 이미 ' + leaveLabel(dup) + '이(가) 있어요. 지우고 다시 적어 주세요', { warn: true }); return; }
-        var chg = workMonth(monthOf(ds[0])), st = adm || kind === '결근' ? '승인' : '대기', before = (work.leaves || []).slice();
-        var tmps = ds.map(function (k, i) { return { id: 'tmp' + Date.now() + i, grp: 'tmp', name: p, full: full, kind: kind, part: part, date: k, status: st, _p: true }; });
-        var q = { name: name, kind: kind, part: part, dates: ds, note: note ? note.value.trim() : '' }; if (adm) q.adminToken = adm;
-        work.ln = '';
-        var nd = part === '하루' ? ds.length + '일' : '반나절';
+        var chg = workMonth(monthOf(ds[0])), st = '승인', before = (work.leaves || []).slice();
+        var tmps = ds.map(function (k, i) { var o = { id: 'tmp' + Date.now() + i, grp: 'tmp', name: p, full: full, kind: kind, part: part, date: k, status: st, _p: true }; if (late) o.mins = mins; return o; });
+        var q = { name: name, kind: kind, part: part, dates: ds, note: note ? note.value.trim() : '' }; if (late) q.mins = mins; if (adm) q.adminToken = adm;
+        work.ln = ''; work.lm = '';
+        var nd = late ? '' : part === '하루' ? ds.length + '일' : '반나절';
         workOp(function () { work.leaves = (work.leaves || []).filter(function (x) { return !(x.name === p && x.status === '반려' && ds.indexOf(x.date) >= 0); }).concat(tmps); },
           function () { work.leaves = before; },
           async function () { var r = await CSTeam.call('leave.add', q, 25000); return function () { work.leaves = (work.leaves || []).filter(function (x) { return tmps.indexOf(x) < 0; }).concat(r.items || []); }; },
-          (adm ? name + ' · ' : '') + Number(ds[0].slice(5, 7)) + '/' + Number(ds[0].slice(8, 10)) + (ds.length > 1 ? '부터 ' : ' ') + leaveLabel({ kind: kind, part: part }) + ' ' + nd + (st === '대기' ? ' 신청했어요(승인되면 ✓)' : ' 적었어요')).then(function () { if (chg) loadWork(); });
+          (adm ? name + ' · ' : '') + Number(ds[0].slice(5, 7)) + '/' + Number(ds[0].slice(8, 10)) + (ds.length > 1 ? '부터 ' : ' ') + leaveLabel({ kind: kind, part: part, mins: mins }) + (nd ? ' ' + nd : '') + ' 적었어요').then(function () { if (chg) loadWork(); });
       });
-      var r2 = el('div', 'brow wrow'); r2.append(lab2('시작 날짜', fi)); if (part === '하루') r2.append(lab2('끝 날짜', ti2)); r2.append(cnt); if (note) r2.append(note); r2.append(el('span', 'grow'), who, go2);
-      w.append(r2, el('p', 'whint wlvhint', kind === '결근' ? '결근은 적으면 바로 올라가요. 사유는 다른 상담사에게 안 보여요.' : kind + '은(는) 승인되면 이름 옆에 녹색 ✓가 붙어요. 그전엔 노란 ‘⏳ 대기’로 보여요.'));
+      var r2 = el('div', 'brow wrow'); r2.append(lab2(one ? '날짜' : '시작 날짜', fi)); if (!one) r2.append(lab2('끝 날짜', ti2)); if (lm) r2.append(lab2('몇 분', lm)); r2.append(cnt); if (note) r2.append(note); r2.append(el('span', 'grow'), who, go2);
+      if (note) w.append(r2, el('p', 'whint', '사유는 다른 상담사에게 안 보여요.')); else w.append(r2);
       count();
     }
     L.append(w);
@@ -1159,7 +1174,6 @@
     if (!work.month) work.month = monthOf(kstToday());
     var nav = el('div', 'filters wnav'), m = work.month;
     nav.append(btn('◀', 'sm', null, function () { work.month = addMonth(m, -1); work.items = null; renderWork(); loadWork(); }), el('b', null, Number(m.slice(0, 4)) + '년 ' + Number(m.slice(5, 7)) + '월'), btn('▶', 'sm', null, function () { work.month = addMonth(m, 1); work.items = null; renderWork(); loadWork(); }));
-    if (canLeave) { var lg = el('span', 'wlegend'); var a1 = el('span'); a1.append(el('span', 'lvok', '✓'), document.createTextNode('승인됨')); var a2 = el('span'); a2.append(el('span', 'lvwait', '⏳ 대기'), document.createTextNode('승인 기다림')); lg.append(a1, a2); nav.append(lg); }
     L.append(nav);
     if (work.err && !work.items) { var eb = el('div', 'empty', '불러오지 못했어요.\n' + work.err); var rb = btn('다시 불러오기', 'sm', null, function () { work.err = ''; renderWork(); loadWork(); }); eb.append(el('br'), rb); L.append(eb); return; }
     if (work.err) L.append(el('div', 'scope', '새로 불러오지 못해 지난번 내용을 보여 줘요 · ' + work.err));
@@ -1184,7 +1198,7 @@
       cell.append(el('span', 'n', String(dd)));
       if (hol[k]) cell.append(el('span', 'h', hol[k]));
       items.filter(function (x) { return x.date === k; }).forEach(function (x) { var s = el('span', 'ot' + (x.name === me ? ' me' : '') + (x._p ? ' wpend' : ''), nm(x.name) + ' ' + x.to); if (x._p) s.title = '저장 중…'; cell.append(s); });
-      leaves.filter(function (x) { return x.date === k && x.status !== '반려'; }).forEach(function (x) { var s = el('span', 'ot lv' + (x.name === me ? ' me' : '') + (x._p ? ' wpend' : '')); s.append(document.createTextNode(nm(x.name) + ' '), el('b', null, leaveLabel(x))); var mk2 = leaveMark(x); if (mk2) s.append(mk2); if (x._p) s.title = '저장 중…'; cell.append(s); });
+      leaves.filter(function (x) { return x.date === k && x.status !== '반려'; }).forEach(function (x) { var s = el('span', 'ot lv' + leaveCls(x) + (x.name === me ? ' me' : '') + (x._p ? ' wpend' : '')); s.append(document.createTextNode(nm(x.name) + ' '), el('b', null, leaveLabel(x))); var mk2 = leaveMark(x); if (mk2) s.append(mk2); if (x._p) s.title = '저장 중…'; cell.append(s); });
       cal.append(cell);
     }
     // 이달 야근 합계(누구나 봄) + 쉰 날 + 사람마다 한 칸(날짜 · 퇴근 · 야근 · 쉰 날) — 달력 옆 빈 자리에 좌르륵
@@ -1199,10 +1213,10 @@
     sums.append(tot);
     var lvNames = Object.keys(lvBy).filter(function (n) { return lvBy[n].some(function (x) { return x.status !== '반려'; }); }).sort(ord);
     if (lvNames.length) {
-      var ls = el('div', 'wsum wlvsum'); ls.append(el('h3', null, Number(m.slice(5, 7)) + '월 쉰 날'));
+      var ls = el('div', 'wsum wlvsum'); ls.append(el('h3', null, Number(m.slice(5, 7)) + '월 연차·지각·결근'));
       lvNames.forEach(function (n) {
-        var cntK = {}, wait = 0; lvBy[n].forEach(function (x) { if (x.status === '반려') return; if (x.status === '대기') { wait += leaveDays(x); return; } cntK[x.kind] = (cntK[x.kind] || 0) + leaveDays(x); });
-        var txt = ['연차', '공가', '결근'].filter(function (k2) { return cntK[k2]; }).map(function (k2) { return k2 + ' ' + fmtNum(cntK[k2]); }).join(' · ');
+        var cntK = {}, wait = 0, lateM = 0; lvBy[n].forEach(function (x) { if (x.status === '반려') return; cntK[x.kind] = (cntK[x.kind] || 0) + leaveDays(x); if (x.kind === '지각') lateM += x.mins || 0; });
+        var txt = ['연차', '공가', '결근', '지각'].filter(function (k2) { return cntK[k2]; }).map(function (k2) { return k2 === '지각' ? '지각 ' + cntK[k2] + '번(' + lateM + '분)' : k2 + ' ' + fmtNum(cntK[k2]); }).join(' · ');
         var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n)); if (txt || !wait) r.append(el('b', null, txt || '–')); if (wait) r.append(el('small', 'lvwaitn', '대기 ' + fmtNum(wait))); ls.append(r);
       });
       sums.append(ls);
@@ -1226,14 +1240,14 @@
               function () { return CSTeam.call('ot.cancel', adm ? { id: x.id, adminToken: adm } : { id: x.id, name: me }, 25000); }, '지웠어요');
           }); r.append(del); }
         } else {
-          r.append(el('span', 't' + (x.status === '대기' ? ' pend' : x.status === '반려' ? ' rej' : ''), leaveLabel(x)), el('span', 'grow'));
+          r.append(el('span', 't' + (x.status === '반려' ? ' rej' : leaveCls(x)), leaveLabel(x)), el('span', 'grow'));
           var mk3 = leaveMark(x); if (mk3) r.append(mk3);
-          var canDel = !x._p && (adm || (x.name === me && (x.status !== '승인' || x.kind === '결근')));
-          if (canDel) { var del2 = el('button', 'wdel', '×'); del2.type = 'button'; var lbl = x.status === '대기' ? '신청 취소' : '지우기'; del2.title = lbl; del2.setAttribute('aria-label', lbl); del2.addEventListener('click', function () {
-            if (!confirm((adm ? nm(x.name) + ' ' : '') + Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' ' + leaveLabel(x) + (x.status === '대기' ? ' 신청을 취소할까요?' : '을(를) 지울까요?'))) return;
+          var canDel = !x._p && (adm || x.name === me);
+          if (canDel) { var del2 = el('button', 'wdel', '×'); del2.type = 'button'; var lbl = '이 날 지우기'; del2.title = lbl; del2.setAttribute('aria-label', lbl); del2.addEventListener('click', function () {
+            if (!confirm((adm ? nm(x.name) + ' ' : '') + Number(x.date.slice(5, 7)) + '/' + Number(x.date.slice(8, 10)) + ' ' + leaveLabel(x) + '을(를) 지울까요?')) return;
             var before = (work.leaves || []).slice();
             workOp(function () { work.leaves = (work.leaves || []).filter(function (y) { return y !== x; }); }, function () { work.leaves = before; },
-              function () { return CSTeam.call('leave.cancel', adm ? { id: x.id, adminToken: adm } : { id: x.id, name: me }, 25000); }, x.status === '대기' ? '신청을 취소했어요' : '지웠어요');
+              function () { return CSTeam.call('leave.cancel', adm ? { id: x.id, adminToken: adm } : { id: x.id, name: me }, 25000); }, '지웠어요');
           }); r.append(del2); }
         }
         wl.append(r);

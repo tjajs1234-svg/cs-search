@@ -270,6 +270,11 @@ dialog.dlg .in{margin-top:4px}
 .wcal .ot.no{background:var(--raised);color:var(--faint);text-decoration:line-through}
 .wcal .ot.lv{display:flex;align-items:center;gap:3px;background:var(--raised);color:var(--ink-2)}
 .wcal .ot.lv b{font-weight:700}
+.wcal .ot.lv.late{background:var(--warning-soft);color:var(--warning);font-weight:700}
+.wcal .ot.lv.absent{background:var(--danger-soft,#fbe9e6);color:var(--danger);font-weight:700}
+.wcal .ot .cx{border:0;background:none;color:inherit;opacity:.45;cursor:pointer;padding:0 0 0 3px;font-size:12px;line-height:1;margin-left:auto}
+.wcal .ot .cx:hover{opacity:1;color:var(--danger)}
+.wcal .ot.ok{display:flex;align-items:center;gap:3px}
 .lvok{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;background:var(--success);color:#fff;font-size:9px;font-weight:900;line-height:1;flex:none}
 .lvwait{display:inline-flex;align-items:center;background:var(--warning-soft);color:var(--warning);border-radius:4px;padding:0 3px;font-size:10.5px;font-weight:700;flex:none;white-space:nowrap}
 .lvrej{font-size:11px;font-weight:700;color:var(--danger)}

@@ -114,7 +114,7 @@
     var ntop = (cur.parsed && cur.parsed.sources && cur.parsed.sources.ntop) || [];
     if (ntop.length) { var tr = mk('div', 'hrow'); tr.style.gridTemplateColumns = 'minmax(0,1fr) auto'; tr.append(mk('span', 'muted', '족보 공지 고정 ' + ntop.length + '개 (아래 ‘공지 확인’에서 공지마다 켜고 꺼요)'), btn('족보 고정 모두 풀기', 'ghost sm', function () { KBAdmin.saveSources({ ntop: [] }, '족보 공지 고정 모두 풀기').then(function () { say('족보 공지 고정을 모두 풀었어요', 'ok'); notices(w); }).catch(function (e) { say((e && e.message) || '바꾸지 못했어요', 'err'); }); })); p.append(tr); }
     if (hid.length) {
-      var hd = mk('details', 'nhidbox'); hd.append(mk('summary', 'colhd', '숨긴 공지 ' + hid.length + '개 · 상담사 화면에 안 보여요'));
+      var hd = mk('details', 'nhidbox'); hd.open = true; hd.append(mk('summary', 'colhd', '숨긴 공지 ' + hid.length + '개 · [되돌리기]를 누르면 상담사 화면에 다시 보여요'));
       hid.sort(function (a, b) { return (b.hid || 0) - (a.hid || 0); }).forEach(function (n) { hd.append(row(n)); });
       p.append(hd);
     }

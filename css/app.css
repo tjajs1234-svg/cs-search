@@ -606,3 +606,8 @@ button.wsr:hover{background:var(--surface2)}
 .wcr.lvr .t.rej{color:var(--danger);text-decoration:line-through}
 .wlvhint{color:var(--warn)}
 .wnote{height:38px}
+/* 결근은 빨간 이름(주인 11/10) */
+.wcal .ot.lv.absent,.wcal .ot.lv.absent.me{background:var(--danger-soft);color:var(--danger);font-weight:700}
+.wcr.lvr .t.absent{color:var(--danger)}
+.wcal .ot.lv.late,.wcal .ot.lv.late.me{background:var(--warn-soft);color:var(--warn);font-weight:700}
+.wcr.lvr .t.late{color:var(--warn)}
