@@ -614,3 +614,12 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-10 사람 칸에서 퇴근 시각(20:10)·야근(1시간 10분)이 두 줄로 쪼개지지 않게 */
 .wcr .t,.wcr .m,.wcr .d{white-space:nowrap}
 .wcr{gap:6px}
+/* 2026-11-10.4 넓은 화면(주인 ㄱ): 문의 검색은 카드를 화면 끝까지(1920 모니터에서 한 줄에 4개) · 요청·건의는 쓰는 칸 끝까지 + 글 두 줄 · 스크립트 분류 이름 안 잘림 */
+#rlist{max-width:none}
+@media (min-width:1400px){
+  #rlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:12px;align-items:start}
+  #rlist>:not(.rcard){grid-column:1/-1}
+  #blist{max-width:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+  #blist>:not(.bpost){grid-column:1/-1}
+}
+.cat .nm{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;word-break:keep-all}
