@@ -611,3 +611,6 @@ button.wsr:hover{background:var(--surface2)}
 .wcr.lvr .t.absent{color:var(--danger)}
 .wcal .ot.lv.late,.wcal .ot.lv.late.me{background:var(--warn-soft);color:var(--warn);font-weight:700}
 .wcr.lvr .t.late{color:var(--warn)}
+/* 2026-11-10 사람 칸에서 퇴근 시각(20:10)·야근(1시간 10분)이 두 줄로 쪼개지지 않게 */
+.wcr .t,.wcr .m,.wcr .d{white-space:nowrap}
+.wcr{gap:6px}
