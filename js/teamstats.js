@@ -238,7 +238,7 @@
   function prevWorkday(td) { var y = W.addDays(td, -1); while (!W.day(y, {}) && y > W.addDays(td, -10)) y = W.addDays(y, -1); return { key: y, label: y === W.addDays(td, -1) ? '어제' : '일월화수목금토'[W.weekday(y)] + '요일' }; }
   // 지난주 같은 요일(쉬는 날이면 없음) · 이름표('지난주 수요일')
   function lastWeekSame(td) { var k = W.addDays(td, -7); return W.day(k, {}) ? { key: k, label: '지난주 ' + '일월화수목금토'[W.weekday(k)] + '요일' } : null; }
-  var api = { lowHour: lowHour, oneLine: oneLine, prevWorkday: prevWorkday, lastWeekSame: lastWeekSame, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
+  var api = { leadMerge: leadMerge, lowHour: lowHour, oneLine: oneLine, prevWorkday: prevWorkday, lastWeekSame: lastWeekSame, person: person, isHard: isHard, periodKeys: periodKeys, daysBack: daysBack, compute: compute, weekOf: weekOf, byResp: byResp };
   root.KBTeamStats = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

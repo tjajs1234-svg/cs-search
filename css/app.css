@@ -629,3 +629,71 @@ button.wsr:hover{background:var(--surface2)}
   #nlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
   #nlist>:not(.ncard){grid-column:1/-1}
 }
+
+/* 2026-11-12 [현황·업무] · [계정] — 관리 열쇠 있는 PC에만 */
+.ldgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;max-width:1400px}
+@media (max-width:1100px){.ldgrid{grid-template-columns:minmax(0,1fr)}}
+.ldcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-s)}
+.ldcard h2{margin:0;font-size:19px}
+.ldh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ldsp{flex:1}
+.ldday{font-size:15px;min-width:92px;text-align:center}
+.ldsub{color:var(--ink3);font-size:13px;margin:4px 0 10px}
+.ldsub.warn{color:var(--warn)}
+.ldmut{color:var(--ink3);font-size:13px}
+.ldtot{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;background:var(--accent-soft);border-radius:12px;padding:8px 14px;margin-bottom:8px}
+.ldtot b{font-size:28px;color:var(--accent);font-variant-numeric:tabular-nums}
+.ldtot span{color:var(--ink2);font-size:13.5px}
+.ldrows{display:flex;flex-direction:column}
+.ldrow{display:flex;align-items:center;gap:8px;min-height:34px;padding:2px 4px;border-bottom:1px solid var(--line);font-size:14.5px}
+.ldcol{min-width:26px;font:700 11.5px var(--f-code);color:var(--ink3)}
+.ldnm{flex:1;display:flex;align-items:center;gap:6px}
+.ldrow.zero .ldnm,.ldrow.zero .ldv{color:var(--ink3);font-weight:500}
+.ldrow.skip{background:var(--danger-soft);opacity:.75}
+.ldrow.skip .ldnm{color:var(--ink3)}
+.ldskip{font-size:12px;color:var(--ink3)}
+.ldv{min-width:30px;text-align:right;font-size:16px;font-variant-numeric:tabular-nums}
+.ldadj{width:26px;height:26px;padding:0;border:1px solid var(--line2);border-radius:7px;background:var(--surface2);color:var(--ink2);font-size:15px;line-height:1}
+.ldadj:disabled{opacity:.35}
+.ldhand{font-size:11.5px;font-weight:700;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:0 6px}
+.ldcopy{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ldnote{margin-top:10px;font-size:13px;color:var(--ink2);background:var(--surface2);border-radius:10px;padding:8px 12px;line-height:1.7}
+.ldother{color:var(--warn);font-weight:600}
+.ldform{display:grid;gap:6px;background:var(--surface2);border-radius:12px;padding:10px;margin-bottom:8px}
+.ldform input,.ldpin input,.ldmore input,.ldbar .ldq{height:38px;border:1px solid var(--line2);border-radius:9px;padding:0 10px;background:var(--surface);min-width:0}
+.ldfr{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ldfr input[type=date]{width:150px}.ldfr input[type=time]{width:110px}
+.ldlist{display:flex;flex-direction:column}
+.ldtd{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;border-bottom:1px solid var(--line)}
+.ldck{flex:none;width:24px;height:24px;padding:0;border-radius:50%;border:2px solid var(--line2);background:var(--surface);font-size:13px;font-weight:800;line-height:1;color:var(--ink3)}
+.ldtd.due .ldck{border-color:var(--danger);color:var(--danger)}
+.ldtd.done .ldck{background:var(--good);border-color:var(--good);color:#fff}
+.ldti{flex:1;min-width:0}
+.ldtt{font-weight:700;white-space:pre-wrap}
+.ldtd.done .ldtt{text-decoration:line-through;color:var(--ink3)}
+.ldtm{font-size:12.5px;color:var(--ink3)}
+.ldtd.due .ldtm{color:var(--danger);font-weight:700}
+.ldx{flex:none;border:0;background:transparent;color:var(--ink3);font-size:18px;line-height:1;padding:2px 6px}
+.ldempty{color:var(--ink3);font-size:13.5px;margin:10px 2px}
+.lddue{position:fixed;right:20px;bottom:20px;z-index:60;max-width:380px;background:var(--surface);border:2px solid var(--danger);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+.lddue b{color:var(--danger)}
+.lddt{font-weight:700;white-space:pre-wrap}
+.ldda{display:flex;gap:6px;justify-content:flex-end}
+.ldlock{max-width:520px}
+.ldpin{display:flex;gap:8px;flex-wrap:wrap}
+.ldpin input{flex:1 1 160px}
+.ldmsg{color:var(--danger);font-size:13.5px;min-height:20px;margin:6px 0 0}
+.ldacct{max-width:1100px}
+.ldbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ldbar .ldq{flex:1 1 260px}
+.ldacs{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
+.ldac{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.ldach{display:flex;gap:6px;align-items:center}
+.ldsite{flex:1;min-width:0;border:0;background:transparent;font-weight:800;font-size:15.5px;padding:2px 0}
+.ldacr{display:flex;gap:6px;align-items:center}
+.ldlab{min-width:24px;font:700 11.5px var(--f-code);color:var(--ink3)}
+.ldacr input{flex:1;min-width:0;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 9px;background:var(--surface2);font-family:var(--f-code)}
+.ldmemo{width:100%;min-height:34px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--surface2);color:var(--ink2);font-size:13px;resize:vertical}
+.ldmore{margin-top:12px;font-size:13.5px;color:var(--ink2)}
+.ldmore[open]{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ldmore summary{cursor:pointer;width:100%}
