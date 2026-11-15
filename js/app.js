@@ -637,7 +637,7 @@
   }
   function chips(box, values, cur, pick) { box.replaceChildren(); values.forEach(function (v) { var b = el('button', 'fchip', v || '전체'); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.addEventListener('click', function () { pick(v); }); box.append(b); }); }
   // 2026-11-15 문의 검색 C(주인 ㄱ): 한 줄에 문의 하나 · 제목 줄 오른쪽에 버튼 · 문의 | 답변 나란히 · 길면 줄이고 [전체 보기]
-  function srcLink(src) { var lk = el('a', 'btn ghost sm'); lk.href = 'https://docs.google.com/spreadsheets/d/' + src.id + '/edit#gid=' + (src.gid || 0) + '&range=A' + src.row; lk.target = '_blank'; lk.rel = 'noopener noreferrer'; lk.title = '요청시트 원본 줄 열기'; lk.append(ic('ext'), '원본'); return lk; }
+  function srcLink(src) { var lk = el('a', 'btn ghost sm'); lk.href = 'https://docs.google.com/spreadsheets/d/' + src.id + '/edit#gid=' + (src.gid || 0) + '&range=A' + src.row; lk.target = '_blank'; lk.rel = 'noopener noreferrer'; lk.title = '요청시트 원본 줄 열기'; lk.append(ic('ext'), '원본 시트'); return lk; }
   function rowCol(label, cls) { var d = el('div', 'rcol' + (cls ? ' ' + cls : '')); d.append(el('div', 'rlbl', label)); return d; }
   function rowText(col, text, toks, lines, open) { var t = rich(el('p', 'rtx'), text, toks); if (!open && lines) { t.classList.add('rclamp'); t.style.setProperty('--ln', lines); } col.append(t); return t; }
   // 줄인 글이 실제로 넘칠 때만 [전체 보기] — 화면에 붙은 뒤 재 봄
@@ -657,8 +657,8 @@
     var items = CSMedia.itemsOf(r), pics = items.filter(function (x) { return !x.link; });
     if (pics.length) m.append(el('span', null, '사진·영상 ' + pics.length));
     hd.append(m);
+    // 2026-11-15 주인: 문의 검색엔 [답변 복사]·[작성공간에 담기] 없이 [원본](시트 가기)만
     var answer = r.fa || r.mf, a = el('div', 'acts');
-    if (answer) a.append(btn('답변 복사', 'sm', 'copy', function () { copyText(answer, '답변을 복사했어요'); }), btn('작성공간에 담기', 'sm', 'plus', function () { add(answer, null); }));
     if (r.src && r.src.id) a.append(srcLink(r.src));
     if (a.childNodes.length) hd.append(a);
     c.append(hd);
@@ -686,7 +686,6 @@
     if (isNewDef(x)) m.append(el('span', 'ptag new', '새로 올라옴'));
     hd.append(m);
     var a = el('div', 'acts');
-    if (x.guide) a.append(btn('안내 복사', 'sm', 'copy', function () { copyText(x.guide, '안내를 복사했어요'); }), btn('작성공간에 담기', 'sm', 'plus', function () { add(x.guide, null); }));
     if (x.src && x.src.id) a.append(srcLink(x.src));
     if (a.childNodes.length) hd.append(a);
     c.append(hd);
