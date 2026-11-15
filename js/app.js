@@ -145,14 +145,14 @@
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts';
     if ((v === 'lead' || v === 'acct') && !(window.KBLead && KBLead.on())) v = 'scripts'; // 2026-11-12 관리 열쇠 있는 PC에만
-    curView = v;
+    var prevView = curView; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.setAttribute('aria-selected', String(t.dataset.v === v)); });
     try { history.replaceState(null, '', '#' + v); } catch (e) {}
     closePops();
     if (v === 'req') { ensureArchive(); renderReq(); }
     if (v === 'defect') { S.put('csx:defOpened', Date.now()); renderDefect(); renderBadges(); }
-    if (v === 'notice') renderNotices();
+    if (v === 'notice') { if (prevView !== 'notice' && nOpen) { nOpen.clear(); $('nlist').replaceChildren(); } renderNotices(); } // 2026-11-15 공지 C: 칸을 다시 열면 지난 공지는 접힌 채로
     if (v === 'board') loadBoard(true); else freshNow.clear();
     if (v === 'work') { renderWork(); loadWork(); }
     if (v === 'rank') KBTeamRec.show(); else KBTeamRec.hide(); // 2026-11-01 팀 기록(오늘만)
@@ -636,29 +636,68 @@
     r.addEventListener('click', function () { r.disabled = true; r.textContent = '읽는 중…'; refreshBridge(true); }); box.append(r);
   }
   function chips(box, values, cur, pick) { box.replaceChildren(); values.forEach(function (v) { var b = el('button', 'fchip', v || '전체'); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.addEventListener('click', function () { pick(v); }); box.append(b); }); }
+  // 2026-11-15 문의 검색 C(주인 ㄱ): 한 줄에 문의 하나 · 제목 줄 오른쪽에 버튼 · 문의 | 답변 나란히 · 길면 줄이고 [전체 보기]
+  function srcLink(src) { var lk = el('a', 'btn ghost sm'); lk.href = 'https://docs.google.com/spreadsheets/d/' + src.id + '/edit#gid=' + (src.gid || 0) + '&range=A' + src.row; lk.target = '_blank'; lk.rel = 'noopener noreferrer'; lk.title = '요청시트 원본 줄 열기'; lk.append(ic('ext'), '원본'); return lk; }
+  function rowCol(label, cls) { var d = el('div', 'rcol' + (cls ? ' ' + cls : '')); d.append(el('div', 'rlbl', label)); return d; }
+  function rowText(col, text, toks, lines, open) { var t = rich(el('p', 'rtx'), text, toks); if (!open && lines) { t.classList.add('rclamp'); t.style.setProperty('--ln', lines); } col.append(t); return t; }
+  // 줄인 글이 실제로 넘칠 때만 [전체 보기] — 화면에 붙은 뒤 재 봄
+  function moreIfClamped(c, extra, onOpen) {
+    var mb = el('button', 'morebtn', '전체 보기 ▾'); mb.type = 'button'; mb.hidden = !extra; mb.addEventListener('click', onOpen); c.append(mb);
+    requestAnimationFrame(function () { if (Array.prototype.some.call(c.querySelectorAll('.rclamp'), function (t) { return t.scrollHeight > t.clientHeight + 2; })) mb.hidden = false; });
+  }
   function reqCard(r, toks) {
-    var id = r.id || [r.d, r.c, (r.q || '').slice(0, 30)].join('|'), open = reqOpen.has(id), c = el('article', 'rcard');
-    var m = el('div', 'meta'); m.append(el('span', null, r.d || r.yr || ''));
+    var id = r.id || [r.d, r.c, (r.q || '').slice(0, 30)].join('|'), open = reqOpen.has(id), c = el('article', 'rcard rrow');
+    var hd = el('div', 'rhd'), m = el('div', 'meta');
+    if (r.n) hd.append(rich(el('h3'), r.n, toks));
+    m.append(el('span', null, r.d || r.yr || ''));
     if (r.c) { var sk = el('span', 'sku'); rich(sk, r.c, toks); m.append(sk); }
     if (r.t) m.append(el('span', 'ptag' + (/불량/.test(r.t) ? ' def' : ''), r.t));
     if (r.ch) m.append(el('span', null, r.ch));
     if (r.k && r.k < yearAgoKey()) { var od = el('span', 'ptag old', '1년 넘은 답변'); od.title = '지금 정책·재고·가격과 다를 수 있어요. 최신 공지·멘트와 맞춰 보고 안내해 주세요'; m.append(od); }
     var items = CSMedia.itemsOf(r), pics = items.filter(function (x) { return !x.link; });
-    if (pics.length) m.append(el('span', null, '· 사진·영상 ' + pics.length));
-    c.append(m);
-    if (r.n) c.append(rich(el('h3'), r.n, toks));
-    var dl = el('dl', 'qa'), long = false;
-    var line = function (label, text, cls) { if (!text) return; dl.append(el('dt', null, label)); var dd = rich(el('dd', cls || ''), text, toks); if (!open && text.length > 180) { dd.classList.add('clamp'); long = true; } dl.append(dd); };
-    line('문의', r.q); if (open && r.sq && r.sq !== r.q) line('상담 질문', r.sq);
-    var answer = r.fa || r.mf; line(r.fa ? '최종 답변' : '답변', answer, 'ans');
-    if (open && r.fa && r.mf && r.mf !== r.fa) line('피드백', r.mf);
-    c.append(dl);
-    if (long || (!open && r.sq && r.sq !== r.q)) { var mb = el('button', 'morebtn', '전체 보기 ▾'); mb.type = 'button'; mb.addEventListener('click', function () { reqOpen.add(id); c.replaceWith(reqCard(r, toks)); }); c.append(mb); }
+    if (pics.length) m.append(el('span', null, '사진·영상 ' + pics.length));
+    hd.append(m);
+    var answer = r.fa || r.mf, a = el('div', 'acts');
+    if (answer) a.append(btn('답변 복사', 'sm', 'copy', function () { copyText(answer, '답변을 복사했어요'); }), btn('작성공간에 담기', 'sm', 'plus', function () { add(answer, null); }));
+    if (r.src && r.src.id) a.append(srcLink(r.src));
+    if (a.childNodes.length) hd.append(a);
+    c.append(hd);
+    var body = el('div', 'rbody'), q = rowCol('문의'), an = rowCol(r.fa ? '최종 답변' : '답변', 'ra');
+    if (r.q) rowText(q, r.q, toks, 4, open); else q.append(el('p', 'rtx none', '문의 칸이 비어 있어요'));
+    if (open && r.sq && r.sq !== r.q) { q.append(el('div', 'rlbl sub', '상담 질문')); rowText(q, r.sq, toks, 0, true); }
+    if (answer) rowText(an, answer, toks, 6, open); else an.append(el('p', 'rtx none', '답변 칸이 비어 있어요'));
+    if (open && r.fa && r.mf && r.mf !== r.fa) { an.append(el('div', 'rlbl sub', '피드백')); rowText(an, r.mf, toks, 0, true); }
+    body.append(q, an); c.append(body);
+    if (open) { var lb = el('button', 'morebtn', '접기 ▴'); lb.type = 'button'; lb.addEventListener('click', function () { reqOpen.delete(id); c.replaceWith(reqCard(r, toks)); }); c.append(lb); }
+    else moreIfClamped(c, !!(r.sq && r.sq !== r.q) || !!(r.fa && r.mf && r.mf !== r.fa), function () { reqOpen.add(id); c.replaceWith(reqCard(r, toks)); });
     var st = CSMedia.strip(items, r.n || r.c || '사진', false); if (st) c.append(st);
+    return c;
+  }
+  // 문의 검색 맨 위 불량 카드도 같은 한 줄 모양(불량가이드 탭은 그대로 defCard)
+  function defRow(x, toks) {
+    var c = el('article', 'rcard rrow rdef'), hd = el('div', 'rhd'), m = el('div', 'meta');
+    if (x.name) hd.append(rich(el('h3'), x.name, toks));
+    m.append(el('span', 'ptag def', '불량'));
+    var sk = el('button', 'sku'); sk.type = 'button'; sk.title = '불량가이드에서 이 제품코드 보기'; rich(sk, x.sku, toks);
+    sk.addEventListener('click', function () { $('dq').value = x.sku; $('dq').dispatchEvent(new Event('input')); setView('defect'); });
+    m.append(sk); if (x.kind) m.append(el('span', null, x.kind));
+    if (x.fixed) m.append(el('span', 'ptag ok', '가이드 확정'));
+    else { var nf = el('span', 'ptag old', '확정 전 · 안내 전 확인'); nf.title = '아직 확정되지 않은 가이드예요. 고객에게 안내하기 전에 팀장에게 확인해 주세요'; m.append(nf); }
+    if (isNewDef(x)) m.append(el('span', 'ptag new', '새로 올라옴'));
+    hd.append(m);
     var a = el('div', 'acts');
-    if (answer) a.append(btn('답변 복사', '', 'copy', function () { copyText(answer, '답변을 복사했어요'); }), btn('작성공간에 담기', '', 'plus', function () { add(answer, null); }));
-    if (r.src && r.src.id) { var lk = el('a', 'btn ghost'); lk.href = 'https://docs.google.com/spreadsheets/d/' + r.src.id + '/edit#gid=' + (r.src.gid || 0) + '&range=A' + r.src.row; lk.target = '_blank'; lk.rel = 'noopener noreferrer'; lk.append(ic('ext'), '원본 줄 열기'); a.append(lk); }
-    if (a.childNodes.length) c.append(a);
+    if (x.guide) a.append(btn('안내 복사', 'sm', 'copy', function () { copyText(x.guide, '안내를 복사했어요'); }), btn('작성공간에 담기', 'sm', 'plus', function () { add(x.guide, null); }));
+    if (x.src && x.src.id) a.append(srcLink(x.src));
+    if (a.childNodes.length) hd.append(a);
+    c.append(hd);
+    var body = el('div', 'rbody'), l = rowCol('증상'), r = rowCol('고객 안내', 'ra');
+    if (x.sym) rowText(l, x.sym, toks, 0, true);
+    if (x.found) { l.append(el('div', 'rlbl sub', '내부 확인')); rowText(l, x.found, toks, 0, true); }
+    if (x.guide) rowText(r, x.guide, toks, 0, true); else r.append(el('p', 'rtx none', '고객 안내가 아직 없어요'));
+    if (x.term) { r.append(el('div', 'rlbl sub', '조치 기간')); rowText(r, x.term, toks, 0, true); }
+    if (x.note) { r.append(el('div', 'rlbl sub', '비고')); rowText(r, x.note, toks, 0, true); }
+    body.append(l, r); c.append(body);
+    var st = CSMedia.strip(CSMedia.itemsOf(x), x.name || x.sku, true); if (st) c.append(st);
     return c;
   }
   // 띄어쓰기 무시(s26울트라 = S26 울트라) · 초성(ㄱㄹㅅㅇㅌ) — 제품코드·제품명·유형·증상의 첫소리
@@ -684,7 +723,7 @@
     if (defHit.rows.length) {
       var al = el('div', 'defalert'); al.setAttribute('role', 'alert');
       al.append(el('b', null, '⚠ 불량가이드에 있는 제품이에요 · ' + defHit.skus.join(', ')), el('span', null, '안내하기 전에 아래 불량 내용을 확인해 주세요.'));
-      list.append(al); defHit.rows.slice(0, 5).forEach(function (x) { list.append(defCard(x, s.toks)); });
+      list.append(al); defHit.rows.slice(0, 5).forEach(function (x) { list.append(defRow(x, s.toks)); });
       if (defHit.rows.length > 5) list.append(btn('불량가이드에서 ' + defHit.rows.length + '건 모두 보기', '', null, function () { $('dq').value = defHit.skus[0]; $('dq').dispatchEvent(new Event('input')); setView('defect'); }));
       list.append(el('div', 'sec', '비슷한 문의'));
     }
@@ -747,6 +786,7 @@
     return out;
   }
   // 이 PC에서 검색기를 처음 쓴 때(휴가 뒤에도 그동안 올라온 공지는 '새 공지'로 남게)
+  var nOpen = new Set(); // 2026-11-15 공지 C: 이번에 공지 칸을 연 동안 펼친 지난 공지
   function firstUse() { var v = Number(S.get('csx:firstUse') || 0); if (!v) { v = Date.now(); S.set('csx:firstUse', String(v)); S.mirrorSoon(); } return v; }
   function unreadNotices() { return allNotices().filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); }
   // 2026-11-01 확인한 시각(공지 번호 → ms): 카드에 '11월 1일 14:20 확인'으로 남김
@@ -763,7 +803,7 @@
   function askUnderstood(n, box) {
     var bg = el('div', 'nask'), d = el('div', 'naskd'); bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
     var no = btn('아니오, 다시 읽을게요', 'ghost', null, function () { close(false); }), yes = btn('네, 확인했어요', 'primary', null, function () { close(true); });
-    function close(ok) { document.removeEventListener('keydown', key, true); bg.remove(); if (ok) markSeen([n.id]); else { box.checked = false; box.focus(); } }
+    function close(ok) { document.removeEventListener('keydown', key, true); bg.remove(); if (ok) { nOpen.add(n.id); markSeen([n.id]); } else { box.checked = false; box.focus(); } }
     function key(e) { if (e.key === 'Escape') { e.preventDefault(); close(false); } }
     var a = el('div', 'acts'); a.append(no, yes);
     d.append(el('h4', null, n.title || '(제목 없음)'), el('p', 'q', '공지 내용을 제대로 읽고 확인했나요?'), a);
@@ -800,9 +840,21 @@
     if (!toks.length) return { rows: all, toks: [] };
     return { toks: toks, rows: all.filter(function (n) { var h = noticeHay(n); return toks.every(function (t) { return KBSearch.isCho(t) ? h.c.indexOf(t) >= 0 : h.t.indexOf(t) >= 0; }); }) };
   }
+  // 지난 공지 한 줄: 줄 아무 데나 누르면 펼침 · 펼친 뒤엔 제목 줄을 누르면 접힘 · 키보드 Enter/Space
+  function foldCtl(c, h, n) {
+    var done = M.seen.indexOf(n.id) >= 0; h.prepend(el('span', 'nfk' + (done ? '' : ' no'), done ? '✓' : ''));
+    var sync = function () { var f = c.classList.contains('nfold'); c.tabIndex = f ? 0 : -1; c.setAttribute('aria-expanded', String(!f)); h.title = f ? '누르면 펼쳐요' : '누르면 접어요'; };
+    var toggle = function () { var f = c.classList.toggle('nfold'); if (f) nOpen.delete(n.id); else nOpen.add(n.id); sync(); if (f) c.focus({ preventScroll: true }); };
+    c.addEventListener('click', function (e) { if (String(getSelection()).length) return; if (c.classList.contains('nfold') || h.contains(e.target)) { if (e.target.closest('a,button,input,label,.ph')) return; toggle(); } });
+    c.addEventListener('keydown', function (e) { if (e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(); } });
+    sync();
+  }
   function renderNotices() {
-    var list = $('nlist'), all = allNotices(), un = all.filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; }); list.replaceChildren();
+    var list = $('nlist'), all = allNotices(), un = all.filter(function (n) { return n.fresh && M.seen.indexOf(n.id) < 0; });
     var qq = $('nq').value.trim(), f = filterNotices(all, qq);
+    // 2026-11-15 공지 C(주인): 지금 펼쳐 보고 있던 공지는 새로 그려도 펼친 채로(다른 PC에서 확인돼도 읽던 글이 안 접힘) · 검색 화면에서 펼친 건 남기지 않음
+    if (list.dataset.q === '') Array.prototype.forEach.call(list.querySelectorAll('.ncard:not(.nfold)'), function (c) { if (c.dataset.nid) nOpen.add(c.dataset.nid); });
+    list.replaceChildren(); list.dataset.q = qq;
     var info = $('ninfo'); info.replaceChildren(el('b', null, qq ? '찾은 공지 ' + f.rows.length + '개' : '공지 ' + all.length + '개'));
     if (qq) info.append(el('span', null, '· 전체 ' + all.length + '개 중'));
     // 공지마다 읽고 [확인했어요] — 한꺼번에 확인 처리는 없음(팀장 화면의 '누가 읽었나'가 정확하게)
@@ -810,8 +862,14 @@
     if (BD && BD.notice && BD.notice.error) info.append(el('span', 'warn', '⚠ 족보 공지: ' + BD.notice.error));
     if (!all.length) { list.append(el('div', 'empty', C ? '아직 공지가 없어요.' : '연결 코드를 넣으면 공지가 여기에 보여요.')); return; }
     if (!f.rows.length) { list.append(el('div', 'empty', '‘' + qq + '’이(가) 들어 있는 공지가 없어요.\n다른 낱말이나 제품코드로 찾아보세요.')); return; }
-    f.rows.forEach(function (n) {
-      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '') + (n.band && isNew ? ' band' : '') + (n.top ? ' pinned' : '')), h = el('div', 'nh'); c.dataset.nid = n.id;
+    // 2026-11-15 공지 C: 고정 · 아직 확인 안 한 새 공지 · 이번에 펼친 공지만 카드로, 나머지는 아래 '지난 공지' 한 줄(누르면 그 자리에서 펼침) · 검색하면 모두 펼침
+    var openOf = function (n) { return !!qq || !!n.top || un.indexOf(n) >= 0; };
+    var opened = f.rows.filter(openOf), folded = f.rows.filter(function (n) { return !openOf(n); }), fbox = null;
+    opened.concat(folded).forEach(function (n, ix) {
+      var foldable = !openOf(n), fold = foldable && !nOpen.has(n.id);
+      if (foldable && !fbox) { if (opened.length) list.append(el('div', 'sec nsec', '지난 공지')); fbox = el('div', 'nfoldbox'); list.append(fbox); }
+      var isNew = un.indexOf(n) >= 0, c = el('article', 'ncard' + (isNew ? ' unread' : '') + (n.band && isNew ? ' band' : '') + (n.top ? ' pinned' : '') + (fold ? ' nfold' : '')), h = el('div', 'nh'); c.dataset.nid = n.id;
+      if (foldable) foldCtl(c, h, n);
       if (isNew) h.append(el('span', 'ptag new', '새 공지'));
       if (n.rev && n.ed) h.append(el('span', 'ptag ed', new Date(n.ed).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }).replace(/\.\s*/g, '/').replace(/\/$/, '') + ' 고침 · 다시 확인'));
       if (n.important) h.append(el('span', 'ptag def', '중요'));
@@ -819,6 +877,7 @@
       // 2026-11-10.4 '읽어 주세요' 꼬리표 없앰(주인 11/10: 상담사 화면에 '꼭 읽어 주세요' 같은 말 빼기) — 띠 공지는 위 빨간 띠로 이미 알림
       h.append(f.toks.length ? markText(el('h3'), n.title || '(제목 없음)', f.toks) : el('h3', null, n.title || '(제목 없음)'));
       var when = n.date || (n.at ? new Date(n.at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '');
+      if (foldable) h.append(el('span', 'npv', String(n.body || '').split('\n').filter(function (x) { return x.trim(); })[0] || ''));
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));
       c.append(h);
       if (n.body) c.append(linkify(el('p', 'nb'), n.body, f.toks));
@@ -831,7 +890,7 @@
         else cb.addEventListener('change', function () { if (cb.checked) askUnderstood(n, cb); });
         var ft = el('div', 'nfoot'); ft.append(lb); var wl = whoList(n); if (wl) ft.append(wl); c.append(ft);
       }
-      list.append(c);
+      (foldable ? fbox : list).append(c);
     });
   }
   function renderBadges() {
@@ -968,10 +1027,13 @@
     if (me && team.indexOf(me) >= 0 && M.seen.indexOf(n.id) >= 0 && !at[me]) at[me] = seenAt()[n.id] || Date.now();
     if (!team.length) return null;
     team.sort(function (a, b) { return (at[a] ? 1 : 0) - (at[b] ? 1 : 0) || (at[a] || 0) - (at[b] || 0); });
+    // 2026-11-15 공지 C: 세로 목록 대신 이름표 한 줄 — 확인한 사람 초록 '이름 ✓', 아직이면 회색 이름 · 안 한 사람이 앞 · 시각은 마우스를 올리면
     var w = el('div', 'nwho'); w.setAttribute('aria-label', '상담사 확인');
     team.forEach(function (p) {
-      var t = at[p], d = t ? new Date(t) : null;
-      w.append(el('span', 'nm', p), el('span', 'mk ' + (t ? 'ok' : 'no'), t ? '✓' : '✗'), el('span', 'tm' + (t ? '' : ' no'), t ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '아직'));
+      var t = at[p], d = t ? new Date(t) : null, chip = el('span', 'nwc ' + (t ? 'ok' : 'no'));
+      chip.append(el('span', 'nm', p)); if (t) chip.append(el('span', 'mk', '✓'));
+      chip.title = t ? p + ' · ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' 확인' : p + ' · 아직';
+      w.append(chip);
     });
     return w;
   }
