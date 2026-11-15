@@ -358,8 +358,10 @@
     var names = activeNames(roster, td, liveNames);
     var f = mk('div', 'facts'), sel = mk('select', 'sel'); sel.style.width = '120px'; sel.setAttribute('aria-label', '이름'); names.forEach(function (n) { sel.append(new Option(n, n)); });
     var di = mk('input', 'in'); di.type = 'date'; di.value = td.slice(0, 7) === m ? td : from; di.style.width = '150px';
-    var ti = mk('input', 'in'); ti.type = 'time'; ti.value = '20:00'; ti.step = 600; ti.style.width = '120px'; ti.title = '퇴근 시각';
-    f.append(sel, di, ti, btn('대신 적기', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } if (!ti.value || ti.value.slice(0, 5) <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 골라 주세요', 'err'); return; } var k3 = di.value; if (cellOf[k3]) { var tmp = mk('span', 'ot ok', nmOf(sel.value) + ' ' + ti.value.slice(0, 5)); tmp.style.opacity = '.5'; tmp.title = '저장 중…'; cellOf[k3].append(tmp); } say('적는 중…'); try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: ti.value.slice(0, 5), adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { if (tmp) tmp.remove(); say(e.message, 'err'); } }));
+    // 2026-11-15(1-4) 상담사 [근태]와 같이 숫자 4자리(2000 → 20:00 · 10분 단위로 내림)
+    var ti = mk('input', 'in'); ti.type = 'text'; ti.inputMode = 'numeric'; ti.maxLength = 5; ti.placeholder = '예: 2000'; ti.style.width = '110px'; ti.title = '퇴근 시각(숫자 4자리)'; ti.setAttribute('aria-label', '퇴근 시각');
+    var tiHm = function () { var v = String(ti.value || '').replace(/[^0-9]/g, ''); if (v.length < 3) return ''; var h = Number(v.slice(0, v.length - 2)), mi = Number(v.slice(-2)); if (mi > 59 || h > 29) return ''; if (h < 12) h += 12; mi = Math.floor(mi / 10) * 10; return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'); };
+    f.append(sel, di, ti, btn('대신 적기', 'ghost sm', async function () { if (!sel.value) { say('아래 상담사 명단에 이름을 먼저 넣어 주세요', 'err'); return; } var hm5 = tiHm(); if (!hm5 || hm5 <= '19:00') { say('정시(19:00)보다 늦은 퇴근 시각을 숫자 4자리로 적어 주세요(예: 2000)', 'err'); return; } var k3 = di.value; if (cellOf[k3]) { var tmp = mk('span', 'ot ok', nmOf(sel.value) + ' ' + hm5); tmp.style.opacity = '.5'; tmp.title = '저장 중…'; cellOf[k3].append(tmp); } say('적는 중…'); try { await CSTeam.call('ot.add', { name: sel.value, date: di.value, from: '19:00', to: hm5, adminToken: tok }); say('적었어요', 'ok'); cal(w); } catch (e) { if (tmp) tmp.remove(); say(e.message, 'err'); } }));
     p2.append(mk('p', 'muted', '팀장이 대신 적기(퇴근 시각 · 같은 날 다시 적으면 고쳐져요)'), f);
     w.append(p2);
     // 이달 합계

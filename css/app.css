@@ -406,7 +406,7 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .wnav{align-items:center;gap:10px}
 .wcal{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
 .wcal .wd{font-size:12px;color:var(--ink3);text-align:center;padding:2px 0}
-.wcal .wc{min-height:64px;border:1px solid var(--line);border-radius:9px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--surface);font-size:12px}
+.wcal .wc{min-height:84px;border:1px solid var(--line);border-radius:9px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;background:var(--surface);font-size:12px}
 .wcal .wc.blank{border:0;background:none}
 .wcal .wc .n{font-weight:700;color:var(--ink2)}
 .wcal .wc.off .n,.wcal .wc .h{color:var(--danger,#d92d20)}
@@ -416,11 +416,11 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 .wcal .ot{font-size:11px;border-radius:5px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wcal .ot{background:var(--surface2);color:var(--ink2)}
 .wcal .ot.me{background:var(--accent-soft);color:var(--accent);font-weight:700}
-.wgrid{display:grid;grid-template-columns:minmax(480px,760px) minmax(0,1fr);gap:14px;align-items:start}
+.wgrid{display:grid;grid-template-columns:minmax(480px,1fr) 340px;gap:14px;align-items:start} /* 2026-11-15(1-4) 달력이 남는 폭을 다 씀 · 오른쪽은 합계·사람 칸 한 줄 */
 #wlist{max-width:none}
 #wlist>.bhead,#wlist>.bwrite{max-width:1040px}
 .wside{display:flex;flex-direction:column;gap:12px;min-width:0}
-.wside .wsum{max-width:340px}
+.wside .wsum{max-width:none}
 .wcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .wcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
 .wcard.me{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-soft)}
@@ -479,6 +479,7 @@ button.wsr:hover{background:var(--surface2)}
 .trk-t{width:100%;border-collapse:collapse;font-size:14px}
 .trk-t th{text-align:left;font-weight:600;color:var(--ink3);font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .trk-t td{padding:9px 8px;border-bottom:1px solid var(--line)}
+.trk-t td.trk-bd{text-align:center;color:var(--ink3);font-weight:600} /* 2026-11-15 게시판 위주 한 칸 */
 .trk-t tr.me td{background:var(--accent-soft)}
 .trk-t .num{text-align:right;font-variant-numeric:tabular-nums}
 .trk-t td.big{font-size:17px;font-weight:700}
@@ -598,7 +599,7 @@ button.wsr:hover{background:var(--surface2)}
 .wlegend{display:inline-flex;gap:14px;margin-left:14px;font-size:12.5px;color:var(--ink2);align-items:center;flex-wrap:wrap}
 .wlegend>span{display:inline-flex;align-items:center;gap:5px}
 .wsums{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
-.wsums .wsum{flex:1 1 220px;max-width:340px}
+.wsums .wsum{flex:1 1 220px;max-width:none}
 .wlvsum .wsr b{font-weight:600}
 .wlvsum .lvwaitn{color:var(--warn);font-weight:700}
 .wcr.lvr .t{font-weight:600}

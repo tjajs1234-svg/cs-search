@@ -1065,7 +1065,7 @@
   function fmtNum(n) { return String(Math.round(n * 10) / 10); }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
-    var head = el('div', 'bhead'); head.append(el('h2', null, TAB_NAME), el('p', null, '야근은 퇴근 시각만, 연차·결근은 날짜만 골라 주세요. 정시(19:00) 뒤로 넘은 시간이 야근으로 쌓여요.')); L.append(head);
+    var head = el('div', 'bhead'); head.append(el('h2', null, TAB_NAME)); L.append(head); // 2026-11-15(1-4) 안내 문장 뺌 — 입력칸 '예: 1940'만 남김
     // 2026-11-02 승인 없음(야근) · 이 PC에 관리 열쇠가 있으면(관리 화면을 연 PC) 아무 이름으로나 적고 지움 · 아니면 내 것만
     var adm = (S.json('csx:kbAdmin', null) || {}).token || '';
     var w = el('div', 'bwrite wform'), who;
@@ -1118,7 +1118,7 @@
       });
       t.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go.click(); } });
       var r1 = el('div', 'brow wrow'); r1.append(lab2('날짜', days2), lab2('퇴근 시각', t), pv, el('span', 'grow'), who, go);
-      w.append(r1, el('p', 'whint', '퇴근 시각을 숫자 4자리로 적어 주세요. 예: 19시 40분 퇴근 → 1940'));
+      w.append(r1);
     } else {
       // 연차·지각·결근: 시작~끝 날짜(주말·공휴일 빼고 셈) · 연차는 하루/오전 반차/오후 반차 · 결근은 사유(관리 화면에만)
       // 2026-11-10 [지각·결근] 칸: [결근] [지각] — 지각은 관리 PC(관리 열쇠)에서만 몇 분까지 적음(주인 11/10)
@@ -1260,7 +1260,6 @@
     });
     side.append(sums, cards);
     grid.append(cal, side); L.append(grid);
-    if (names.length) L.append(el('div', 'scope', '야근을 잘못 적었으면 같은 날로 다시 적으면 고쳐져요'));
   }
   // 퇴근 시각: 1940 · 19:40 · 940(→ 21:40) · 730(→ 19:30) · 10분 단위로 내림 — 17:00부터(자정 넘으면 2430처럼)
   function parseClock(raw) {

@@ -317,7 +317,8 @@
       chk.append(row);
     }); if (fl.length) cp.append(chk); box.append(cp);
     // 숫자(기록 · 채널 · 응대 · 문의 분류)
-    box.append(numTable(R));
+    // 2026-11-15(3-2) 아래 '숫자' 표는 화면에서 뺌(위 점수표와 같은 숫자 되풀이) · 엑셀엔 그대로
+    // box.append(numTable(R));
     // QA 감점 기록은 왼쪽 메뉴 [QA 피드백]으로 옮김(주인 11/06) · 여기는 한 줄 + 배점
     var qn = mk('div', 'tpanel sec iqago'), qh = mk('div', 'tph'), qs = R.rows.filter(function (z) { return z.adj < 0; });
     qh.append(mk('b', null, 'QA 감점'), mk('span', 'muted', qs.length ? qs.map(function (z) { return z.n + ' ' + qaPt(z.adj); }).join(' · ') : '이번 달 감점 없어요'), mk('span', 'sp'), btn('QA 피드백에서 적기 →', 'ghost sm', function () { var b = document.querySelector('.navx[data-view="qafb"]'); if (b) b.click(); }));

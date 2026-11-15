@@ -56,6 +56,8 @@
     var nWork = 0; keys.forEach(function (d) { if (W.day(d, (got[1] || {}).cfg || {})) nWork++; });
     // 시간당 응대 · 기록(한 표 · 시간당 응대 많은 순)
     var p1 = mk('div', 'tpanel'), h1 = mk('div', 'tph'); h1.append(mk('b', null, '시간당 응대 · 기록 · ' + label(st.period, keys)), mk('span', 'muted', '근무일 ' + nWork + '일 · 시간당 응대 많은 순 · 응대 = 답을 보낸 서로 다른 고객(기록 상관없음, 한 주에 같은 고객 1명) · 일한 시간 = 기록기가 켜져 있던 근무시간(10~19시 · 목 17시 · 점심 12:30~14:00 빼고 · 야근한 날은 19시 뒤 켜 둔 시간도 OT 퇴근·마지막 기록까지 · AS 시트 본 시간은 뺌)'));
+    // 2026-11-15 [숫자] 칸을 빼면서 내려받기(CSV)를 여기로 — 고른 기간 마지막 날의 달 · 날짜 × 상담사 × 채널(예전 [숫자]와 같은 파일)
+    var tdK = S().periodKeys('today')[0], csv = btn('CSV 내려받기', 'ghost sm tcsv', function () { T2().chanCsv((r && r.days) || {}, keys[keys.length - 1].slice(0, 7), tdK, window.KBTeam.person); }); csv.title = '그 달 날짜 × 상담사 × 채널(카톡 · 톡톡 · 게시판) 건수'; h1.append(mk('span', 'sp'), csv); p1.append(h1);
     if (!R.people.length) p1.append(mk('div', 'pnone', '이 기간 기록이 없어요'));
     else {
       var byR = S().byResp(R.people), bestR = byR.filter(function (o) { return o.rph != null; })[0] || null, rr = 0, lastR = null;

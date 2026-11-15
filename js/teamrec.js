@@ -62,11 +62,14 @@
     list.forEach(function (o) {
       var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); if (o.n === mine) nm.append(el('span', 'trk-mine', ' (나)'));
       var ln = lineOf(o), rv = el('td', 'rv');
-      if (ln.dash) rv.append(el('span', 'z', '–')); else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); }); }
-      tr.append(nm, el('td', 'num big', o.board || o.rph == null ? '–' : f1(o.rph) + '명'), el('td', 'num', o.resp + '명'), el('td', 'num big', o.ph == null ? '–' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건'), rv); tb1.append(tr);
+      if (ln.dash) { /* 2026-11-15 '–' 대신 빈칸 */ } else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); }); }
+      // 2026-11-15(1-2) 게시판 위주인 사람은 시간당·응대·시간당 완료 세 칸을 한 칸으로 · 계산 못 하는 칸은 '–' 대신 빈칸
+      if (o.board) { var bd = el('td', 'num trk-bd', '게시판 상담 위주'); bd.colSpan = 3; tr.append(nm, bd, el('td', 'num', o.rec + '건'), rv); }
+      else tr.append(nm, el('td', 'num big', o.rph == null ? '' : f1(o.rph) + '명'), el('td', 'num', o.resp + '명'), el('td', 'num big', o.ph == null ? '' : f1(o.ph) + '건'), el('td', 'num', o.rec + '건'), rv);
+      tb1.append(tr);
     });
     t1.append(tb1); b1.append(t1);
-    b1.append(el('p', 'trk-note', '응대 = 답장을 보낸 고객 수 · 완료(기록) = 상담이 끝나고 남긴 기록 수' + (R.people.some(function (o) { return o.ph == null || o.rph == null; }) ? ' · – = 기록기를 켠 지 1시간이 안 됐거나 아직 답한 고객이 없어요' : '')));
+    // 2026-11-15 표 아래 설명 줄 없앰(주인: 설명보다 화면이 말하게)
     wrap.append(b1);
     // 문의 분류(카테고리별 건수만)
     var b2 = el('div', 'trk-box'); b2.append(el('h3', null, '문의 분류'), el('p', 'trk-sub', '오늘 기록 창에서 고른 카테고리별 건수'));
