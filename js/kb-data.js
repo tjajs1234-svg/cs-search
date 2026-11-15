@@ -89,7 +89,7 @@
         if (!title && !group && !script && !note) return;
         if (sheets.indexOf(c.id) < 0) sheets.push(c.id);
         records.push({ id: str(k.id), source: 'official', sheet: str(c.id), sheetLabel: name, category: group || name,
-          situation: title || group || '(제목 없음)', script: script, note: note, rowNumber: ki + 2 });
+          situation: title || group || '(제목 없음)', script: script, note: note, rowNumber: ki + 2, ed: Number(k.ed) || 0 }); // ed = 관리 화면에서 마지막으로 고친 날(YYYYMMDD · 2026-11-16 A-4)
       });
     });
     var closings = (sc.closings || []).map(function (x, i) {

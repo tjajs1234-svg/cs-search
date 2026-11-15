@@ -55,13 +55,14 @@
     var b1 = el('div', 'trk-box'); b1.append(el('h3', null, '시간당 응대 · 완료'));
     var t1 = el('table', 'trk-t trk-rr'), h1 = el('tr');
     var hk = holdKey();
-    [['이름', ''], ['시간당 응대', 'num'], ['오늘 응대', 'num'], ['시간당 완료(기록)', 'num'], ['오늘 완료(기록)', 'num'], ['한줄평', 'rv']].forEach(function (h) { h1.append(el('th', h[1], h[0])); });
+    [['이름', ''], ['시간당 응대', 'num'], ['오늘 응대', 'num'], ['시간당 완료(기록)', 'num'], ['오늘 완료(기록)', 'num'], ['내 한줄평', 'rv']].forEach(function (h) { h1.append(el('th', h[1], h[0])); });
     h1.lastChild.append(el('span', 'trk-rvh', ' · ' + hk.split(':')[1] + '시 기준, 1시간마다 바뀜'));
     var th1 = el('thead'); th1.append(h1); t1.append(th1); var tb1 = el('tbody');
-    var list = KBTeamStats.byResp(R.people); list = list.filter(function (o) { return o.board; }).concat(list.filter(function (o) { return !o.board; })); // 게시판 위주는 맨 위
+    // 2026-11-15 밤 주인(A-2): 응대 많은 순은 사실상 등수 → 이름순(가나다)
+    var list = R.people.slice().sort(function (a, b) { return String(a.full || a.n).localeCompare(String(b.full || b.n), 'ko'); });
     list.forEach(function (o) {
       var tr = el('tr', o.n === mine ? 'me' : null), nm = el('td'); nm.append(el('b', null, o.full)); if (o.n === mine) nm.append(el('span', 'trk-mine', ' (나)'));
-      var ln = lineOf(o), rv = el('td', 'rv');
+      var ln = o.n === mine ? lineOf(o) : { dash: true }, rv = el('td', 'rv'); // 2026-11-15 밤 주인(A-2): 한줄평은 내 줄에만(남의 칭찬·고칠 점 모두 안 보임)
       if (ln.dash) { /* 2026-11-15 '–' 대신 빈칸 */ } else { (ln.goods || (ln.good ? [ln.good] : [])).forEach(function (g) { rv.append(said('span', 'it good', g)); }); (ln.fixes || []).forEach(function (f) { rv.append(said('span', 'it fix' + (f.strong ? ' strong' : '') + (f.quiet ? ' quiet' : '') + (f.gap ? ' gap' : ''), f.t, f.tip)); }); }
       // 2026-11-15(1-2) 게시판 위주인 사람은 시간당·응대·시간당 완료 세 칸을 한 칸으로 · 계산 못 하는 칸은 '–' 대신 빈칸
       if (o.board) { var bd = el('td', 'num trk-bd', '게시판 상담 위주'); bd.colSpan = 3; tr.append(nm, bd, el('td', 'num', o.rec + '건'), rv); }

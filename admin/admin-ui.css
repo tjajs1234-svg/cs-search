@@ -424,3 +424,14 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .titem .tgood{margin-top:8px;font-size:14px;font-weight:700;color:var(--success,#1a7f37)}
 .tgonum{display:inline-block;margin:6px 0 4px;padding:0;border:0;background:none;color:var(--accent,#2c52c0);font-weight:700;font-size:14px;cursor:pointer}
 .tgonum:hover{text-decoration:underline}
+/* 2026-11-15 밤(B-2) 기록 안 함(추정) 칸 */
+.trk-t1 td.trk-miss{color:var(--danger,#c0392b);font-weight:800}
+/* 2026-11-16 C-1 QA 한눈에 */
+.qdash .qd-kpi{display:flex;gap:12px;margin:4px 0 12px}.qdash .qd-kpi>div{flex:1;background:var(--sunk,#f3f5f8);border-radius:12px;padding:10px 14px;min-width:0}
+.qdash .qd-kpi span{display:block;color:var(--muted,#6b7280);font-size:13px}.qdash .qd-kpi b{display:block;font-size:24px;margin:2px 0}.qdash .qd-kpi em{font-style:normal;font-size:13px;font-weight:700}
+.qdash .qd-kpi em.up{color:var(--danger,#b23b2b)}.qdash .qd-kpi em.dn{color:var(--success,#2f7a55)}
+.qdash .qd-t{width:100%;border-collapse:collapse;font-size:14px}.qdash .qd-t th{font-size:12.5px;color:var(--muted,#6b7280);font-weight:700;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line,#e0e4ea);white-space:nowrap}
+.qdash .qd-t td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line,#e0e4ea)}.qdash .qd-t th:first-child,.qdash .qd-t td:first-child{text-align:left}
+.qdash .qd-t tr.sum td{font-weight:800;border-bottom:0}.qdash .qd-t .bad{color:var(--danger,#b23b2b);font-weight:800}.qdash .qd-t .na{color:var(--muted,#6b7280)}
+.qdash .qd-t input{width:64px;height:30px;border:1px solid var(--line,#cfd5de);border-radius:7px;text-align:right;padding:0 6px;font-size:14px;font-weight:700;background:var(--surface,#fff);color:inherit}
+@media (max-width:900px){.qdash .qd-kpi{flex-wrap:wrap}.qdash .qd-kpi>div{flex:1 1 40%}}

@@ -380,10 +380,56 @@
     sel.addEventListener('change', function () { qaMonth = sel.value; qaView(w); });
     bar.append(mk('span', null, '달'), sel, mk('span', 'muted', '그 달에 적은 건만 보여요 · 상담사를 누르면 펼쳐져요'));
     var R = qaRows(inc, qaMonth, names); R.month = qaMonth;
-    var box = mk('div', 'tview tinc'); box.append(qaPanel(R, qaMonth, { again: function () { qaView(w); } }));
+    var canChk = await qaChkOk(), box = mk('div', 'tview tinc'); box.append(qaDash(inc, qaMonth, R, canChk, function () { qaView(w); }), qaPanel(R, qaMonth, { again: function () { qaView(w); } }));
     w.replaceChildren(mk('h2', null, title), w.children[1] || mk('p'), bar, box);
   }
   (function reg() { if (typeof document === 'undefined') return; if (!root.KBAdminExtra || !root.KBTeam || !root.KBTeam2) return setTimeout(reg, 60); KBAdminExtra.views.qafb = qaView; })();
+  // 2026-11-16 주인(C-1): QA 피드백 맨 위 '한눈에' — 팀 전체 4칸 + 상담사별 표 · 점검한 상담 수는 상담사별로 직접 적음(팀 서버 1.3.31)
+  //  지난달은 같은 날짜까지만(이번 달이 16일이면 지난달 1~16일) · 점검 수를 안 적은 사람은 0이 아니라 '안 적음' · 관리 화면 전용(상담사 화면엔 없음)
+  var chkOkP = null;
+  function qaChkOk() { if (!chkOkP) chkOkP = CSTeam.call('ping', {}, 15000).then(function (r) { var v = String(r && r.version || '').split('.').map(Number); return (v[0] * 1e6 + (v[1] || 0) * 1e3 + (v[2] || 0)) >= 1003031; }).catch(function () { chkOkP = null; return false; }); return chkOkP; }
+  function prevMon(m) { return W.addDays(m + '-01', -1).slice(0, 7); }
+  function lastDayOf(m) { return Number(W.addDays(W.addDays(m + '-01', 40).slice(0, 8) + '01', -1).slice(8)); }
+  function chkAsOf(arr, cut) { if (!Array.isArray(arr) || !arr.length) return null; var v = null; arr.forEach(function (e) { if (!cut || e[0] <= cut) v = Number(e[1]); }); return v; }
+  function qaDash(inc, month, R, canChk, again) {
+    var P = T().person, td = W.dayKey(Date.now()), cur = td.slice(0, 7) === month, dd = cur ? Number(td.slice(8)) : 0;
+    var pm = prevMon(month), pd = cur ? Math.min(dd, lastDayOf(pm)) : 0, cutP = cur ? pm + '-' + String(pd).padStart(2, '0') : '', mo = function (m) { return Number(m.slice(5)) + '월'; };
+    var Rp = qaRows(inc, pm, R.rows.map(function (z) { return z.n; })), ms = inc.months || {}, chk = (ms[month] || {}).chk || {}, chkP = (ms[pm] || {}).chk || {};
+    var own = function (o, n) { var k = Object.keys(o).filter(function (x) { return P(x) === n; })[0]; return k ? o[k] : null; };
+    var pts = function (l) { return l.reduce(function (s2, z) { return s2 + (R.C[QTN[z.t][2]] || 0); }, 0); }, errs = function (l) { return l.filter(function (z) { return !QTN[z.t][4]; }).length; };
+    var rows = R.rows.slice().sort(function (a, b) { return a.n > b.n ? 1 : -1; }).map(function (z) {
+      var pz = Rp.rows.filter(function (y) { return y.n === z.n; })[0] || { qa: [] }, pq = pz.qa.filter(function (e) { return !cutP || e.d <= cutP; });
+      return { n: z.n, qaN: z.qaN, ck: chkAsOf(own(chk, z.n), ''), err: errs(z.qa), pt: pts(z.qa), pck: chkAsOf(own(chkP, z.n), cutP), perr: errs(pq), ppt: pts(pq), un: z.qa.filter(function (e) { return e.sent && !e.ack; }).length };
+    });
+    var sum = function (k) { return rows.reduce(function (s2, o) { return s2 + (o[k] || 0); }, 0); }, has = function (k) { return rows.some(function (o) { return o[k] != null; }); };
+    var rate = function (e, c) { return c ? Math.round(e / c * 100) + '%' : '–'; }, rateOf = function (ek, ck) { var c = 0, e = 0; rows.forEach(function (o) { if (o[ck] != null) { c += o[ck]; e += o[ek]; } }); return c ? Math.round(e / c * 100) : null; };
+    var p = mk('div', 'tpanel qdash'), h = mk('div', 'tph'); h.append(mk('b', null, mo(month) + ' QA 한눈에'), mk('span', 'muted', cur ? mo(month) + ' 1~' + dd + '일 · 지난달은 ' + mo(pm) + ' 1~' + pd + '일' : mo(month) + ' 전체 · 지난달은 ' + mo(pm) + ' 전체')); p.append(h);
+    var kp = mk('div', 'qd-kpi'), tile = function (lab, big, sub, cls) { var t = mk('div'); t.append(mk('span', null, lab), mk('b', null, big), mk('em', cls || null, sub)); kp.append(t); };
+    var r1 = rateOf('err', 'ck'), r0 = rateOf('perr', 'pck'), e1 = sum('err'), e0 = sum('perr'), arrow = function (a, b) { return a == null || b == null || a === b ? '' : a < b ? ' ▼' : ' ▲'; };
+    tile('점검한 상담', has('ck') ? sum('ck') + '건' : '안 적음', '지난달 ' + (has('pck') ? sum('pck') + '건' : '안 적음'));
+    tile('찾은 실수', e1 + '건', '지난달 ' + e0 + '건' + arrow(e1, e0), e1 < e0 ? 'dn' : e1 > e0 ? 'up' : '');
+    tile('점검 대비 실수', r1 == null ? '–' : r1 + '%', '지난달 ' + (r0 == null ? '–' : r0 + '%') + arrow(r1, r0), r1 != null && r0 != null ? (r1 < r0 ? 'dn' : r1 > r0 ? 'up' : '') : '');
+    tile('아직 안 본 피드백', sum('un') + '건', rows.filter(function (o) { return o.un; }).map(function (o) { return o.n + ' ' + o.un; }).join(' · ') || '모두 봤어요');
+    p.append(kp);
+    var t = mk('table', 'qd-t'), hr = mk('tr'); ['상담사', '점검'].concat(QT.map(function (q) { return q[1]; }), ['감점', '점검 대비', '지난달 감점', '안 본 피드백']).forEach(function (x) { hr.append(mk('th', null, x)); }); t.append(hr);
+    var pt = function (v) { return v ? '−' + Math.abs(v) + '점' : '0'; };
+    rows.forEach(function (o) {
+      var tr = mk('tr'), c0 = mk('td'), c1 = mk('td'), inp = mk('input'); c0.append(mk('b', null, o.n)); inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.placeholder = '–'; inp.setAttribute('aria-label', o.n + ' 점검한 상담 수');
+      if (o.ck != null) inp.value = String(o.ck);
+      if (!canChk) { inp.disabled = true; inp.title = '팀 서버를 1.3.31로 바꿔 붙이면 적을 수 있어요'; }
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') inp.blur(); });
+      inp.addEventListener('change', async function () { var v = inp.value.trim(); inp.disabled = true; try { await setInc({ month: month, chk: { n: o.n, v: v === '' ? null : Number(v) } }); say(o.n + ' 점검 수를 ' + (v === '' ? '지웠어요' : v + '건으로 적었어요'), 'ok'); again(); } catch (e) { inp.disabled = false; say(e.message, 'err'); } });
+      c1.append(inp); tr.append(c0, c1);
+      QT.forEach(function (q) { tr.append(mk('td', null, o.qaN[q[0]] ? String(o.qaN[q[0]]) : '·')); });
+      tr.append(mk('td', o.pt ? 'bad' : null, pt(o.pt)), mk('td', o.ck == null ? 'na' : null, o.ck == null ? '안 적음' : rate(o.err, o.ck)), mk('td', null, pt(o.ppt)), mk('td', o.un ? 'bad' : null, o.un ? String(o.un) : '·'));
+      t.append(tr);
+    });
+    var sr = mk('tr', 'sum'); sr.append(mk('td', null, '팀 합계'), mk('td', null, has('ck') ? String(sum('ck')) : '–'));
+    QT.forEach(function (q) { var n = rows.reduce(function (s2, o) { return s2 + (o.qaN[q[0]] || 0); }, 0); sr.append(mk('td', null, n ? String(n) : '·')); });
+    sr.append(mk('td', sum('pt') ? 'bad' : null, pt(sum('pt'))), mk('td', null, r1 == null ? '–' : r1 + '%'), mk('td', null, pt(sum('ppt'))), mk('td', sum('un') ? 'bad' : null, sum('un') ? String(sum('un')) : '·'));
+    t.append(sr); var tw = mk('div', 'twrap'); tw.append(t); p.append(tw);
+    return p;
+  }
   function qaPanel(R, month, st) {
     var p = mk('div', 'tpanel sec iqa'), h = mk('div', 'tph'), C = R.C, mn = Number(month.slice(5)) + '월';
     var accs = [];

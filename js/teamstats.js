@@ -80,7 +80,7 @@
     var noQa = []; // 기록한 방 자료가 없는 날(두 달 넘은 날 등) — 같은 고객 합치기 없이 셈
     keys.forEach(function (d) { if (!qd[d] && Object.keys(days[d] || {}).length) noQa.push(d); });
     var people = Object.keys(names).map(function (n) {
-      var x = live[n], fresh = !!(x && now - (x.at || 0) <= 3 * 60000), o = { n: n, rec: 0, raw: 0, redup: 0, on: 0, late: 0, as: 0, resp: 0, onResp: 0, rh: {}, wh: {}, ah: {}, onDays: 0, onRec: 0, work: 0, cats: {}, catN: 0, hardN: 0, k: 0, nv: 0, bd: 0, byDay: {} };
+      var x = live[n], fresh = !!(x && now - (x.at || 0) <= 3 * 60000), o = { n: n, rec: 0, raw: 0, redup: 0, on: 0, late: 0, as: 0, resp: 0, onResp: 0, rh: {}, wh: {}, ah: {}, onDays: 0, onRec: 0, work: 0, cats: {}, catN: 0, hardN: 0, k: 0, nv: 0, bd: 0, byDay: {}, missEnd: 0, missEndKnown: false };
       var seen = {}, seenR = {};
       keys.forEach(function (d) {
         var dd = days[d] || {}, v = { rec: 0, on: null, oa: 0, as: 0, ans: 0, k: 0, nv: 0, bd: 0, rh: {}, wh: {}, ah: {} };
@@ -105,6 +105,8 @@
         // 응대: 답한 고객(ak) · 보낸 방(sd) · 기록한 방(rk)을 합친 서로 다른 고객 · 같은 주에 이미 센 고객은 빼고
         var rs = {}, resp = 0; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) !== n) return; var e = qd[d][k] || {}; (e.ak || []).concat(e.rk || [], e.sd && typeof e.sd === 'object' && !Array.isArray(e.sd) ? Object.keys(e.sd) : []).forEach(function (h) { if (/^[kn]/.test(h)) rs[h] = 1; }); });
         Object.keys(rs).forEach(function (h) { var key = wk + ':' + h; if (!seenR[key]) { seenR[key] = 1; resp++; } });
+        // 2026-11-15 밤 주인(B-2): 그날 끝(오늘은 지금)에 남아 있던 '답했는데 기록 없음' 수 · 서버 qa.json에 날마다 남은 목록으로 셈(추정)
+        Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) !== n) return; var e = qd[d][k] || {}; if (Array.isArray(e.miss)) { o.missEndKnown = true; o.missEnd += e.miss.length; } });
         // 야근한 날: 19시 뒤 켜져 있던 분을 OT 퇴근 시각 · 그날 마지막 기록 시각 중 늦은 쪽까지만 더함
         if (v.on != null && v.oa > 0) {
           var lastRt = -1; Object.keys(qd[d] || {}).forEach(function (k) { if (person(k) === n) (qd[d][k].rt || []).forEach(function (t) { if (t > lastRt) lastRt = t; }); });

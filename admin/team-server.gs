@@ -53,6 +53,7 @@
    · 1.3.29(주인 11/10): 연차·공가·결근(leave.json, 야근 ot.json과 따로) — leave.add(날짜 여러 개 · 하루/오전/오후)
             · 연차·공가는 '대기' → 관리 [승인]/[반려](leave.decide) · 결근과 관리 열쇠로 적은 건 바로 '승인'
             · 사유(note)는 관리 열쇠로 부를 때만 내려 줌 · work.get에 leaves · 쓰기는 바뀐 줄만 돌려줌(화면이 다시 받지 않게)
+   · 1.3.31(주인 11/16 C-1): QA 피드백 '한눈에' — 그 달 상담사별 점검한 상담 수를 inc.json months[달].chk[이름] = [[날짜, 그날까지 누적 수], …]로 저장(inc.set chk: {n, v}) · 관리 열쇠로만
    · 1.3.30(주인 11/10): 연차·공가도 승인 없이 적으면 바로(전부 '승인') · 예전 '대기' 줄도 승인으로 보여 줌
             · 상담사는 내 것을 언제든 지움 · 관리 열쇠는 누구 것이든 지움(시험용·계획 바뀜)
             · 지각(관리 열쇠로만 · 몇 분 mins 1~600) · 공가는 화면에서 뺌(예전 줄은 그대로 보임)
@@ -64,7 +65,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.30';
+var TEAM_VERSION = '1.3.31';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -783,6 +784,14 @@ function incSet_(req) {
   if (req.skip && typeof req.skip === 'object' && /^\d{4}-\d{2}-\d{2}\|(kakao|naver):.{1,100}$/.test(String(req.skip.key || ''))) {
     if (req.skip.v && typeof req.skip.v === 'object') v.skip[req.skip.key] = { r: text_(req.skip.v.r, 30) || '팀장이 뺌', w: num_(req.skip.v.w), at: Date.now() }; else delete v.skip[req.skip.key];
     var cut = dayKey_(Date.now() - 62 * 864e5); Object.keys(v.skip).forEach(function (k) { if (k.slice(0, 10) < cut) delete v.skip[k]; });
+  }
+  // 1.3.31 QA 점검한 상담 수(상담사별 · 그 달 누적) — 같은 날 다시 적으면 그날 값만 바꿈 · 빈칸이면 그 사람 기록을 지움
+  if (mon && req.chk && typeof req.chk === 'object') {
+    var cn = person_(req.chk.n), m4 = v.months[mon] || (v.months[mon] = {}), ck = m4.chk && typeof m4.chk === 'object' ? m4.chk : (m4.chk = {});
+    if (!cn) return { ok: false, error: '상담사 이름을 확인해 주세요' };
+    if (req.chk.v === null || req.chk.v === '') delete ck[cn];
+    else { var cv = Number(req.chk.v); if (!isFinite(cv) || cv < 0 || cv > 99999) return { ok: false, error: '점검 수는 0~99999 사이 숫자로 적어 주세요' }; cv = Math.round(cv);
+      var dk = dayKey_(Date.now()), arr = Array.isArray(ck[cn]) ? ck[cn] : (ck[cn] = []); if (arr.length && arr[arr.length - 1][0] === dk) arr[arr.length - 1][1] = cv; else arr.push([dk, cv]); if (arr.length > 62) arr.splice(0, arr.length - 62); }
   }
   // 1.3.26 QA 감점 기록: 한 건씩 넣고 지움(그 건 날짜의 달에)
   if (req.qa && typeof req.qa === 'object') {

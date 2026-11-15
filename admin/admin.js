@@ -87,6 +87,8 @@
  function rebased(ver,both){banner('그 사이 다른 PC에서 멘트가 바뀌었어요(<b>'+ver+'판</b>). 내 수정은 최신 판 위에 그대로 얹어 두었어요.'+(both&&both.length?' 같은 멘트를 둘 다 고친 것: <b>'+both.slice(0,3).map(esc).join(', ')+(both.length>3?' 외 '+(both.length-3)+'개':'')+'</b> — 내 것으로 두었으니 한 번 확인해 주세요.':''));}
  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
  function changed(){D=SD.diff(base,draft);persist();renderTop();}
+ // 2026-11-16 주인(A-4): 보낼 때 새로 넣었거나 제목·내용을 고친 멘트에 '고친 날'(서울 날짜 YYYYMMDD) → 상담사 카드에 '11/12 고침'
+ function stampEd(){const n=new Date(Date.now()+9*3600e3),tk=n.getUTCFullYear()*10000+(n.getUTCMonth()+1)*100+n.getUTCDate(),d=SD.diff(base,draft),ids=new Set([...(d.added||[]).map(x=>x.id),...(d.changed||[]).filter(x=>(x.fields||[]).some(f=>f==='script'||f==='title')).map(x=>x.id)]);for(const c of draft.categories||[])for(const k of c.cards||[])if(ids.has(k.id))k.ed=tk;}
 
  /* ───── 위쪽 막대 ───── */
  function renderTop(){
@@ -449,6 +451,7 @@
    const a=mk('div','acts');const y=btn('보내기','primary',()=>close(i.value));y.id='doPublish';a.append(btn('취소','ghost',()=>close(null)),y);d.append(l,i,a);setTimeout(()=>y.focus(),0);});
   if(note===null||note===undefined)return;
   busy=true;renderTop();$('publish').textContent='보내는 중…';
+  stampEd();
   const r=await send({type:'ADMIN_CALL',action:'scripts.save',params:{baseVersion:pubVer,data:draft,note:String(note||'').trim()||SD.summary(D)}}).catch(e=>({ok:false,error:e.message}));
   busy=false;$('publish').textContent='상담사에게 보내기';
   if(r&&r.conflict){await send({type:'KNOW_REFRESH'}).catch(()=>{});await load();renderTop();say('그 사이 다른 PC에서 멘트가 바뀌었어요. 최신 판 위에 내 수정을 다시 얹었으니 한 번 더 [상담사에게 보내기]를 눌러 주세요.','err');return;}

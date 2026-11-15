@@ -77,9 +77,9 @@
       };
       var rows = byR.map(function (o) {
         var gap = bestR && o.rph != null && o !== bestR && bestR.rph > 0 ? '−' + f1(bestR.rph - o.rph) + '명 (' + Math.round((bestR.rph - o.rph) / bestR.rph * 100) + '%)' : '–';
-        return { cells: [{ text: o.rrank ? o.rrank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.rph == null ? '–' : f1(o.rph) + '명', cls: 'trk-big trk-rsp' }, o.resp + '명', { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rank ? o.rank + '등' : '–', o.rec + '건', o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', o.as ? hm(o.as) : '–', { text: gap, cls: 'z2' }].concat(isToday ? [rvCell(o)] : []) };
+        return { cells: [{ text: o.rrank ? o.rrank + '등' : '–', cls: 'trk-rk' }, { text: o.full, cls: 'trk-nm' }, { text: o.rph == null ? '–' : f1(o.rph) + '명', cls: 'trk-big trk-rsp' }, o.resp + '명', { text: o.ph == null ? '–' : f1(o.ph) + '건', cls: 'trk-big' }, o.rank ? o.rank + '등' : '–', o.rec + '건', { text: o.missEndKnown ? o.missEnd + '건' : '–', cls: o.missEnd ? 'trk-miss' : '' }, o.perDay == null ? '–' : f1(o.perDay) + '건', o.work + '일', o.on ? hm(o.on) : '–', o.as ? hm(o.as) : '–', { text: gap, cls: 'z2' }].concat(isToday ? [rvCell(o)] : []) };
       });
-      p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'].concat(isToday ? ['한줄평(상담사 화면과 같음 · 회색 줄은 여기만)'] : []), rows, 'trk-t1'));
+      p1.append(T2().table(['응대 등수', '이름', '시간당 응대', '응대', '시간당 기록', '기록 등수', '기록', '기록 안 함(추정)', '하루 평균', '근무일', '일한 시간', 'AS로 뺀 시간', '1등과 차이(응대)'].concat(isToday ? ['한줄평(상담사 화면과 같음 · 회색 줄은 여기만)'] : []), rows, 'trk-t1'));
       var notes = [];
       if (R.people.some(function (o) { return o.ph == null || o.rph == null; })) notes.push('– = 기록기가 켜져 있던 시간이 1시간이 안 되거나, 켜진 시간 자료가 없는 날');
       var rd = R.people.reduce(function (s, o) { return s + o.redup; }, 0); if (rd) notes.push('같은 주에 같은 고객을 다시 기록한 ' + rd + '건은 빼고 셌어요');
