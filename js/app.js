@@ -133,6 +133,7 @@
     var before = P && P.revision;
     P = KBData.toPayload(C.scripts, { source: C.source, at: C.at, appVersion: VERSION });
     CSTeam.set(C.sources && C.sources.team && C.sources.team.url); $('boardTab').hidden = !CSTeam.ready(); $('workTab').hidden = !CSTeam.ready(); $('rankTab').hidden = !CSTeam.ready(); $('fbTab').hidden = !CSTeam.ready(); if (!CSTeam.ready() && (curView === 'board' || curView === 'work' || curView === 'rank' || curView === 'fb')) setView('scripts', false); if (CSTeam.ready() && !board.posts) loadBoard(false); if (CSTeam.ready()) syncReads(); if (CSTeam.ready() && curView === 'work') loadWork(); if (CSTeam.ready() && curView === 'rank') KBTeamRec.show();
+    if (window.KBLead && KBLead.setSources) KBLead.setSources(C.sources || {}); // 2026-11-16 게시판 기록 시트 · 팀 서버 늦은 연결
     trackChanges(); rebuild();
     if (cat && !(P.sheets || []).some(function (s) { return s === cat; })) { cat = ''; if (view === 'cat') view = 'all'; }
     renderAll();

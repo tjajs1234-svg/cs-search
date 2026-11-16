@@ -126,6 +126,8 @@
       out.sources.requests = (Array.isArray(s.requests) ? s.requests : []).map(function (x) { return x && sheetRef(x.url) ? { url: str(x.url).trim(), label: clean(x.label).slice(0, 40) } : null; }).filter(Boolean).slice(0, 10);
       out.sources.defects = s.defects && sheetRef(s.defects.url) ? { url: str(s.defects.url).trim(), label: clean(s.defects.label).slice(0, 40) } : null;
       out.sources.notice = s.notice && sheetRef(s.notice.url) ? { url: str(s.notice.url).trim(), label: clean(s.notice.label).slice(0, 40) } : null;
+      // 2026-11-16 게시판 기록 시트(관리 PC [현황·업무] 게시판 현황을 시트 줄 수로 셈 · 주인 11/16)
+      if (s.board && sheetRef(s.board.url)) out.sources.board = { url: str(s.board.url).trim() };
       // 팀 서버(요청·건의 · 사용 통계 · 팀 현황) 주소: 앱스크립트 웹 앱 주소만
       if (s.team && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]{20,}\/exec$/.test(str(s.team.url).trim())) out.sources.team = { url: str(s.team.url).trim() };
       // 계산기(유상 AS 요율 · 왕복 배송비 · 반품 기한): 멘트 관리 [계산기]에서 고침

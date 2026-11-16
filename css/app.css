@@ -753,3 +753,6 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-16 2-2 고친 공지 바뀐 곳 */
 .ncard .nb.ndiff mark.nadd{background:#ffe58a;color:inherit;border-radius:3px;padding:0 2px}.ncard .nb.ndiff s.ndel{color:var(--ink3);text-decoration-color:var(--ink3)}
 :root[data-theme="dark"] .ncard .nb.ndiff mark.nadd{background:#6b5414;color:#fff}
+
+/* 2026-11-16 게시판 기록 시트에서 세기: [지금 다시 받기] */
+.ldsub .ldagain{margin-left:8px;vertical-align:middle;padding:2px 10px;font-size:12px}

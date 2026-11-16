@@ -4,6 +4,9 @@
      '고객 데일리 응대 현황' H~AH 칸 순서 그대로 보여 줌(팀 전체 · 같은 글 두 번 기록은 기록기가 이미 1건으로 셈)
      분홍 칸(O 119 · P 이메일 · R 그 외 이메일)은 안 셈 · 다른 분이 언제 적을지 몰라 붙여넣기를 ① H~N ② Q ③ S~AH 세 번으로 나눔
      H 11번가 톡은 기록기로 못 가려 손으로만 셈 · −/+ 손 고침과 '그날 본 가장 큰 숫자'는 이 PC에만(csx:leadAdj · csx:leadSeen)
+     2026-11-16(웹 12.7, 주인 11/16): 관리 [연결 설정]에 '게시판 기록 시트' 주소가 있으면 그 시트의 그날 줄 수(A칸 날짜 · B칸 입점처)를
+     '검색기 연결' 확장(1.0.10 board.count)으로 받아 그대로 보여 줌 — 기록기가 꺼지거나 태그가 빠져도 시트와 같음 · 5분마다 · 못 읽으면 예전처럼 기록기 숫자
+     시트 입점처 드롭다운 23가지 중 롯데홈쇼핑만 보고 시트에 칸이 없어 '안 센 기록'으로 따로 알림
    · 업무 알림: 대상 · 할 일 · 시간 → 시간이 되면 검색기 화면 오른쪽 아래 알림(이 PC 브라우저에만 · csx:leadTodos · 서버로 안 감)
    · 계정: 사이트 · 아이디 · 비밀번호 · 메모 — 주인이 정한 잠금 번호로 암호화(PBKDF2 + AES-GCM)해 이 PC 브라우저에만(csx:vault)
      깃허브 · 멘트 원본 · 팀 서버 · 검색기 연결 확장 보관본 어디에도 안 보냄 · 새로 열면 잠금 번호 한 번 · 60분 안 쓰면 다시 잠김 */
@@ -51,7 +54,17 @@
     COLS.forEach(function (c) { if (c[0] === from) on = true; if (on) out.push(String(vals[c[0]] || 0)); if (c[0] === to) on = false; });
     return out.join('\t');
   }
-  var pure = { COLS: COLS, PIECES: PIECES, colOf: colOf, autoCounts: autoCounts, shown: shown, total: total, pieceText: pieceText };
+  /* 2026-11-16 시트 그날 입점처별 줄 수 { '네이버': 70, … } → { cols: {I: 70, …}, other: {'롯데홈쇼핑': 1}, sum: 전체 줄 수 } */
+  function sheetCounts(sites) {
+    var cols = {}, other = {}, sum = 0;
+    Object.keys(sites || {}).forEach(function (site) {
+      var v = Math.max(0, Math.round(Number(sites[site]) || 0)); if (!v) return; sum += v;
+      var c = colOf(site); if (c) cols[c] = (cols[c] || 0) + v; else other[site || '게시판'] = (other[site || '게시판'] || 0) + v;
+    });
+    return { cols: cols, other: other, sum: sum };
+  }
+  function autoSum(a) { var n = 0; Object.keys((a && a.cols) || {}).forEach(function (k) { n += a.cols[k] || 0; }); Object.keys((a && a.other) || {}).forEach(function (k) { n += a.other[k] || 0; }); return n; }
+  var pure = { COLS: COLS, PIECES: PIECES, colOf: colOf, autoCounts: autoCounts, shown: shown, total: total, pieceText: pieceText, sheetCounts: sheetCounts, autoSum: autoSum };
   if (typeof module === 'object' && module.exports) { module.exports = pure; return; }
   if (typeof document === 'undefined') return;
 
@@ -73,6 +86,8 @@
   function stepDay(k, dir) { var x = addDays(k, dir); while (wd(x) === 0 || wd(x) === 6) x = addDays(x, dir); return x; }
 
   var cur = '', day = '', team = null, gotAt = 0, err = '', loading = false, timer = 0;
+  // 2026-11-16 게시판 기록 시트: 주소(연결 설정) · 날짜별로 받은 줄 수 { day: { at, data | error } } · 5분마다 다시
+  var bsrc = '', sheetMemo = {}, SHEET_MS = 5 * 60000, sheetBusy = false;
 
   /* 게시판 현황 */
   async function loadTeam(force) {
@@ -83,7 +98,20 @@
     catch (e) { err = e.message || '불러오지 못했어요'; }
     loading = false;
   }
+  async function loadSheet(force) {
+    if (!bsrc) return;
+    var d = day, m = sheetMemo[d];
+    if (!force && m && Date.now() - m.at < (m.error ? 60000 : SHEET_MS)) return;
+    if (!root.CSBridge) { sheetMemo[d] = { at: Date.now(), error: '‘검색기 연결’ 확장이 없어요' }; return; }
+    sheetBusy = true;
+    try { var r = await CSBridge.call('board.count', { url: bsrc, day: d, force: !!force }, 120000); sheetMemo[d] = { at: Date.now(), data: { sites: r.sites || {}, total: r.total || 0, at: r.at || Date.now() } }; }
+    catch (e) { sheetMemo[d] = { at: Date.now(), error: e && e.kind === 'no-bridge' ? '‘검색기 연결’ 확장이 없어요' : e && e.message === '알 수 없는 요청' ? '‘검색기 연결’ 확장이 1.0.10 이상이어야 해요(웹스토어에서 새 판을 받으면 저절로 돼요)' : (e && e.message) || '시트를 읽지 못했어요' }; }
+    sheetBusy = false;
+  }
+  function sheetFor(d) { var m = sheetMemo[d]; return m && m.data && !m.error ? m.data : null; }
   function valsFor(d) {
+    var sd = bsrc ? sheetFor(d) : null;
+    if (sd) { var sc = sheetCounts(sd.sites), adj0 = (S.json(K_ADJ, {}) || {})[d] || {}; return { sheet: sd, auto: { cols: sc.cols, other: sc.other, people: 0 }, rec: team ? autoCounts(team, d) : null, adj: adj0, vals: shown(sc.cols, null, adj0) }; }
     var auto = team ? autoCounts(team, d) : { cols: {}, other: {}, people: 0 };
     var seenAll = prune(S.json(K_SEEN, {}) || {}, 62), seen = seenAll[d] || {}, ch = 0;
     Object.keys(auto.cols).forEach(function (k) { if ((auto.cols[k] || 0) > (seen[k] || 0)) { seen[k] = auto.cols[k]; ch = 1; } });
@@ -104,12 +132,22 @@
     var lab = el('b', 'ldday', md(day) + (day === td ? ' 오늘' : ''));
     h.append(prev, lab, next); if (day !== td) h.append(btn('오늘', 'sm', function () { day = td; refresh(false); }));
     c.append(h);
-    var V = valsFor(day), vals = V.vals;
+    var V = valsFor(day), vals = V.vals, sm = bsrc ? sheetMemo[day] : null;
+    if (bsrc) {
+      var again = btn('지금 다시 받기', 'sm ghost ldagain', function () { again.disabled = true; refresh(true); }); again.disabled = sheetBusy;
+      var sp = el('p', 'ldsub' + (V.sheet ? '' : sm && sm.error ? ' warn' : ''));
+      sp.append(document.createTextNode(V.sheet ? '게시판 기록 시트에서 ' + Number(day.slice(5, 7)) + '/' + Number(day.slice(8, 10)) + ' 줄을 셌어요 · ' + hm(V.sheet.at) + '에 받음 · 5분마다 다시 받아요'
+        : sm && sm.error ? '시트를 읽지 못해 기록기 숫자로 보여요 · ' + sm.error
+        : '게시판 기록 시트에서 세는 중…'), again);
+      c.append(sp);
+    } else {
     var sub = err === 'noteam' ? '팀 서버가 연결되지 않아 저절로 셀 수 없어요. −/+로만 셀 수 있어요.'
       : err ? '숫자를 받지 못했어요(' + err + '). 잠시 뒤 다시 받아요.'
       : '기록기로 기록한 게시판 글을 구매처별로 저절로 세요' + (gotAt ? ' · ' + hm(gotAt) + '에 받음' : loading ? ' · 받는 중…' : '') + ' · 기록하고 1~2분 뒤 늘어나요';
     c.append(el('p', 'ldsub' + (err && err !== 'noteam' ? ' warn' : ''), sub));
-    var tot = el('div', 'ldtot'); tot.append(el('b', null, total(vals) + '건'), el('span', null, '합계 · 보고 시트 ' + Number(day.slice(5, 7)) + '월 탭 ' + Number(day.slice(5, 7)) + '/' + Number(day.slice(8, 10)) + ' 줄 H~AH 칸 그대로'));
+    }
+    var where = '보고 시트 ' + Number(day.slice(5, 7)) + '월 탭 ' + Number(day.slice(5, 7)) + '/' + Number(day.slice(8, 10)) + ' 줄 H~AH 칸';
+    var tot = el('div', 'ldtot'); tot.append(el('b', null, total(vals) + '건'), el('span', null, V.sheet ? '합계 · 게시판 기록 시트 그대로 → ' + where + '에' : bsrc && sm && sm.error ? '합계 · 기록기 숫자(시트 아님)' : '합계 · ' + where + ' 그대로'));
     c.append(tot);
     var list = el('div', 'ldrows');
     COLS.forEach(function (col) {
@@ -133,7 +171,9 @@
     });
     c.append(cp);
     var nt = el('div', 'ldnote');
-    nt.append(el('div', null, '분홍 칸(119 · 이메일 · 그 외 이메일)은 건드리지 않게 세 번 나눠 붙여요.'), el('div', null, '−/+는 기록기가 멈췄을 때 처리한 글 · 지마켓·옥션 나누기(기록기는 한 칸) · 11번가 톡에 써요. 이 PC에만 남아요.'));
+    nt.append(el('div', null, '분홍 칸(119 · 이메일 · 그 외 이메일)은 건드리지 않게 세 번 나눠 붙여요.'), el('div', null, V.sheet ? '−/+는 시트 입점처로 못 가르는 것(지마켓·옥션 나누기 · 11번가 톡)에 써요. 이 PC에만 남아요.' : '−/+는 기록기가 멈췄을 때 처리한 글 · 지마켓·옥션 나누기(기록기는 한 칸) · 11번가 톡에 써요. 이 PC에만 남아요.'));
+    // 시트와 기록기 숫자가 다르면 한 줄(기록기 꺼짐 · 태그 빠짐을 알아채게) — 팀 서버 숫자를 받았을 때만
+    if (V.sheet && V.rec && team && !err) { var rs = autoSum(V.rec), dif = V.sheet.total - rs; if (dif) nt.append(el('div', 'ldother lddiff', '기록기 숫자(' + rs + '건)와 ' + Math.abs(dif) + '건 달라요 — ' + (dif > 0 ? '기록기가 꺼졌거나 태그가 빠진 PC가 있을 수 있어요' : '시트에 아직 안 들어간 기록이 있을 수 있어요'))); }
     var ot = Object.keys(V.auto.other);
     if (ot.length) nt.append(el('div', 'ldother', '시트에 칸이 없어 안 센 기록: ' + ot.map(function (n) { return (n === '게시판' ? '인입처 없음' : n) + ' ' + V.auto.other[n] + '건'; }).join(' · ')));
     c.append(nt);
@@ -206,7 +246,13 @@
     if (which !== 'todo') gridEl.firstChild.replaceChildren(boardCard());
     if (which !== 'board') gridEl.lastChild.replaceChildren(todoCard());
   }
-  async function refresh(force) { renderLead(gridEl && $('leadList').contains(gridEl) ? 'board' : ''); await loadTeam(force); renderLead('board'); }
+  async function refresh(force) { renderLead(gridEl && $('leadList').contains(gridEl) ? 'board' : ''); await Promise.all([loadTeam(force), loadSheet(force)]); renderLead('board'); }
+  // 검색기가 연결 정보(cs-content)를 읽으면 부름 — 게시판 기록 시트 주소 · 팀 서버가 늦게 연결돼도 바로 다시 받음('팀 서버가 연결되지 않아요'가 1분 남던 것)
+  function setSources(src) {
+    var u = (src && src.board && src.board.url) || '', changed = u !== bsrc;
+    if (changed) sheetMemo = {}; bsrc = u;
+    if (cur === 'lead' && (changed || err === 'noteam')) refresh(false);
+  }
 
   /* ───────────── 계정(잠금 번호로 암호화 · 이 PC에만) ───────────── */
   var vkey = null, vdata = null, vsalt = null, vtouch = 0, vq = '', ITER = 200000, IDLE = 60 * 6e4;
@@ -376,5 +422,5 @@
   setInterval(function () { if (vkey && Date.now() - vtouch > IDLE) lock(); }, 60000);
   setInterval(checkDue, 20000);
   window.addEventListener('storage', function (e) { if (e.key === 'csx:kbAdmin') syncTabs(); if (e.key === K_TODO) { badge(); if (cur === 'lead') renderLead('todo'); } });
-  root.KBLead = Object.assign({ on: on, syncTabs: syncTabs, show: show, hide: hide, checkDue: checkDue, _lock: lock, _refresh: refresh }, pure);
+  root.KBLead = Object.assign({ on: on, syncTabs: syncTabs, show: show, hide: hide, checkDue: checkDue, setSources: setSources, _lock: lock, _refresh: refresh }, pure);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

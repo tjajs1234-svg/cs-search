@@ -140,6 +140,7 @@
     var rows = src.requests.length ? src.requests.map(function (x) { return { label: x.label, url: x.url }; }) : [{ label: '2026 제품관련 문의', url: '' }];
     var def = { label: '제품 불량 모음', url: src.defects ? src.defects.url : '' };
     var ntc = { label: '족보 Daily 공지', url: src.notice ? src.notice.url : '' };
+    var brd = { url: src.board ? src.board.url : '' }; // 2026-11-16 게시판 기록 시트(현황·업무 게시판 현황)
     w.replaceChildren(mk('h2', null, T), mk('p', 'desc', D));
     var how = mk('details', 'more'); how.open = !src.requests.length;
     how.append(mk('summary', null, '주소 복사하는 법(처음 한 번)'));
@@ -161,6 +162,9 @@
             var found = Object.keys(r.map).filter(function (f) { return KBSheets.FIELD_KO[f]; }).map(function (f) { return KBSheets.FIELD_KO[f] + '(' + r.map[f].header + ')'; });
             out.className = r.rows.length ? 'muted' : 'chip err';
             out.textContent = (r.rows.length ? '✓ ' + r.rows.length.toLocaleString() + '줄 읽음' : '읽은 줄이 없어요') + ' · 찾은 열: ' + (found.join(', ') || '없음') + (r.warnings.length ? ' · ⚠ ' + r.warnings.join(' · ') : '');
+          } else if (kind === 'board') {
+            var day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10), bc = await CSBridge.call('board.count', { url: url, day: day, force: true }, 120000), sn = Object.keys(bc.sites || {});
+            out.className = 'muted'; out.textContent = '✓ 오늘(' + Number(day.slice(5, 7)) + '/' + Number(day.slice(8, 10)) + ') ' + (bc.total || 0) + '줄' + (sn.length ? ' · 입점처 ' + sn.length + '가지' : '') + ' · A칸 날짜 · B칸 입점처로 셈' + (bc.total ? '' : ' · 오늘 줄이 아직 없거나 탭이 달라요');
           } else if (kind === 'notice') {
             var nn = await KBSheets.readNotice({ url: url });
             out.className = nn.items.length ? 'muted' : 'chip err';
@@ -170,7 +174,7 @@
             out.className = d.rows.length ? 'muted' : 'chip err';
             out.textContent = (d.rows.length ? '✓ 불량 ' + d.rows.length + '건 읽음' : '읽은 불량이 없어요') + (d.warnings.length ? ' · ⚠ ' + d.warnings.join(' · ') : '');
           }
-        } catch (e) { out.className = 'chip err'; out.textContent = e.message || '읽지 못했어요'; }
+        } catch (e) { out.className = 'chip err'; out.textContent = e.message === '알 수 없는 요청' && kind === 'board' ? '‘검색기 연결’ 확장이 1.0.10 이상이어야 읽을 수 있어요(웹스토어 새 판을 받은 뒤 다시 눌러 주세요) · 주소는 지금 저장해 둬도 돼요' : e.message || '읽지 못했어요'; }
       });
     }
     function drawRows() {
@@ -197,17 +201,23 @@
       var nout = mk('div', 'muted'); nout.style.gridColumn = '1 / -1'; nout.style.fontSize = '12px';
       nrow.append(nu, check('notice', function () { return ntc.url; }, null, nout), nout);
       box.append(nrow);
+      box.append(lab('게시판 기록 시트 ‘Daily 응대 기록 시트 (게시판)’ 탭', '[현황·업무] 게시판 현황 · A칸 날짜 · B칸 입점처만 읽어요'));
+      var brow = mk('div', 'clrow'); brow.style.gridTemplateColumns = 'minmax(0,1fr) auto';
+      var bu = input(brd.url, 'https://docs.google.com/spreadsheets/d/…/edit#gid=…'); bu.addEventListener('input', function () { brd.url = bu.value.trim(); });
+      var bout = mk('div', 'muted'); bout.style.gridColumn = '1 / -1'; bout.style.fontSize = '12px';
+      brow.append(bu, check('board', function () { return brd.url; }, null, bout), bout);
+      box.append(brow);
     }
     drawRows();
     p.append(box);
     var acts = mk('div', 'facts'); acts.append(mk('span', 'sp'));
     var save = btn('저장', 'primary', async function () {
       var reqs = rows.filter(function (r) { return r.url; });
-      var bad = reqs.filter(function (r) { return !KBData.sheetRef(r.url); }).concat(def.url && !KBData.sheetRef(def.url) ? [def] : []).concat(ntc.url && !KBData.sheetRef(ntc.url) ? [ntc] : []);
+      var bad = reqs.filter(function (r) { return !KBData.sheetRef(r.url); }).concat(def.url && !KBData.sheetRef(def.url) ? [def] : []).concat(ntc.url && !KBData.sheetRef(ntc.url) ? [ntc] : []).concat(brd.url && !KBData.sheetRef(brd.url) ? [{ label: '게시판 기록 시트', url: brd.url }] : []);
       if (bad.length) { say('구글 시트 주소가 아닌 칸이 있어요: ' + (bad[0].label || bad[0].url).slice(0, 40), 'err'); return; }
       save.disabled = true; save.textContent = '저장하는 중…';
       try {
-        await KBAdmin.saveSources({ requests: reqs.map(function (r) { return { url: r.url, label: r.label.trim() }; }), defects: def.url ? { url: def.url, label: '제품 불량 모음' } : null, notice: ntc.url ? { url: ntc.url, label: '족보 Daily 공지' } : null });
+        await KBAdmin.saveSources({ requests: reqs.map(function (r) { return { url: r.url, label: r.label.trim() }; }), defects: def.url ? { url: def.url, label: '제품 불량 모음' } : null, notice: ntc.url ? { url: ntc.url, label: '족보 Daily 공지' } : null, board: brd.url ? { url: brd.url } : null });
         say('저장했어요. 상담사 PC에는 2분 안에 반영돼요', 'ok'); sources(w);
       } catch (e) { save.disabled = false; save.textContent = '저장'; say(e.message || '저장하지 못했어요', 'err'); }
     });
