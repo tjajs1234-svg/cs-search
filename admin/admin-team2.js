@@ -257,7 +257,7 @@
   async function cal(w) {
     await (T().syncLead ? T().syncLead() : null);
     var title = '근무 달력';
-    if (!(await ready(w, title, '퇴근 시각을 적으면 바로 야근으로 쌓여요(19:00 뒤).'))) return;
+    if (!(await ready(w, title, ''))) return; // 2026-11-16 주인(1-1): 회색 설명 뺌
     var td = today(); if (!cMonth) cMonth = td.slice(0, 7);
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got, tok = await T().adminToken();

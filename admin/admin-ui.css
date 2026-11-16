@@ -435,3 +435,9 @@ tr.tpx>td{background:var(--paper);padding:10px 14px 14px;text-align:left}
 .qdash .qd-t tr.sum td{font-weight:800;border-bottom:0}.qdash .qd-t .bad{color:var(--danger,#b23b2b);font-weight:800}.qdash .qd-t .na{color:var(--muted,#6b7280)}
 .qdash .qd-t input{width:64px;height:30px;border:1px solid var(--line,#cfd5de);border-radius:7px;text-align:right;padding:0 6px;font-size:14px;font-weight:700;background:var(--surface,#fff);color:inherit}
 @media (max-width:900px){.qdash .qd-kpi{flex-wrap:wrap}.qdash .qd-kpi>div{flex:1 1 40%}}
+
+/* 2026-11-16 1-1 빈 설명 줄 숨김 */
+#wide > p.desc:empty{display:none}
+/* 2026-11-16 1-3 메뉴 한눈에 · 할 일 숫자 */
+body.vnoment .cats .colhd,body.vnoment .cats #catList,body.vnoment .cats #addCat{display:none}
+.navx .nbadge{margin-left:auto;min-width:20px;height:20px;padding:0 7px;border-radius:999px;background:var(--danger,#c0392b);color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}

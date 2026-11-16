@@ -834,7 +834,7 @@
     });
     waits.sort(function (a, b) { return b.t.w - a.t.w; });
     if (waits.length || hidden.length) {
-      var wl = mk('div', 'tpanel tlate20'), wh = mk('div', 'tph'); wh.append(mk('span', 'tdot ' + (waits.some(function (z) { return z.t.w >= 20; }) ? 'r' : 'o')), mk('b', null, '10분 넘게 기다리는 고객'), mk('span', 'muted', '오래된 순 · 20분 넘으면 빨강 · [열기]를 누르면 그 상담방 · [빼기]는 팀장 판단으로 목록과 그날 숫자에서 뺌')); wl.append(wh);
+      var wl = mk('div', 'tpanel tlate20'), wh = mk('div', 'tph'); wh.append(mk('span', 'tdot ' + (waits.some(function (z) { return z.t.w >= 20; }) ? 'r' : 'o')), mk('b', null, '10분 넘게 기다리는 고객')); wl.append(wh);
       waits.slice(0, 15).forEach(function (z) {
         var row = mk('div', 'tact' + (z.t.w >= 20 ? ' r' : ' y')); row.append(mk('b', 'tmin' + (z.t.w >= 20 ? '' : ' y'), z.t.w + '분'), mk('b', null, z.o.n));
         if (z.t.ch) row.append(chip(z.t.ch)); if (z.t.ch) row.append(mk('b', 'tcn', z.t.n || '이름 없음')); var msg = mk('span', 'tmsg', z.t.ch ? (z.t.r ? '다시 옴 · ' : '') + (z.t.p || '(사진·파일 또는 내용 없음)') : '(내용 없음)'); msg.title = z.t.p || ''; row.append(msg);
@@ -877,7 +877,7 @@
       });
       box.append(op);
     }
-    box.append(mk('p', 'muted tfoot', '칸 테두리: 노랑 = 10분 넘게, 빨강 = 20분 넘게 기다리는 고객이 있어요 · [빼기]는 이 PC에만 기억되고 그날 20분 넘김에서도 빠져요 · 칸을 누르면 그 사람 고객 목록이 열려요 · 30초마다 새로 읽어요 · 기다린 시간은 업무시간만 셈(점심 빼고).'));
+    // 2026-11-16 주인(1-1) 회색 설명 뺌: box.append(mk('p', 'muted tfoot', '칸 테두리: 노랑 = 10분 넘게, 빨강 = 20분 넘게 기다리는 고객이 있어요 · [빼기]는 이 PC에만 기억되고 그날 20분 넘김에서도 빠져요 · 칸을 누르면 그 사람 고객 목록이 열려요 · 30초마다 새로 읽어요 · 기다린 시간은 업무시간만 셈(점심 빼고).'));
     return box;
   }
 

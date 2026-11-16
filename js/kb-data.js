@@ -117,7 +117,7 @@
         .map(function (n) { return { id: str(n.id), title: clean(n.title).slice(0, 120), body: cleanMulti(n.body).slice(0, 20000), at: Number(n.at) || 0, by: clean(n.by).slice(0, 30), band: !!n.band, important: !!n.important,
           // 2026-11-01 사진·영상(드라이브 주소) · 다시 확인 받기(rev) · 고친 때(ed)
           links: (Array.isArray(n.links) ? n.links : []).map(function (u) { return str(u).trim(); }).filter(function (u) { return /^https:\/\/\S+$/.test(u); }).slice(0, 10).map(function (u) { return u.slice(0, 500); }),
-          rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0,
+          rev: Math.max(0, Math.min(999, Math.floor(Number(n.rev) || 0))), ed: Number(n.ed) || 0, pb: cleanMulti(n.pb || '').slice(0, 4000), // 2026-11-16(2-2) 다시 확인 받기 전 글
           // 2026-11-02 숨김: 상담사 화면에서만 안 보임(관리 화면 '숨긴 공지'에서 되돌림)
           hidden: !!n.hidden, hid: n.hidden ? Number(n.hid) || 0 : 0,
           // 2026-11-05 상단 고정(고정한 때 ms · 0이면 안 함) — 예전 pin 값은 11/03에 없앴으므로 안 읽음

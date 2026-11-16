@@ -791,7 +791,7 @@
     var out = [];
     var since = firstUse() - 14 * 864e5;
     // 2026-11-01 [다시 확인 받기]로 고친 공지는 번호 뒤에 판(rev)을 붙여 새 공지로 · 고친 때(ed)부터 '새 공지'
-    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, by: n.by, at: n.at, ed: n.ed || 0, rev: rv, band: !!n.band, top: n.top || 0, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: !!n.band || Math.max(n.at || 0, ed) >= since }); });
+    (C && C.notices || []).forEach(function (n) { if (n.hidden) return; var rv = n.rev || 0, ed = rv ? (n.ed || 0) : 0; out.push({ id: 'a:' + n.id + (rv ? ':' + rv : ''), title: n.title, body: n.body, pb: rv ? n.pb || '' : '', by: n.by, at: n.at, ed: n.ed || 0, rev: rv, band: !!n.band, top: n.top || 0, important: n.important, media: [], links: n.links || [], from: '관리자', fresh: !!n.band || Math.max(n.at || 0, ed) >= since }); });
     var nhide = C && C.sources && C.sources.nhide || [];
     var ntop = {}; (C && C.sources && C.sources.ntop || []).forEach(function (x) { var i = x.lastIndexOf('|'); ntop[x.slice(0, i)] = Number(x.slice(i + 1)) || 1; });
     (BD && BD.notice && BD.notice.items || []).forEach(function (n) { if (nhide.indexOf('s:' + n.id) >= 0) return; out.push({ top: ntop['s:' + n.id] || 0, id: 's:' + n.id + ':' + (n.rev || 0), title: n.title, body: n.body, by: n.by, date: n.date, at: n.dk || 0, band: false, important: n.important, media: n.media || [], links: n.links || [], from: '족보', fresh: !!n.needAck }); });
@@ -835,6 +835,18 @@
   // 잠깐 모아서 마지막 값만 보냄(먼저 보낸 옛 숫자가 나중 것을 덮지 않게)
   var tellT = 0;
   function tellSeen() { if (!CSBridge.ready || extLost) return; toldAdm = adminUnread(); clearTimeout(tellT); tellT = setTimeout(function () { if (CSBridge.ready && !extLost) CSBridge.call('notice.seen', { ids: sheetSeen(), admin: adminUnread() }, 10000).catch(function () {}); }, 400); }
+  // 낱말 단위로 예전 글과 비교(LCS) · 너무 길면 그냥 보통 글
+  function diffBody(a, b) {
+    var p = el('p', 'nb ndiff'), A = String(a).split(/(\s+)/).filter(function (x) { return x !== ''; }), B = String(b).split(/(\s+)/).filter(function (x) { return x !== ''; });
+    if (A.length * B.length > 3e6) return linkify(p, b, []);
+    var n = A.length, m = B.length, T = []; for (var i = 0; i <= n; i++) { T.push(new Uint16Array(m + 1)); }
+    for (i = n - 1; i >= 0; i--) for (var j = m - 1; j >= 0; j--) T[i][j] = A[i] === B[j] ? T[i + 1][j + 1] + 1 : Math.max(T[i + 1][j], T[i][j + 1]);
+    var out = [], push = function (k, t) { var l = out[out.length - 1]; if (l && l.k === k) l.t += t; else out.push({ k: k, t: t }); };
+    i = 0; j = 0; while (i < n && j < m) { if (A[i] === B[j]) { push('=', B[j]); i++; j++; } else if (T[i + 1][j] >= T[i][j + 1]) { push('-', A[i]); i++; } else { push('+', B[j]); j++; } }
+    while (i < n) push('-', A[i++]); while (j < m) push('+', B[j++]);
+    out.forEach(function (x) { if (x.k === '=') p.append(x.t); else if (!x.t.trim()) { if (x.k === '+') p.append(x.t); } else p.append(el(x.k === '+' ? 'mark' : 's', x.k === '+' ? 'nadd' : 'ndel', x.t)); });
+    return p;
+  }
   function linkify(node, text, terms) {
     var re = /https?:\/\/[^\s<>"']+/g, s = String(text || ''), i = 0, m;
     var put = function (t) { if (terms && terms.length) markText(node, t, terms); else node.append(t); };
@@ -898,7 +910,8 @@
       if (foldable) h.append(el('span', 'npv', String(n.body || '').split('\n').filter(function (x) { return x.trim(); })[0] || ''));
       h.append(el('span', 'at', [when, n.by, n.from].filter(Boolean).join(' · ')));
       c.append(h);
-      if (n.body) c.append(linkify(el('p', 'nb'), n.body, f.toks));
+      // 2026-11-16 주인(2-2): 아직 확인 안 한 '다시 확인' 공지는 바뀐 곳만 노랑(지운 말은 회색 줄) · 확인하면 보통 글 · 검색 중엔 보통 글(찾은 말 표시)
+      if (n.body) c.append(n.pb && n.rev && M.seen.indexOf(n.id) < 0 && !f.toks.length ? diffBody(n.pb, n.body) : linkify(el('p', 'nb'), n.body, f.toks));
       var items = CSMedia.itemsOf({ media: n.media, at: (n.links || []).join(' ') }), st = CSMedia.strip(items, n.title, true); if (st) c.append(st);
       var done = M.seen.indexOf(n.id) >= 0;
       if (isNew || (done && n.fresh)) {
@@ -1454,7 +1467,8 @@
   }
   function renderBandBox(bs) {
     var box = $('bandBox'); if (!box) return;
-    box.replaceChildren(); box.hidden = !bs.length; if (!bs.length) return;
+    // 2026-11-16 주인(3-3 ㄱ): 작성공간 아래 빨간 상자는 뺌 — 맨 위 띠 · [공지] 탭 숫자와 같은 말(신호 두 곳은 그대로)
+    box.replaceChildren(); box.hidden = true; return;
     var hd = el('div', 'bh'); var kinds = bs.map(bandTag).filter(function (k, i, a) { return a.indexOf(k) === i; }); hd.append(ic('warn'), el('span', null, (kinds.length === 1 ? kinds[0] : '새 공지') + ' ' + bs.length + '개'));
     box.append(hd);
     bs.slice(0, 3).forEach(function (n) { var a = el('button', 'bt', '[' + bandTag(n) + '] ' + n.title); a.type = 'button'; a.addEventListener('click', function () { goNotice(n.id); }); box.append(a); });

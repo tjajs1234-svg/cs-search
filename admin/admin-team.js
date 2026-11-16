@@ -84,7 +84,7 @@
     clearTimeout(tTimer);
     if (!how && CSTeam.peek && CSTeam.peek('team.get', { days: needDays(tPeriod) }) >= 0) { await team(w, 'soft'); if (w.isConnected) team(w, 'fresh'); return; }
     var my = ++tGen, soft = how === 'soft', SOFT = 120000;
-    var T = '팀 현황', DESC = '기다린 시간은 업무시간만 세요(주말·공휴일·점심·퇴근 뒤 빼고).';
+    var T = '팀 현황', DESC = ''; // 2026-11-16 주인(1-1): 회색 설명 줄 뺌(화면이 말하게)
     if (!w.querySelector('.tview')) w.replaceChildren(mk('h2', null, T), mk('p', 'desc', DESC), mk('div', 'empty', '불러오는 중…'));
     if (!(await ensureUrl())) { needServer(w, T); return; }
     CSTeam.get('cfg.get', {}).catch(function () {});

@@ -49,7 +49,7 @@
       var re = !!(editing && again.checked);
       if (top.checked && !(editing && editing.top) && topCount(editing && editing.id) >= TOP_MAX) { say('고정은 ' + TOP_MAX + '개까지예요. 하나를 [고정 풀기] 한 뒤 다시 해 주세요', 'err'); return; }
       var item = { id: editing ? editing.id : rid(), title: title, body: body, important: imp.checked, band: band.checked, at: editing ? editing.at : Date.now(), by: '', links: links,
-        rev: editing ? (editing.rev || 0) + (re ? 1 : 0) : 0, ed: re ? Date.now() : (editing && editing.ed) || 0, hidden: !!(editing && editing.hidden), hid: (editing && editing.hid) || 0,
+        rev: editing ? (editing.rev || 0) + (re ? 1 : 0) : 0, ed: re ? Date.now() : (editing && editing.ed) || 0, pb: re ? String(editing.body || '').slice(0, 4000) : (editing && editing.pb) || '', // 2026-11-16 주인(2-2): 고치기 전 글 → 상담사 화면에 바뀐 곳만 노랑 hidden: !!(editing && editing.hidden), hid: (editing && editing.hid) || 0,
         top: top.checked ? (editing && editing.top) || Date.now() : 0 };
       try {
         await KBAdmin.saveNotices(function (ns) {
