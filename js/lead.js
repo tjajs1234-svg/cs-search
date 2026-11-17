@@ -284,12 +284,14 @@
   function lock() { vkey = null; vdata = null; vsalt = null; if (cur === 'acct') renderAcct(); }
   function touch() { vtouch = Date.now(); }
 
+  // 2026-11-17 주인: 크롬 '비밀번호를 저장하시겠습니까?' 창이 안 뜨게 — 비밀번호 칸(password)을 쓰지 않고 글자 칸을 점으로 가림
+  function maskPw(i) { i.type = 'text'; i.classList.add('pwmask'); i.autocomplete = 'off'; i.spellcheck = false; i.setAttribute('autocapitalize', 'off'); i.setAttribute('data-lpignore', 'true'); }
   function pinForm(first) {
     var c = el('div', 'ldcard ldlock'), f = el('form', 'ldpin');
     c.append(el('h2', null, first ? '계정 잠금 번호 정하기' : '계정 열기'));
     c.append(el('p', 'ldsub', first ? '계정은 이 PC 브라우저에만, 지금 정하는 잠금 번호로 잠가서 저장해요. 잊으면 되살릴 수 없으니 기억해 두세요(4글자 이상).' : '잠금 번호를 넣어 주세요. 검색기를 새로 열거나 60분 안 쓰면 다시 잠겨요.'));
-    var p1 = el('input'); p1.type = 'password'; p1.autocomplete = 'off'; p1.placeholder = '잠금 번호'; p1.setAttribute('aria-label', '잠금 번호');
-    var p2 = el('input'); p2.type = 'password'; p2.autocomplete = 'off'; p2.placeholder = '한 번 더'; p2.setAttribute('aria-label', '잠금 번호 한 번 더');
+    var p1 = el('input'); maskPw(p1); p1.placeholder = '잠금 번호'; p1.setAttribute('aria-label', '잠금 번호');
+    var p2 = el('input'); maskPw(p2); p2.placeholder = '한 번 더'; p2.setAttribute('aria-label', '잠금 번호 한 번 더');
     var go = btn(first ? '정하기' : '열기', 'primary'); go.type = 'submit';
     f.append(p1); if (first) f.append(p2); f.append(go);
     var msg = el('p', 'ldmsg'); c.append(f, msg);
@@ -323,8 +325,8 @@
     var top = el('div', 'ldach'); top.append(site, del);
     var idr = el('div', 'ldacr'), uid = el('input', 'lduid'); uid.value = a.uid || ''; uid.placeholder = '아이디'; uid.autocomplete = 'off'; uid.setAttribute('aria-label', '아이디'); uid.addEventListener('change', function () { set('uid', uid.value.trim()); });
     idr.append(el('span', 'ldlab', 'ID'), uid, btn('복사', 'sm', function () { touch(); copy(uid.value, '아이디를 복사했어요'); }));
-    var pwr = el('div', 'ldacr'), pw = el('input', 'ldpw'); pw.type = 'password'; pw.value = a.upw || ''; pw.placeholder = '비밀번호'; pw.autocomplete = 'new-password'; pw.setAttribute('aria-label', '비밀번호'); pw.addEventListener('change', function () { set('upw', pw.value); });
-    var eye = btn('보기', 'sm', function () { touch(); var s = pw.type === 'password'; pw.type = s ? 'text' : 'password'; eye.textContent = s ? '가리기' : '보기'; });
+    var pwr = el('div', 'ldacr'), pw = el('input', 'ldpw'); maskPw(pw); pw.value = a.upw || ''; pw.placeholder = '비밀번호'; pw.setAttribute('aria-label', '비밀번호'); pw.addEventListener('change', function () { set('upw', pw.value); });
+    var eye = btn('보기', 'sm', function () { touch(); var s = pw.classList.toggle('pwshow'); eye.textContent = s ? '가리기' : '보기'; });
     pwr.append(el('span', 'ldlab', 'PW'), pw, eye, btn('복사', 'sm', function () { touch(); copy(pw.value, '비밀번호를 복사했어요'); }));
     var memo = el('textarea', 'ldmemo'); memo.rows = 1; memo.value = a.memo || ''; memo.placeholder = '메모'; memo.setAttribute('aria-label', '메모'); memo.addEventListener('change', function () { set('memo', memo.value); });
     var fit = function () { memo.style.height = 'auto'; memo.style.height = Math.min(160, memo.scrollHeight + 2) + 'px'; }; memo.addEventListener('input', fit); setTimeout(fit, 0);
@@ -354,8 +356,8 @@
     }
     draw();
     var more = el('details', 'ldmore'); more.append(el('summary', null, '잠금 번호 바꾸기'));
-    var n1 = el('input'); n1.type = 'password'; n1.placeholder = '새 잠금 번호'; n1.setAttribute('aria-label', '새 잠금 번호');
-    var n2 = el('input'); n2.type = 'password'; n2.placeholder = '한 번 더'; n2.setAttribute('aria-label', '새 잠금 번호 한 번 더');
+    var n1 = el('input'); maskPw(n1); n1.placeholder = '새 잠금 번호'; n1.setAttribute('aria-label', '새 잠금 번호');
+    var n2 = el('input'); maskPw(n2); n2.placeholder = '한 번 더'; n2.setAttribute('aria-label', '새 잠금 번호 한 번 더');
     more.append(n1, n2, btn('바꾸기', 'sm primary', async function () {
       if (n1.value.length < 4) { toast('4글자 이상으로 정해 주세요', { warn: true }); return; }
       if (n1.value !== n2.value) { toast('두 번 넣은 번호가 달라요', { warn: true }); return; }

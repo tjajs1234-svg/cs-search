@@ -244,7 +244,7 @@
   function connectForm(onDone, have) {
     var p = mk('div', 'panel');
     var repo = input(have ? 'https://github.com/' + have.owner + '/' + have.repo : '', 'https://github.com/내아이디/cs-content');
-    var tok = input('', have ? '바꿀 때만 새 관리 키를 붙여 넣으세요' : 'github_pat_…', 'password'); tok.autocomplete = 'off';
+    var tok = input('', have ? '바꿀 때만 새 관리 키를 붙여 넣으세요' : 'github_pat_…', 'text'); tok.autocomplete = 'off'; tok.spellcheck = false; tok.style.webkitTextSecurity = 'disc'; // 2026-11-17 크롬 비밀번호 저장 창 막기
     var who = input(have && have.name || '', '예: 김수빈 (이전 판 목록에 남는 이름 · 비워도 돼요)'); who.maxLength = 20;
     var out = mk('div', 'muted'); out.style.fontSize = '12.5px'; out.style.whiteSpace = 'pre-line';
     p.append(lab('저장소 주소', '깃허브에서 만든 비공개 저장소'), repo, lab('관리 키', '쓰기 권한 키 · 이 PC에만 저장'), tok, lab('내 이름', '선택'), who);

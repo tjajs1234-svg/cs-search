@@ -780,3 +780,5 @@ button.wsr:hover{background:var(--surface2)}
 .card .meta .mlk svg{width:14px;height:14px}
 .card .meta .mlk:hover{background:var(--surface2)}
 .card .meta .mlk.del{color:var(--danger)}
+/* 2026-11-17 비밀번호 저장 창 막기: 글자 칸을 점으로 가림([보기]는 pwshow) */
+input.pwmask:not(.pwshow){-webkit-text-security:disc;text-security:disc}
