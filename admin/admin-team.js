@@ -34,8 +34,11 @@
     var p = mk('div', 'panel');
     p.append(mk('div', 'ins', '글 ' + posts.length + '개 · 최근에 댓글이 달린 글이 위로'));
     if (!posts.length) p.append(mk('div', 'empty', '아직 글이 없어요.'));
+    // 2026-11-17 주인: 안 끝난 글이 위 · 완료 글은 아래(✓ 완료 표시 남김) · [완료로 접기]/[완료 풀기]
+    posts = posts.filter(function (x) { return x.status !== '완료'; }).concat(posts.filter(function (x) { return x.status === '완료'; }));
     posts.forEach(function (x) {
-      var c = mk('div', 'bpost'), h = mk('div', 'bph');
+      var done = x.status === '완료', c = mk('div', 'bpost' + (done ? ' bdone' : '')), h = mk('div', 'bph');
+      if (done) h.append(mk('span', 'chip new', '✓ 완료'));
       h.append(mk('b', null, x.author), mk('span', 'muted', when(x.at)));
       if ((x.comments || []).length) h.append(mk('span', 'chip cat', '댓글 ' + x.comments.length));
       c.append(h, mk('p', 'bbody-t', x.body));
@@ -47,7 +50,8 @@
       var a = mk('div', 'facts'), ci = mk('input', 'in'); ci.type = 'text'; ci.placeholder = '댓글 (상담사 화면에는 이름으로 보여요)'; ci.style.flex = '1 1 260px';
       var send = async function () { var body = ci.value.trim(); if (!body) return; try { await CSTeam.call('board.comment', { id: x.id, author: await adminName(), body: body, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); } };
       ci.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); send(); } });
-      a.append(ci, btn('댓글 달기', 'primary sm', send), btn('글 지우기', 'danger-ghost sm', async function () {
+      var sb = btn(done ? '완료 풀기' : '✓ 완료로 접기', 'ghost sm', async function () { sb.disabled = true; try { await CSTeam.call('board.status', { id: x.id, status: done ? '접수' : '완료', adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); sb.disabled = false; } });
+      a.append(ci, btn('댓글 달기', 'primary sm', send), sb, btn('글 지우기', 'danger-ghost sm', async function () {
         if (!(await A().confirmDlg('이 글을 지울까요?', '‘' + x.body.slice(0, 40) + '…’ 글과 댓글이 모두 사라져요.', '지우기', true))) return;
         try { await CSTeam.call('board.delete', { id: x.id, adminToken: await adminToken() }); board(w); } catch (e) { say(e.message, 'err'); }
       }));

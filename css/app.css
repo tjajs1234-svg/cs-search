@@ -611,10 +611,8 @@ button.wsr:hover{background:var(--surface2)}
 .wcr{gap:6px}
 /* 2026-11-10.4 넓은 화면(주인 ㄱ): 문의 검색은 카드를 화면 끝까지(1920 모니터에서 한 줄에 4개) · 요청·건의는 쓰는 칸 끝까지 + 글 두 줄 · 스크립트 분류 이름 안 잘림 */
 #rlist{max-width:none}
-@media (min-width:1400px){
-  #blist{max-width:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
-  #blist>:not(.bpost){grid-column:1/-1}
-}
+/* 2026-11-17 요청·건의도 한 칸(주인: 두 칸은 높이가 달라 들쭉날쭉) — 아래 '완료' 묶음 */
+#blist{max-width:1100px}
 .cat .nm{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;word-break:keep-all}
 /* 2026-11-10.5 공지도 큰 화면에서 두 개씩(주인 ㄱ) */
 /* 2026-11-15 공지 C(주인): 두 칸 대신 한 칸 · 읽기 좋은 폭 */
@@ -756,3 +754,29 @@ button.wsr:hover{background:var(--surface2)}
 
 /* 2026-11-16 게시판 기록 시트에서 세기: [지금 다시 받기] */
 .ldsub .ldagain{margin-left:8px;vertical-align:middle;padding:2px 10px;font-size:12px}
+
+/* 2026-11-17 요청·건의 완료 묶음: 한 줄(✓ 완료 · 이름 · 첫 줄 · 댓글 수 · 날짜) · 누르면 그 자리에서 펼침 */
+.bsec{margin:8px 2px -2px}
+.bdonebox{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-s)}
+.bdonebox .bpost{border:0;border-radius:0;box-shadow:none;border-top:1px solid var(--line)}
+.bdonebox .bpost:first-child{border-top:0}
+.bdonebox .bpost:not(.bfold) .bph{cursor:pointer}
+.bok{font-size:12px;font-weight:800;border-radius:999px;padding:1px 9px;background:var(--good-soft);color:var(--good);flex:0 0 auto}
+.bph .bpv{display:none}
+.bpost.bfold{padding:11px 16px;cursor:pointer;gap:0}
+.bpost.bfold>:not(.bph){display:none}
+.bpost.bfold:hover,.bpost.bfold:focus-visible{background:var(--surface2);outline:none}
+.bpost.bfold .bph{flex-wrap:nowrap;gap:10px;min-width:0}
+.bpost.bfold .av,.bpost.bfold .bfb{display:none}
+.bpost.bfold .bpv{display:block;flex:1 1 0;min-width:0;color:var(--ink3);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpost.bfold .muted,.bpost.bfold .ptag{flex:0 0 auto}
+.bpost.bfold .ccount{margin-left:0}
+.bdone .bph .bfb{margin-left:auto}
+.bdone .bph .ccount~.bfb{margin-left:8px}
+.bpost .acts .btn.bdonebtn{border-color:var(--good);color:var(--good)}
+@media (max-width:700px){.bpost.bfold .bpv{display:none}}
+/* 2026-11-17 내 멘트 카드 오른쪽 위 [고치기] [지우기] */
+.card .meta .mlk{display:inline-flex;align-items:center;gap:3px;border:0;background:none;padding:2px 4px;border-radius:6px;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink2);cursor:pointer;white-space:nowrap}
+.card .meta .mlk svg{width:14px;height:14px}
+.card .meta .mlk:hover{background:var(--surface2)}
+.card .meta .mlk.del{color:var(--danger)}
