@@ -62,7 +62,38 @@
   }
   // 그날 몇 분(0시부터)인지
   function minuteOf(ms) { var d = new Date(ms + KST); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
-  var api = { DEFAULT_HOLIDAYS: DEFAULT_HOLIDAYS, LUNCH: LUNCH, OPEN: OPEN, dayKey: dayKey, dayStart: dayStart, addDays: addDays, weekday: weekday, holidays: holidays, day: day, bizMs: bizMs, bizMin: bizMin, bizDaysBetween: bizDaysBetween, minuteOf: minuteOf };
+  // 2026-11-17 남은 연차(주인) — 검색기 [근태]와 관리 화면 근무 달력이 같이 씀(팀 서버 1.3.32 명단 annual · prior · ay)
+  //   · 입사 1년 안 된 사람: 입사일부터 한 달을 결근 없이 채울 때마다 1일(최대 11일) · 지각은 안 깎음 · 셈은 입사일부터 1년
+  //   · 1년 넘은 사람: 명단의 '올해 연차'(그 해 ay가 올해일 때만) · 셈은 1/1~12/31 · 비어 있으면 null(안 보여 줌)
+  //   · 남은 = 생긴(또는 올해) 연차 − 근태 탭 전에 쓴 날(올해 것만) − 달력에 적힌 연차(앞으로 적어 둔 날 포함 · 반차 0.5)
+  function addMonths(key, n) {
+    var y = Number(key.slice(0, 4)), m = Number(key.slice(5, 7)) - 1 + n, d = Number(key.slice(8, 10));
+    y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+    var last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(Math.min(d, last)).padStart(2, '0');
+  }
+  function leaveBal(r, leaves, today) {
+    if (!r || !r.name || !/^\d{4}-\d{2}-\d{2}$/.test(today || '')) return null;
+    var yr = Number(today.slice(0, 4)), on = Number(r.ay) === yr;
+    var rows = (leaves || []).filter(function (x) { return x && x.name === r.name && x.status !== '반려'; });
+    var start = /^\d{4}-\d{2}-\d{2}$/.test(r.start || '') ? r.start : '';
+    var auto = !!start && start <= today && today < addMonths(start, 12);
+    var total, from, to, made = 0, lost = 0;
+    if (auto) {
+      for (var k = 1; k <= 11; k++) {
+        var s = addMonths(start, k - 1), e = addMonths(start, k); if (e > today) break;
+        if (rows.some(function (x) { return x.kind === '결근' && x.date >= s && x.date < e; })) lost++; else made++;
+      }
+      total = made; from = start; to = addDays(addMonths(start, 12), -1);
+    } else {
+      if (!on || r.annual == null || r.annual === '' || !isFinite(Number(r.annual))) return null;
+      total = Number(r.annual); from = yr + '-01-01'; to = yr + '-12-31';
+    }
+    var prior = on ? Number(r.prior) || 0 : 0;
+    var used = rows.filter(function (x) { return x.kind === '연차' && x.date >= from && x.date <= to; }).reduce(function (n, x) { return n + (x.part && x.part !== '하루' ? 0.5 : 1); }, 0);
+    return { name: r.name, total: total, auto: auto, made: made, lost: lost, prior: prior, used: used, left: total - prior - used, from: from, to: to };
+  }
+  var api = { addMonths: addMonths, leaveBal: leaveBal, DEFAULT_HOLIDAYS: DEFAULT_HOLIDAYS, LUNCH: LUNCH, OPEN: OPEN, dayKey: dayKey, dayStart: dayStart, addDays: addDays, weekday: weekday, holidays: holidays, day: day, bizMs: bizMs, bizMin: bizMin, bizDaysBetween: bizDaysBetween, minuteOf: minuteOf };
   root.WorkClock = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -58,6 +58,8 @@
             · 상담사는 내 것을 언제든 지움 · 관리 열쇠는 누구 것이든 지움(시험용·계획 바뀜)
             · 지각(관리 열쇠로만 · 몇 분 mins 1~600) · 공가는 화면에서 뺌(예전 줄은 그대로 보임)
             · 연차는 한 날에 한 사람만(먼저 적은 사람) — 다른 사람이 그날 쓰려고 하면 "○/○은 ○○이(가) 이미 연차를 썼어요"
+   · 1.3.32(주인 11/17): 남은 연차 — 명단(cfg.set roster)에 올해 연차 annual · 근태 탭 전에 쓴 날 prior · 그 해 ay(숫자만 더함)
+            · work.get이 연차를 1년 전부터 앞으로 것까지 같이 내려 줌(bal: true) — 남은 연차는 검색기·관리 화면이 셈(workclock.js leaveBal)
    · 1.3.27(주인 11/06): QA 피드백 종류에 '제안'(sg · 감점 없음 · 아쉬웠던 점 / 이렇게 하면 더 좋아요)
    · 1.3.26(주인 11/06): 이달의 상담사 'QA 감점 기록' — 팀장이 한 건씩 적는 감점(날짜 · 종류 오안내/오처리/공지 미반영/응대 미흡 ·
             상담 링크 · 무엇이 틀렸나 한 줄)을 inc.json 그 날짜의 달에 저장 · 지우기(inc.set qa: {add} / {del}) · 관리 열쇠로만 · 개수 제한 없음(한 달 2,000건까지)
@@ -65,7 +67,7 @@
    고치기(이미 배포한 뒤): 이 글 전체로 바꿔 붙여 넣기 → 저장 → 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포(주소 그대로)
    설치: script.google.com → 새 프로젝트 → 이 글 전체를 붙여 넣기 → 저장 → 배포 → 새 배포 → 웹 앱
         (실행: 나 · 액세스: 모든 사용자) → 나온 주소를 멘트 관리 ‘팀 서버 연결’에 붙여 넣기 */
-var TEAM_VERSION = '1.3.31';
+var TEAM_VERSION = '1.3.32';
 var TEAM_TOKEN = '1234';                        // 확장·검색기와 맞춘 값
 var CONTENT_REPO = 'tjajs1234-svg/cs-content';  // 관리자 확인: 이 저장소에 쓰기 열쇠가 있는 사람만 관리자
 var FOLDER_NAME = '슈피겐CS 팀서버 자료';
@@ -107,7 +109,8 @@ function handle_(req) {
   if (a === 'qa.ok') return withLock_(function () { return qaOk_(req); });
   if (a === 'tags.get') return { ok: true, list: tagsGet_() };
   if (a === 'qa.get') return { ok: true, days: qaDays_(Number(req.days) || 7), live: qaLive_(), now: Date.now() };
-  if (a === 'work.get') { var st = settings_(); return { ok: true, items: otList_(req), leaves: leaveList_(req, false), cfg: cfgOut_(st), roster: st.roster || [] }; }
+  if (a === 'work.get') { var st = settings_(), yb = dayKey_(Date.now() - 366 * 864e5), lf = dateOk_(req.from) && req.from < yb ? req.from : yb; // 1.3.32 남은 연차 셈에 1년치가 필요
+    return { ok: true, items: otList_(req), leaves: leaveList_({ from: lf, to: '9999-12-31' }, false), bal: true, cfg: cfgOut_(st), roster: st.roster || [] }; }
   // 1.3.29 연차·공가·결근 — 사유는 관리 열쇠가 있을 때만
   if (a === 'leave.list') { var la = !!req.adminToken && isAdmin_(req.adminToken); if (req.adminToken && !la) return { ok: false, error: '관리자 열쇠를 확인하지 못했어요' }; return { ok: true, items: leaveList_(req, la) }; }
   if (a === 'leave.add') return withLock_(function () { return leaveAdd_(req); });
@@ -836,6 +839,7 @@ function settings_() { var s = readJson_('settings.json', {}); return s && typeo
 function cfgOut_(s) { var o = { offseason: !!s.offseason, holidays: s.holidays && typeof s.holidays === 'object' ? s.holidays : {}, removed: Array.isArray(s.removed) ? s.removed : [] }; if (s.asSheet) o.asSheet = s.asSheet; return o; }
 // 1.3.19 AS 시트: 주소를 붙여 넣어도 시트 번호만 남김(빈 글이면 지움)
 function sheetId_(v) { var t = String(v == null ? '' : v).trim(), m = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,100})/.exec(t); if (m) return m[1]; return /^[A-Za-z0-9_-]{20,100}$/.test(t) ? t : ''; }
+function days_(v) { if (v === '' || v == null) return null; var n = Number(v); return isFinite(n) && n >= 0 && n <= 60 ? Math.round(n * 2) / 2 : null; }
 function dateOk_(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')); }
 function cfgSet_(req) {
   if (!isAdmin_(req.adminToken)) return { ok: false, error: '관리자만 바꿀 수 있어요' };
@@ -845,7 +849,10 @@ function cfgSet_(req) {
   if (Array.isArray(req.removed)) s.removed = req.removed.filter(dateOk_).slice(0, 200);
   if (typeof req.asSheet === 'string') { var sid = sheetId_(req.asSheet); if (sid) s.asSheet = sid; else if (!req.asSheet.trim()) delete s.asSheet; else return { ok: false, error: 'AS 시트 주소를 알아보지 못했어요' }; }
   // 명단: 성까지 적으면(김수빈) 이름은 성 뺀 이름(수빈) · 순서는 성까지 넣은 이름 가나다순
-  if (Array.isArray(req.roster)) s.roster = req.roster.slice(0, 60).map(function (r) { var raw = name_(r && r.name).replace(/\s+/g, ''), full = /^[가-힣]{3}$/.test(raw) ? raw : name_(r && r.full).replace(/\s+/g, ''); return { name: person_(raw), full: /^[가-힣]{3}$/.test(full) ? full : '', start: dateOk_(r && r.start) ? r.start : '', end: dateOk_(r && r.end) ? r.end : '' }; }).filter(function (r) { return r.name; }).sort(function (a, b) { return (a.full || a.name).localeCompare(b.full || b.name, 'ko'); });
+  if (Array.isArray(req.roster)) s.roster = req.roster.slice(0, 60).map(function (r) { var raw = name_(r && r.name).replace(/\s+/g, ''), full = /^[가-힣]{3}$/.test(raw) ? raw : name_(r && r.full).replace(/\s+/g, ''); var o = { name: person_(raw), full: /^[가-힣]{3}$/.test(full) ? full : '', start: dateOk_(r && r.start) ? r.start : '', end: dateOk_(r && r.end) ? r.end : '' };
+    // 1.3.32 남은 연차: 올해 연차(annual) · 근태 탭 전에 쓴 날(prior) · 그 해(ay) — 0~60일 · 0.5일 단위 · 비우면 안 넣음
+    var an = days_(r && r.annual), pr = days_(r && r.prior), ay = Number(r && r.ay); if (an != null) o.annual = an; if (pr != null) o.prior = pr; if ((an != null || pr != null) && ay >= 2000 && ay <= 2100) o.ay = Math.floor(ay);
+    return o; }).filter(function (r) { return r.name; }).sort(function (a, b) { return (a.full || a.name).localeCompare(b.full || b.name, 'ko'); });
   writeJson_('settings.json', s);
   return { ok: true, cfg: cfgOut_(s), roster: s.roster || [] };
 }

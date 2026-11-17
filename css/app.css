@@ -596,6 +596,12 @@ button.wsr:hover{background:var(--surface2)}
 .wsums .wsum{flex:1 1 220px;max-width:none}
 .wlvsum .wsr b{font-weight:600}
 .wlvsum .lvwaitn{color:var(--warn);font-weight:700}
+/* 2026-11-17 남은 연차(주인) — [연차] 고르면 오른쪽 위 한 칸 · 모자라면 빨강 · 달력 옆 모두 칸 */
+.lvleft{display:inline-flex;align-items:center;gap:6px;margin-left:auto;background:var(--good-soft);color:var(--good);border-radius:999px;padding:4px 12px;font-size:13.5px;font-weight:700;white-space:nowrap}
+.lvleft[hidden]{display:none}
+.lvleft.short{background:var(--danger-soft);color:var(--danger)}
+.wlvleft .wsr b{font-weight:700}
+.wlvleft .wsr b.short{color:var(--danger)}
 .wcr.lvr .t{font-weight:600}
 .wcr.lvr .t.pend{color:var(--warn)}
 .wcr.lvr .t.rej{color:var(--danger);text-decoration:line-through}

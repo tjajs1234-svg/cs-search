@@ -262,7 +262,7 @@
     var m = cMonth, from = m + '-01', to = monthEnd(m), back = diffDays(from, td) + 1;
     var got, tok = await T().adminToken();
     // 2026-11-10 연차·공가·결근(팀 서버 1.3.29): 승인 기다리는 건 달과 상관없이 다 · 사유는 관리 열쇠로만 받음 · 예전 서버면 null
-    var lvFrom = W.addDays(from < td ? from : td, -62);
+    var lvFrom = W.addDays(from < td ? from : td, -366); // 2026-11-17 남은 연차 셈에 1년치(입사 1년 안 된 사람은 입사일부터)
     try { got = await Promise.all([getCfg(true), CSTeam.get('ot.list', { from: from, to: to }), back > 0 && back <= 62 ? CSTeam.get('qa.get', { days: back }) : Promise.resolve({ days: {} }), CSTeam.get('team.get', { days: 1 }).catch(function () { return { live: [] }; }),
       CSTeam.call('leave.list', { from: lvFrom, to: '9999-12-31', adminToken: tok }, 25000).then(function (r) { return r.items || []; }).catch(function () { return null; })]); }
     catch (e) { w.lastChild.textContent = '불러오지 못했어요. ' + e.message; return; }
@@ -297,12 +297,12 @@
       if (ask && !confirm(ask)) return;
       var keepI = items.slice(), keepL = leaves ? leaves.slice() : leaves;
       if (what === 'ot') items = items.filter(function (y) { return rows.indexOf(y) < 0; }); else leaves = leaves.filter(function (y) { return rows.indexOf(y) < 0; });
-      drawCal(); drawLv();
+      drawCal(); drawLv(); drawBal();
       try {
         if (what === 'ot') await CSTeam.call('ot.cancel', { id: rows[0].id, adminToken: tok }, 25000);
         else await CSTeam.call('leave.cancel', rows.length > 1 && rows[0].grp ? { grp: rows[0].grp, adminToken: tok } : { id: rows[0].id, adminToken: tok }, 25000);
         say('지웠어요', 'ok');
-      } catch (e) { items = keepI; leaves = keepL; drawCal(); drawLv(); say(e.message, 'err'); }
+      } catch (e) { items = keepI; leaves = keepL; drawCal(); drawLv(); drawBal(); say(e.message, 'err'); }
     };
     var drawCal = function () {
       Object.keys(cellOf).forEach(function (k2) {
@@ -377,6 +377,23 @@
       p3.append(det);
     }
     w.append(p3);
+    // 2026-11-17 남은 연차(주인) — 자세히(올해 · 근태 탭 전 · 달력에 적힌 연차 · 남은 연차) · 상담사 화면엔 남은 연차만
+    var yr = Number(td.slice(0, 4));
+    roster.forEach(function (x) { if (Number(x.ay) !== yr) { delete x.annual; delete x.prior; } }); // 지난해 숫자는 안 씀(새해엔 새로 넣기)
+    var balP = mk('div', 'panel lvbal'); balP.style.maxWidth = '980px';
+    var drawBal = function () {
+      balP.replaceChildren(mk('h3', 'qh', yr + '년 남은 연차'));
+      var rows = roster.filter(function (x) { return x.name && (!x.start || x.start <= td) && (!x.end || x.end >= td); }).map(function (x) {
+        var b = W.leaveBal(x, leaves || [], td), nm2 = x.full || x.name;
+        if (!b) return { cells: [nm2, { text: '아래 명단에 올해 연차를 넣어 주세요', cls: 'muted' }, '', '', ''] };
+        var tot = b.auto ? '자동 ' + b.total + '일' + (b.lost ? ' (결근으로 ' + b.lost + '달 안 생김)' : '') : b.total + '일';
+        return { cells: [nm2, tot, b.prior + '일', b.used + '일', { text: b.left + '일', cls: b.left <= 0 ? 'lvshort' : 'lvleftn' }] };
+      });
+      if (!rows.length) { balP.append(mk('p', 'muted', '아래 설정의 상담사 명단에 사람을 넣어 주세요')); return; }
+      balP.append(table(['상담사', '올해', '근태 탭 전', '달력에 적힌 연차', '남은 연차'], rows));
+      balP.append(mk('p', 'muted', '입사 1년이 안 된 사람은 입사일부터 한 달을 결근 없이 채울 때마다 1일씩 저절로 생겨요(최대 11일 · 지각은 안 깎음). 반차는 0.5일이에요.'));
+    };
+    drawBal(); w.append(balP);
     // 설정: 비수기 · 공휴일 · 명단
     var p4 = mk('div', 'panel'); p4.style.maxWidth = '980px'; p4.append(mk('h3', 'qh', '설정'));
     var save = async function (patch, msg) { try { await CSTeam.call('cfg.set', Object.assign({ adminToken: tok }, patch)); cfgCache = null; say(msg || '저장했어요', 'ok'); cal(w); } catch (e) { say(e.message, 'err'); } };
@@ -410,14 +427,20 @@
         n.type = 'text'; n.value = x.full || x.name; n.placeholder = '성까지(김수빈)'; n.style.width = '130px'; n.addEventListener('input', function () { x.name = n.value.trim(); x.full = ''; });
         s1.type = 'date'; s1.value = x.start || ''; s1.style.width = '150px'; s1.title = '입사일(비워도 돼요)'; s1.addEventListener('change', function () { x.start = s1.value; });
         e1.type = 'date'; e1.value = x.end || ''; e1.style.width = '150px'; e1.title = '퇴사일(근무 중이면 비워 둠)'; e1.addEventListener('change', function () { x.end = e1.value; });
-        r4.append(n, mk('span', 'muted', '입사'), s1, mk('span', 'muted', '퇴사'), e1, btn('✕', 'danger-ghost sm', function () { roster.splice(i, 1); draw(); }));
+        // 2026-11-17 남은 연차: 입사 1년 안 됐으면 '자동 · 지금 n일' · 아니면 올해 연차 칸 · 근태 탭 전에 쓴 날(11/10 전)
+        var b0 = W.leaveBal(x, leaves || [], td), lv = mk('span', 'lvset');
+        if (b0 && b0.auto) lv.append(mk('span', 'muted', '올해 연차'), mk('span', 'lvauto', '자동 · 지금 ' + b0.total + '일'));
+        else { var an = mk('input', 'in'); an.type = 'number'; an.min = '0'; an.max = '60'; an.step = '0.5'; an.value = x.annual != null ? x.annual : ''; an.style.width = '70px'; an.setAttribute('aria-label', '올해 연차'); an.addEventListener('input', function () { x.annual = an.value; }); lv.append(mk('span', 'muted', '올해 연차'), an, mk('span', 'muted', '일')); }
+        var pr = mk('input', 'in'); pr.type = 'number'; pr.min = '0'; pr.max = '60'; pr.step = '0.5'; pr.value = x.prior != null ? x.prior : ''; pr.placeholder = '0'; pr.style.width = '70px'; pr.setAttribute('aria-label', '근태 탭 전에 쓴 연차'); pr.addEventListener('input', function () { x.prior = pr.value; });
+        lv.append(mk('span', 'muted', '근태 탭 전에 쓴'), pr, mk('span', 'muted', '일'));
+        r4.append(n, mk('span', 'muted', '입사'), s1, mk('span', 'muted', '퇴사'), e1, lv, btn('✕', 'danger-ghost sm', function () { roster.splice(i, 1); draw(); }));
         rl.append(r4);
       });
     };
     draw();
     if (!roster.length && liveNames.length) liveNames.filter(function (n) { return n !== '팀장'; }).forEach(function (n) { roster.push({ name: n, start: '', end: '' }); }), draw();
-    var rf = mk('div', 'facts'); rf.append(btn('+ 사람 더하기', 'ghost sm', function () { roster.push({ name: '', start: td, end: '' }); draw(); }), btn('명단 저장', 'primary sm', function () { save({ roster: roster.filter(function (x) { return x.name; }) }, '명단을 저장했어요'); }));
-    p4.append(rl, rf);
+    var rf = mk('div', 'facts'); rf.append(btn('+ 사람 더하기', 'ghost sm', function () { roster.push({ name: '', start: td, end: '' }); draw(); }), btn('명단 저장', 'primary sm', function () { save({ roster: roster.filter(function (x) { return x.name; }).map(function (x) { return Object.assign({}, x, { ay: yr }); }) }, '명단을 저장했어요'); }));
+    p4.append(rl, rf, mk('p', 'muted', "입사 1년이 넘은 사람은 '올해 연차'를 넣어 주세요. 새해(1/1)가 되면 새로 넣어요. '근태 탭 전에 쓴'은 11/10 전에 이미 쓴 올해 연차예요."));
     w.append(p4);
   }
 
