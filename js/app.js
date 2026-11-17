@@ -1191,8 +1191,6 @@
   // 고른 기간에서 근무일만(주말·공휴일 빼고)
   function leaveDates(from, to) { var out = []; if (!from) return out; if (!to || to < from) to = from; for (var k = from, i = 0; k <= to && i < 62; k = WorkClock.addDays(k, 1), i++) if (isWorkday(k)) out.push(k); return out; }
   function fmtNum(n) { return String(Math.round(n * 10) / 10); }
-  // 2026-11-17 남은 연차(주인) — 팀 서버 1.3.32부터 · 명단에 올해 연차가 없고 입사 1년도 넘었으면 null
-  function leaveBalOf(p) { if (!work.bal) return null; var r = (work.roster || []).filter(function (x) { return x && x.name === p; })[0]; return r ? WorkClock.leaveBal(r, work.leaves, kstToday()) : null; }
   function renderWork() {
     var L = $('wlist'); if (!L) return; L.replaceChildren();
     var head = el('div', 'bhead'); head.append(el('h2', null, TAB_NAME)); L.append(head); // 2026-11-15(1-4) 안내 문장 뺌 — 입력칸 '예: 1940'만 남김
@@ -1267,13 +1265,12 @@
       var dk2 = kstToday(), lf = work.lf || (isWorkday(dk2) ? dk2 : WorkClock.addDays(dk2, 1)), lt = part === '하루' && !late ? (work.lt && work.lt >= lf ? work.lt : lf) : lf, one = part !== '하루' || late;
       var fi = el('input', 'win wdate'); fi.type = 'date'; fi.value = lf; fi.setAttribute('aria-label', one ? '날짜' : '시작 날짜');
       var ti2 = el('input', 'win wdate'); ti2.type = 'date'; ti2.value = lt; ti2.min = lf; ti2.setAttribute('aria-label', '끝 날짜');
-      var cnt = el('span', 'wprev'), bp = null;
-      if (kind === '연차' && work.bal) { bp = el('span', 'lvleft'); bp.append(document.createTextNode('남은 연차 '), el('b', null, '')); bp.hidden = true; kinds.append(bp); if (who._any) who._any.addEventListener('input', function () { count(); }); }
+      // 2026-11-17(주인): 남은 연차는 상담사 화면에 안 보임 — 관리 화면 근무 달력에만
+      var cnt = el('span', 'wprev');
       var count = function () { var ds = leaveDates(fi.value, !one ? ti2.value : fi.value);
-        if (bp) { var need = part === '하루' ? ds.length : ds.length ? 0.5 : 0, bb = leaveBalOf(wPerson(who._any ? who._any.value : myName())); bp.hidden = !bb; if (bb) { bp.lastChild.textContent = fmtNum(bb.left) + '일'; bp.classList.toggle('short', bb.left <= 0 || need > bb.left); } }
         var tk = kind === '연차' && ds.length ? leaveTaken(part === '하루' ? ds : ds.slice(0, 1), wPerson(who._any ? who._any.value : myName())) : null;
         if (tk) { cnt.className = 'wprev bad'; cnt.textContent = Number(tk.date.slice(5, 7)) + '/' + Number(tk.date.slice(8, 10)) + '은 ' + nmFull(tk) + '이(가) 이미 연차를 썼어요'; ds._taken = tk; return ds; }
-        // 2026-11-17(주인): '주말·공휴일 빼고 n일' 미리 보기는 뺌 — 문제 있을 때만 말함 · 남은 연차보다 많이 고르면 남은 연차 숫자가 빨개짐(막지는 않음)
+        // 2026-11-17(주인): '주말·공휴일 빼고 n일' 미리 보기는 뺌 — 문제 있을 때만 말함
         cnt.className = 'wprev' + (ds.length ? '' : ' bad'); cnt.textContent = ds.length ? '' : '근무일이 아니에요(주말·공휴일)';
         return ds; };
       fi.addEventListener('change', function () { work.lf = fi.value; if (!ti2.value || ti2.value < fi.value) { ti2.value = fi.value; work.lt = fi.value; } ti2.min = fi.value; count(); });
@@ -1348,13 +1345,6 @@
     if (!names.length) tot.append(el('p', 'muted', work.items ? '아직 없어요' : '불러오는 중…'));
     names.forEach(function (n) { var r = el('div', 'wsr' + (n === me ? ' me' : '')); r.append(el('span', null, n), el('small', null, by[n].length + '일'), el('b', null, hm(sum[n]))); tot.append(r); });
     sums.append(tot);
-    // 2026-11-17(주인): 올해 남은 연차 — 상담사끼리 서로 보임 · 명단 순서(가나다) · 0일 이하는 빨강 · 등수·평균 없음
-    var tdk = kstToday(), bals = work.bal ? (work.roster || []).filter(function (r) { return r && r.name && (!r.start || r.start <= tdk) && (!r.end || r.end >= tdk); }).map(function (r) { var b = WorkClock.leaveBal(r, work.leaves, tdk); if (b) b.label = r.full || r.name; return b; }).filter(Boolean) : [];
-    if (bals.length) {
-      var bx = el('div', 'wsum wlvleft'); bx.append(el('h3', null, tdk.slice(0, 4) + '년 남은 연차'));
-      bals.forEach(function (b) { var r = el('div', 'wsr' + (b.name === me ? ' me' : '')), v = el('b', b.left <= 0 ? 'short' : null, fmtNum(b.left) + '일'); r.append(el('span', null, b.label), v); bx.append(r); });
-      sums.append(bx);
-    }
     var lvNames = Object.keys(lvBy).filter(function (n) { return lvBy[n].some(function (x) { return x.status !== '반려'; }); }).sort(ord);
     if (lvNames.length) {
       var ls = el('div', 'wsum wlvsum'); ls.append(el('h3', null, Number(m.slice(5, 7)) + '월 연차·지각·결근'));
