@@ -341,6 +341,10 @@ dialog.dlg::backdrop{background:rgba(10,14,22,.4)}
 @media (max-width:1100px){.composer{width:330px}.side{width:196px}}
 /* 창을 반만 띄운 PC(960px 안팎)에서도 맨 오른쪽 탭(OT)까지 다 보이게: 탭 그림을 빼고 글자만 */
 @media (max-width:1180px) and (min-width:861px){.tab svg{display:none}.tab{padding:0 11px;gap:6px}}
+/* 2026-11-18 [게시판/알림] 탭이 모두에게 보여 탭이 하나 늘어남: 1480 아래는 탭 그림 빼고, 1180 아래는 오른쪽 계산기·화면·설정을 그림만 */
+@media (max-width:1480px) and (min-width:1181px){.tab svg{display:none}.tab{padding:0 13px;gap:6px}}
+@media (max-width:1180px) and (min-width:861px){.iconbtn .t{display:none}}
+@media (max-width:1000px) and (min-width:861px){.tab{padding:0 7px;gap:4px;font-size:14.5px}}
 @media (max-width:860px){
   body{overflow:auto}
   .app{height:auto;min-height:100%}
@@ -618,7 +622,7 @@ button.wsr:hover{background:var(--surface2)}
 /* 2026-11-15 공지 C(주인): 두 칸 대신 한 칸 · 읽기 좋은 폭 */
 #nlist{max-width:1100px}
 
-/* 2026-11-12 [현황·업무] · [계정] — 관리 열쇠 있는 PC에만 */
+/* 2026-11-12 [게시판](예전 현황·업무) · [계정] — 2026-11-18 [게시판/알림]은 모두(업무는 각 PC에만) · [계정]만 관리 열쇠 PC */
 .ldgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;max-width:1400px}
 @media (max-width:1100px){.ldgrid{grid-template-columns:minmax(0,1fr)}}
 .ldcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-s)}

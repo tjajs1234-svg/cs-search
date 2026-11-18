@@ -1,5 +1,7 @@
-/* 검색기 [현황·업무] · [계정] 탭(2026-11-12 주인): 예전에 따로 쓰던 확장(Center Lite)의 현황·업무·계정을 검색기로 합침
-   · 관리 열쇠(csx:kbAdmin)가 있는 브라우저(관리 화면을 연 PC)에만 탭이 보임 — 상담사 PC엔 탭이 아예 없음 · 탭 이름에 '팀장' 말 없음
+/* 검색기 [게시판/알림](예전 [현황·업무]) · [계정] 탭(2026-11-12 주인): 예전에 따로 쓰던 확장(Center Lite)의 현황·업무·계정을 검색기로 합침
+   · 2026-11-18(웹 12.11, 주인 11/18): 게시판 업무를 넘길 수 있게 [게시판/알림] 탭은 모두에게 보임(숫자는 시트·팀 서버라 누구나 같음)
+     탭 이름 '게시판/알림' · 업무 알림은 누구나 쓰되 각 PC 브라우저에만(주인 PC 업무는 다른 PC에 안 보임 · 주인 11/18 3a)
+     [계정] 탭만 관리 열쇠(csx:kbAdmin)가 있는 브라우저에만 · 탭·화면에 '팀장' 말 없음
    · 게시판 현황: 기록기가 게시판 기록마다 남기는 '인입처'를 팀 서버 team.get(날짜 → 이름 → sites)에서 모아 보고 시트
      '고객 데일리 응대 현황' H~AH 칸 순서 그대로 보여 줌(팀 전체 · 같은 글 두 번 기록은 기록기가 이미 1건으로 셈)
      분홍 칸(O 119 · P 이메일 · R 그 외 이메일)은 안 셈 · 다른 분이 언제 적을지 몰라 붙여넣기를 ① H~N ② Q ③ S~AH 세 번으로 나눔
@@ -184,7 +186,7 @@
   function todos() { var v = S.json(K_TODO, []); return Array.isArray(v) ? v : []; }
   function saveTodos(l) { S.put(K_TODO, l); badge(); }
   function due(t) { return !t.done && t.time && t.time <= Date.now(); }
-  function badge() { var b = $('leadBadge'); if (!b) return; var n = on() ? todos().filter(due).length : 0; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
+  function badge() { var b = $('leadBadge'); if (!b) return; var n = todos().filter(due).length; b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n); }
   function fmtTime(t) { var d = new Date(t + 9 * 3600e3); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }
   function kstInput(t) { var d = new Date(t + 9 * 3600e3).toISOString(); return { date: d.slice(0, 10), time: d.slice(11, 16) }; }
   function todoCard() {
@@ -225,7 +227,7 @@
   // 시간이 된 업무 → 화면 오른쪽 아래 알림([확인] · [10분 뒤])
   var dueBox = null;
   function checkDue() {
-    badge(); if (!on()) { if (dueBox) { dueBox.remove(); dueBox = null; } return; }
+    badge();
     var t = todos().filter(function (x) { return due(x) && !x.alerted; })[0];
     if (!t) { if (dueBox) { dueBox.remove(); dueBox = null; } return; }
     if (dueBox && dueBox.dataset.id === String(t.id)) return;
@@ -407,8 +409,8 @@
 
   /* 탭 · 보기 */
   function syncTabs() {
-    var y = on(); ['leadTab', 'acctTab'].forEach(function (id) { var t = $(id); if (t) t.hidden = !y; });
-    if (!y && (cur === 'lead' || cur === 'acct') && root.CSApp) CSApp.setView('scripts', false);
+    var y = on(), lt = $('leadTab'), at = $('acctTab'); if (lt) lt.hidden = false; if (at) at.hidden = !y; // 2026-11-18 [게시판/알림]은 모두 · [계정]만 관리 열쇠 PC
+    if (!y && cur === 'acct' && root.CSApp) CSApp.setView('scripts', false);
     if (!y) lock();
     checkDue();
   }

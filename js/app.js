@@ -145,7 +145,7 @@
   var VIEWS = ['scripts', 'req', 'defect', 'notice', 'board', 'work', 'rank', 'fb', 'lead', 'acct'];
   function setView(v, focus) {
     if (VIEWS.indexOf(v) < 0) v = 'scripts';
-    if ((v === 'lead' || v === 'acct') && !(window.KBLead && KBLead.on())) v = 'scripts'; // 2026-11-12 관리 열쇠 있는 PC에만
+    if (v === 'acct' && !(window.KBLead && KBLead.on())) v = 'scripts'; // 2026-11-12 [계정]은 관리 열쇠 있는 PC에만 · 2026-11-18 [게시판/알림]은 모두에게(주인 11/18)
     var prevView = curView; curView = v;
     VIEWS.forEach(function (x) { $('v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.setAttribute('aria-selected', String(t.dataset.v === v)); });
@@ -158,7 +158,7 @@
     if (v === 'work') { renderWork(); loadWork(); }
     if (v === 'rank') KBTeamRec.show(); else KBTeamRec.hide(); // 2026-11-01 팀 기록(오늘만)
     if (window.KBFeedback) { if (v === 'fb') KBFeedback.show(); else KBFeedback.hide(); } // 2026-11-06 내 피드백(본인 것만)
-    if (window.KBLead) { if (v === 'lead' || v === 'acct') KBLead.show(v); else KBLead.hide(); } // 2026-11-12 현황·업무 · 계정
+    if (window.KBLead) { if (v === 'lead' || v === 'acct') KBLead.show(v); else KBLead.hide(); } // 2026-11-12 게시판(예전 현황·업무) · 계정
     if (focus !== false) { var input = v === 'scripts' ? $('q') : v === 'req' ? $('rq') : v === 'defect' ? $('dq') : null; if (input) setTimeout(function () { input.focus(); }, 0); }
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { setView(t.dataset.v); }); });
@@ -1707,7 +1707,7 @@
   /* ───── 시작 ───── */
   (async function boot() {
     applyTheme(); loadPersonal();
-    if (window.KBLead) KBLead.syncTabs(); // 2026-11-12 관리 열쇠 있는 PC에만 [현황·업무] · [계정]
+    if (window.KBLead) KBLead.syncTabs(); // [게시판/알림]은 모두 · [계정]은 관리 열쇠 있는 PC에만
     note.value = S.get(K.note) || ''; blanks();
     var first = (location.hash || '').slice(1);
     if (!findFromHash()) setView(VIEWS.indexOf(first) >= 0 ? first : 'scripts', true);

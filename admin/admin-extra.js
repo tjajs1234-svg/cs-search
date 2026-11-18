@@ -201,7 +201,7 @@
       var nout = mk('div', 'muted'); nout.style.gridColumn = '1 / -1'; nout.style.fontSize = '12px';
       nrow.append(nu, check('notice', function () { return ntc.url; }, null, nout), nout);
       box.append(nrow);
-      box.append(lab('게시판 기록 시트 ‘Daily 응대 기록 시트 (게시판)’ 탭', '[현황·업무] 게시판 현황 · A칸 날짜 · B칸 입점처만 읽어요'));
+      box.append(lab('게시판 기록 시트 ‘Daily 응대 기록 시트 (게시판)’ 탭', '[게시판/알림] 탭 · A칸 날짜 · B칸 입점처만 읽어요'));
       var brow = mk('div', 'clrow'); brow.style.gridTemplateColumns = 'minmax(0,1fr) auto';
       var bu = input(brd.url, 'https://docs.google.com/spreadsheets/d/…/edit#gid=…'); bu.addEventListener('input', function () { brd.url = bu.value.trim(); });
       var bout = mk('div', 'muted'); bout.style.gridColumn = '1 / -1'; bout.style.fontSize = '12px';
