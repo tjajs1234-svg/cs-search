@@ -196,7 +196,7 @@
     if (doneN) h.append(btn('끝낸 것 지우기', 'sm ghost', function () { saveTodos(todos().filter(function (t) { return !t.done; })); renderLead('todo'); }));
     c.append(h, el('p', 'ldsub', '이 PC 브라우저에만 저장해요(서버 · 다른 PC로 안 감) · 시간이 되면 검색기 화면에 알려요'));
     var f = el('div', 'ldform');
-    var who = el('input'); who.placeholder = '대상 (예: 주문번호 끝 4자리)'; who.maxLength = 60; who.setAttribute('aria-label', '대상');
+    var who = el('input'); who.placeholder = '고객명 또는 주문번호'; who.maxLength = 60; who.setAttribute('aria-label', '대상');
     var task = el('input'); task.placeholder = '할 일'; task.maxLength = 200; task.setAttribute('aria-label', '할 일');
     var dt = el('input'); dt.type = 'date'; dt.setAttribute('aria-label', '날짜');
     var tm = el('input'); tm.type = 'time'; tm.setAttribute('aria-label', '시간');
